@@ -16,6 +16,16 @@ let token = localStorage.getItem(TOKEN_KEY);
 let user: SessionResponse['user'] | undefined;
 let selectedOrder: Order | undefined;
 let orderRequestVersion = 0;
+let detailRequestVersion = 0;
+
+class HttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 
 function element<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -49,6 +59,7 @@ function showLogin(): void {
   user = undefined;
   selectedOrder = undefined;
   orderRequestVersion++;
+  detailRequestVersion++;
   localStorage.removeItem(TOKEN_KEY);
   element('workspace').hidden = true;
   element('session-controls').hidden = true;
@@ -57,8 +68,9 @@ function showLogin(): void {
 }
 
 async function api<T>(path: string, schema: z.ZodType<T>, init: RequestInit = {}): Promise<T> {
+  const requestToken = token;
   const headers = new Headers(init.headers);
-  if (token) headers.set('Authorization', `Bearer ${token}`);
+  if (requestToken) headers.set('Authorization', `Bearer ${requestToken}`);
   if (init.body) headers.set('Content-Type', 'application/json');
   let response: Response;
   try {
@@ -70,12 +82,13 @@ async function api<T>(path: string, schema: z.ZodType<T>, init: RequestInit = {}
   try {
     body = await response.json();
   } catch {
-    throw new Error('Server response did not match the expected contract.');
+    body = undefined;
   }
   if (!response.ok) {
     const result = errorResponseSchema.safeParse(body);
-    if (response.status === 401 && path !== '/api/session') showLogin();
-    throw new Error(
+    if (response.status === 401 && path !== '/api/session' && requestToken === token) showLogin();
+    throw new HttpError(
+      response.status,
       result.success
         ? result.data.error.message
         : 'Server response did not match the expected contract.',
@@ -147,6 +160,7 @@ async function refreshOrders(): Promise<void> {
 }
 
 function renderDetail(order: Order): void {
+  detailRequestVersion++;
   selectedOrder = order;
   const fields = element('detail-fields');
   fields.replaceChildren();
@@ -157,7 +171,11 @@ function renderDetail(order: Order): void {
     ['Quantity', String(order.quantity)],
     ['Type', order.type],
     ['Status', order.status, 'detail-status'],
-    ['Limit price', order.limitPrice === undefined ? '—' : order.limitPrice.toFixed(2)],
+    [
+      'Limit price',
+      order.limitPrice === undefined ? '—' : String(order.limitPrice),
+      'detail-limit-price',
+    ],
     ['Created time', order.createdAt],
   ];
   for (const [label, text, testId] of values) {
@@ -176,8 +194,14 @@ function renderDetail(order: Order): void {
 }
 
 async function loadDetail(id: string): Promise<void> {
-  const result = await api(`/api/orders/${encodeURIComponent(id)}`, orderResponseSchema);
-  renderDetail(result.order);
+  const version = ++detailRequestVersion;
+  const requestToken = token;
+  try {
+    const result = await api(`/api/orders/${encodeURIComponent(id)}`, orderResponseSchema);
+    if (version === detailRequestVersion && requestToken === token) renderDetail(result.order);
+  } catch (error) {
+    if (version === detailRequestVersion && requestToken === token) throw error;
+  }
 }
 
 async function loadPositions(): Promise<void> {
@@ -263,18 +287,25 @@ async function submitOrder(): Promise<void> {
 
 async function cancelOrder(): Promise<void> {
   if (!selectedOrder) return;
+  const target = selectedOrder;
+  const version = detailRequestVersion;
+  const requestToken = token;
   clearMessages();
   const cancel = element<HTMLButtonElement>('cancel-order');
   cancel.disabled = true;
   try {
     const result = await api(
-      `/api/orders/${encodeURIComponent(selectedOrder.id)}/cancel`,
+      `/api/orders/${encodeURIComponent(target.id)}/cancel`,
       orderResponseSchema,
       { method: 'POST' },
     );
-    renderDetail(result.order);
+    if (requestToken !== token) return;
+    if (version === detailRequestVersion && selectedOrder?.id === target.id)
+      renderDetail(result.order);
     await refreshOrders();
-    showSuccess('Order canceled.');
+    if (requestToken === token) showSuccess('Order canceled.');
+  } catch (error) {
+    if (requestToken === token) throw error;
   } finally {
     cancel.disabled = false;
   }
@@ -311,6 +342,7 @@ element('cancel-order').addEventListener('click', () => {
   void cancelOrder().catch(showError);
 });
 element('close-detail').addEventListener('click', () => {
+  detailRequestVersion++;
   element('order-detail').hidden = true;
   selectedOrder = undefined;
 });
@@ -325,7 +357,7 @@ async function restoreSession(): Promise<void> {
     user = result.user;
     await openWorkspace();
   } catch (error) {
-    showLogin();
+    if (error instanceof HttpError && error.status === 401) showLogin();
     showError(error);
   }
 }
