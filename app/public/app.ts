@@ -352,11 +352,14 @@ element('sign-out').addEventListener('click', () => {
 
 async function restoreSession(): Promise<void> {
   if (!token) return;
+  const requestToken = token;
   try {
     const result = await api('/api/session', z.object({ user: userSchema }).strict());
+    if (requestToken !== token) return;
     user = result.user;
     await openWorkspace();
   } catch (error) {
+    if (requestToken !== token) return;
     if (error instanceof HttpError && error.status === 401) showLogin();
     showError(error);
   }

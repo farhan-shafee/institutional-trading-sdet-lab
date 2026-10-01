@@ -1,7 +1,8 @@
 import type { Page } from '@playwright/test';
-import { orderResponseSchema } from '../../app/domain/schemas.js';
+import { orderResponseSchema, ordersResponseSchema } from '../../app/domain/schemas.js';
+import { LoginPage } from '../../pages/LoginPage.js';
 import { OrderEntryPage } from '../../pages/OrderEntryPage.js';
-import { seedIds } from '../../test-data/fixtures/reference-data.js';
+import { credentials, seedIds } from '../../test-data/fixtures/reference-data.js';
 import { test, expect } from '../fixtures/tradeflow.fixture.js';
 
 async function holdResponse(page: Page, path: string) {
@@ -298,3 +299,107 @@ test('details preserve an accepted positive LIMIT price below one cent', async (
   await expect(page.getByTestId('detail-id')).toHaveText(order.id);
   await expect(page.getByTestId('detail-limit-price')).toHaveText('0.001');
 });
+
+for (const status of [401, 200] as const) {
+  test(`a late ${status} restoration cannot replace a newer viewer login`, async ({
+    authenticatedPage: page,
+    authSession,
+    orderFactory,
+    tradeBlotterPage,
+    request,
+  }) => {
+    const earlierOrder = await orderFactory({ symbol: 'SPY', quantity: 37 });
+    let release!: () => void;
+    let signalStarted!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const started = new Promise<void>((resolve) => {
+      signalStarted = resolve;
+    });
+    let viewerToken: string | null = null;
+    await page.route('**/api/session', async (route) => {
+      if (route.request().method() !== 'GET') {
+        await route.continue();
+        return;
+      }
+      const earlierResponse = await route.fetch();
+      signalStarted();
+      await gate;
+      if (status === 200) {
+        await route.fulfill({ response: earlierResponse });
+      } else {
+        await route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: { code: 'UNAUTHORIZED', message: 'Earlier session is invalid.' },
+          }),
+        });
+      }
+    });
+    try {
+      await page.reload();
+      await started;
+      const login = new LoginPage(page);
+      await expect(login.signInButton).toBeVisible();
+      await login.signIn(credentials.viewer.username, credentials.viewer.password);
+      await expect(page.getByText('qa.viewer · viewer', { exact: true })).toBeVisible();
+      await expect(
+        page.getByText(
+          'Viewer sessions can inspect orders. Sign in as qa.user to submit or cancel.',
+          { exact: true },
+        ),
+      ).toBeVisible();
+      viewerToken = await page.evaluate(() => localStorage.getItem('tradeflow.token'));
+      expect(viewerToken).toBeTruthy();
+      expect(viewerToken).not.toBe(authSession.token);
+      const earlierResponse = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === '/api/session' &&
+          response.request().method() === 'GET',
+      );
+      release();
+      const response = await earlierResponse;
+      expect(response.status()).toBe(status);
+      expect(await response.finished()).toBeNull();
+      // This persistent header action lets the browser process the completed request,
+      // even if a broken restoration has hidden the workspace.
+      await page.getByText(/SYNTHETIC \/ LOCAL$/).click();
+      expect(await page.evaluate(() => localStorage.getItem('tradeflow.token'))).toBe(viewerToken);
+      await expect(page.getByText('qa.viewer · viewer', { exact: true })).toBeVisible();
+      await expect(
+        page.getByText(
+          'Viewer sessions can inspect orders. Sign in as qa.user to submit or cancel.',
+          { exact: true },
+        ),
+      ).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeHidden();
+      const filteredResponse = page.waitForResponse(
+        (response) => new URL(response.url()).search === '?symbol=MSFT',
+      );
+      await tradeBlotterPage.filter({ symbol: 'MSFT' });
+      expect(await (await filteredResponse).finished()).toBeNull();
+      await expect(tradeBlotterPage.row(seedIds.partialOrder)).toBeVisible();
+      await expect(page.getByRole('alert')).toBeHidden();
+      const headers = { Authorization: `Bearer ${viewerToken}` };
+      const currentSession = await request.get('/api/session', { headers });
+      expect(currentSession.status()).toBe(200);
+      const sessionBody: unknown = await currentSession.json();
+      expect(sessionBody).toEqual({ user: { username: 'qa.viewer', role: 'viewer' } });
+      const currentBook = await request.get('/api/orders', { headers });
+      expect(currentBook.status()).toBe(200);
+      const { orders } = ordersResponseSchema.parse(await currentBook.json());
+      expect(orders).toHaveLength(5);
+      expect(orders.map((order) => order.id)).not.toContain(earlierOrder.id);
+    } finally {
+      release();
+      if (viewerToken) {
+        const cleanup = await request.delete('/api/session', {
+          headers: { Authorization: `Bearer ${viewerToken}` },
+        });
+        expect(cleanup.status()).toBe(204);
+      }
+    }
+  });
+}
