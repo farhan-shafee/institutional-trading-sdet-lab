@@ -1,0 +1,62 @@
+name: TradeFlow Lab quality
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Node 24 LTS and npm cache
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: TypeScript strict checks
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Formatting
+        run: npm run format:check
+      - name: Validate OpenAPI
+        run: npm run contract:validate
+      - name: Validate workflow structure
+        run: npm run workflow:validate
+      - name: Domain unit checks
+        run: npm run test:unit
+      - name: Install browsers and Linux libraries
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: API, contract and cross-browser tests
+        run: npm test
+      - name: HTML report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-${{ github.run_attempt }}
+          path: playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore
+      - name: Failure evidence (trace, screenshot, video, JSON)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: failure-evidence-${{ github.run_attempt }}
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
