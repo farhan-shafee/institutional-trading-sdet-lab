@@ -11,6 +11,7 @@ test('intentional UI failure records the wrong lifecycle expectation', async ({
   });
   await tradeBlotterPage.viewOrder(seedIds.newOrder);
   await expect(authenticatedPage.getByTestId('detail-id')).toHaveText(seedIds.newOrder);
+  await authenticatedPage.getByTestId('detail-status').scrollIntoViewIfNeeded();
   // Deliberately false: normal suite excludes this entire directory.
   await expect(authenticatedPage.getByTestId('detail-status')).toHaveText('FILLED', {
     timeout: 2_000,

@@ -22,7 +22,7 @@ npm test -- --repeat-each=2
 npm run report
 ```
 
-Normal gates should exit `0`; the HTML report lists results by project. Actual commands, counts, and platform limitations from implementation verification are recorded in [validation evidence](docs/VALIDATION.md). This README is a guide to behavior, not a substitute for a test run.
+Normal gates should exit `0`; the HTML report lists results by project. Actual commands, counts, and platform limitations from implementation verification are recorded in [validation evidence](docs/VALIDATION.md). The [delivery report](docs/DELIVERY_REPORT.md) maps the implementation to the requested coverage, commits, demo, and study priorities. This README is a guide to behavior, not a substitute for a test run.
 
 ## What to inspect
 
