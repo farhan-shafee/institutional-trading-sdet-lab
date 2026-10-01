@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="TradeFlow Lab is a local synthetic interview and test engineering lab."
+    />
+    <title>TradeFlow Lab · Synthetic trading workspace</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <a class="brand" href="/" aria-label="TradeFlow Lab home"
+        ><span class="brand-mark" aria-hidden="true">TF</span
+        ><span>TradeFlow <strong>Lab</strong></span></a
+      >
+      <span class="environment"><span aria-hidden="true">●</span> SYNTHETIC / LOCAL</span>
+      <div id="session-controls" class="session-controls" hidden>
+        <span id="user-label"></span><button id="sign-out" class="secondary">Sign out</button>
+      </div>
+    </header>
+    <main>
+      <div id="error-message" class="message error" role="alert" hidden></div>
+      <div id="success-message" class="message success" role="status" hidden></div>
+      <section id="login-screen" class="login-layout">
+        <div class="login-intro">
+          <p class="eyebrow">TEST ENGINEERING WORKSPACE</p>
+          <h1>Small application.<br />Reliable evidence.</h1>
+          <p>
+            Explore an order lifecycle built for testing: isolated sessions, explicit boundaries,
+            and repeatable synthetic data.
+          </p>
+          <div class="lab-note">
+            <strong>Interview &amp; learning lab</strong>
+            <p>
+              Every order, position, and credential is synthetic. This local application has no
+              brokerage, market-data, or real trading connections.
+            </p>
+          </div>
+          <div class="workflow">
+            <span>01 &nbsp; AUTHENTICATE</span><span>02 &nbsp; INSPECT</span
+            ><span>03 &nbsp; TEST</span>
+          </div>
+        </div>
+        <section class="panel login-panel" aria-labelledby="login-title">
+          <p class="eyebrow">SYNTHETIC SESSION</p>
+          <h2 id="login-title">Sign in to TradeFlow Lab</h2>
+          <p class="muted">A fresh order book is created for every login.</p>
+          <form id="login-form" novalidate>
+            <label for="username">Username</label
+            ><input id="username" name="username" autocomplete="username" placeholder="qa.user" />
+            <label for="password">Password</label
+            ><input id="password" name="password" type="password" autocomplete="current-password" />
+            <button type="submit" class="primary">Sign in <span aria-hidden="true">→</span></button>
+          </form>
+          <div class="credentials">
+            <strong>Public lab credentials</strong>
+            <p>
+              Trader: <code>qa.user</code> · Viewer: <code>qa.viewer</code><br />Password:
+              <code>Password123!</code>
+            </p>
+          </div>
+        </section>
+      </section>
+      <div id="workspace" hidden>
+        <div class="workspace-heading">
+          <div>
+            <p class="eyebrow">ORDER MANAGEMENT / SYNTHETIC</p>
+            <h1>Order blotter</h1>
+            <p class="muted">
+              Your session owns an isolated book. Changes are local to this session.
+            </p>
+          </div>
+          <span class="workspace-badge">INTERVIEW LAB</span>
+        </div>
+        <div class="workspace-grid">
+          <section class="panel blotter-panel" aria-labelledby="blotter-title">
+            <div class="panel-heading">
+              <h2 id="blotter-title">Session orders</h2>
+              <span id="order-count" class="muted"></span>
+            </div>
+            <form id="filters" class="filters" aria-label="Order filters">
+              <div>
+                <label for="filter-symbol">Filter symbol</label
+                ><select id="filter-symbol">
+                  <option value="">All symbols</option>
+                  <option>AAPL</option>
+                  <option>MSFT</option>
+                  <option>NVDA</option>
+                  <option>SPY</option>
+                </select>
+              </div>
+              <div>
+                <label for="filter-side">Filter side</label
+                ><select id="filter-side">
+                  <option value="">All sides</option>
+                  <option>BUY</option>
+                  <option>SELL</option>
+                </select>
+              </div>
+              <div>
+                <label for="filter-status">Filter status</label
+                ><select id="filter-status">
+                  <option value="">All statuses</option>
+                  <option>NEW</option>
+                  <option>PARTIALLY_FILLED</option>
+                  <option>FILLED</option>
+                  <option>CANCELED</option>
+                  <option>REJECTED</option>
+                </select>
+              </div>
+            </form>
+            <div class="table-scroll">
+              <table aria-label="Orders">
+                <thead>
+                  <tr>
+                    <th scope="col">Order ID</th>
+                    <th scope="col">Symbol</th>
+                    <th scope="col">Side</th>
+                    <th scope="col">Quantity</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Created time</th>
+                    <th scope="col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="orders-body"></tbody>
+              </table>
+            </div>
+          </section>
+          <section class="panel entry-panel" aria-labelledby="entry-title">
+            <p class="eyebrow">SYNTHETIC WORKFLOW</p>
+            <h2 id="entry-title">New synthetic order</h2>
+            <p id="viewer-note" class="muted" hidden>
+              Viewer sessions can inspect orders. Sign in as qa.user to submit or cancel.
+            </p>
+            <form id="order-form" novalidate>
+              <div class="form-pair">
+                <div>
+                  <label for="symbol">Symbol</label
+                  ><select id="symbol">
+                    <option>AAPL</option>
+                    <option>MSFT</option>
+                    <option>NVDA</option>
+                    <option>SPY</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="side">Side</label
+                  ><select id="side">
+                    <option>BUY</option>
+                    <option>SELL</option>
+                  </select>
+                </div>
+              </div>
+              <label for="quantity">Quantity</label
+              ><input
+                id="quantity"
+                type="number"
+                min="1"
+                max="1000000"
+                step="1"
+                inputmode="numeric"
+                value="100"
+              />
+              <label for="order-type">Order type</label
+              ><select id="order-type">
+                <option>MARKET</option>
+                <option>LIMIT</option>
+              </select>
+              <div id="limit-price-field" hidden>
+                <label for="limit-price">Limit price</label
+                ><input
+                  id="limit-price"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  inputmode="decimal"
+                  placeholder="185.25"
+                />
+              </div>
+              <p class="form-note">
+                Whole shares, 1–1,000,000. Limit orders require a positive price.
+              </p>
+              <button type="submit" class="primary">Submit order</button>
+            </form>
+          </section>
+          <section
+            id="order-detail"
+            class="panel detail-panel"
+            role="region"
+            aria-label="Order details"
+            hidden
+          >
+            <div class="panel-heading">
+              <h2>Order details</h2>
+              <button id="close-detail" class="secondary">Close details</button>
+            </div>
+            <dl id="detail-fields"></dl>
+            <button id="cancel-order" class="danger" hidden>Cancel order</button>
+          </section>
+          <section class="panel positions-panel" aria-labelledby="positions-title">
+            <div class="panel-heading">
+              <h2 id="positions-title">Positions</h2>
+              <span class="muted">Static synthetic read model</span>
+            </div>
+            <div class="table-scroll">
+              <table aria-label="Positions">
+                <thead>
+                  <tr>
+                    <th scope="col">Symbol</th>
+                    <th scope="col">Quantity</th>
+                    <th scope="col">Average price</th>
+                  </tr>
+                </thead>
+                <tbody id="positions-body"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+    <footer>
+      <span>TradeFlow Lab · interview &amp; learning lab</span
+      ><span>No real orders. No external financial integrations.</span>
+    </footer>
+  </body>
+</html>

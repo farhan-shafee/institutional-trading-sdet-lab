@@ -5,7 +5,7 @@ import { OrderBook } from '../../app/domain/order-book.js';
 await test('each book starts with the five deterministic lifecycle examples', () => {
   const book = new OrderBook();
   assert.deepEqual(
-    book.list().map((order) => (order as { id: string }).id),
+    book.list().map((order) => order.id),
     [
       'seed-new-aapl',
       'seed-partial-msft',
@@ -18,16 +18,13 @@ await test('each book starts with the five deterministic lifecycle examples', ()
 
 await test('canceling NEW transitions the order to CANCELED', () => {
   const book = new OrderBook();
-  const result = book.cancel('seed-new-aapl') as { status: string };
+  const result = book.cancel('seed-new-aapl');
   assert.equal(result.status, 'CANCELED');
-  assert.equal((book.get('seed-new-aapl') as { status: string }).status, 'CANCELED');
+  assert.equal(book.get('seed-new-aapl').status, 'CANCELED');
 });
 
 await test('canceling PARTIALLY_FILLED transitions the order to CANCELED', () => {
-  assert.equal(
-    (new OrderBook().cancel('seed-partial-msft') as { status: string }).status,
-    'CANCELED',
-  );
+  assert.equal(new OrderBook().cancel('seed-partial-msft').status, 'CANCELED');
 });
 
 for (const id of ['seed-filled-nvda', 'seed-canceled-spy', 'seed-rejected-aapl']) {
@@ -48,8 +45,8 @@ await test('an unknown detail or cancellation returns ORDER_NOT_FOUND', () => {
 await test('new orders receive unique IDs, timestamp, and NEW status', () => {
   const book = new OrderBook();
   const input = { symbol: 'AAPL', side: 'BUY', quantity: 7, type: 'MARKET' };
-  const first = book.create(input) as { id: string; status: string; createdAt: string };
-  const second = book.create(input) as { id: string };
+  const first = book.create(input);
+  const second = book.create(input);
   assert.notEqual(first.id, second.id);
   assert.equal(first.status, 'NEW');
   assert.ok(Number.isFinite(Date.parse(first.createdAt)));
@@ -69,16 +66,17 @@ await test('mutation in one book cannot change a second book', () => {
   const second = new OrderBook();
   first.cancel('seed-new-aapl');
   first.create({ symbol: 'SPY', side: 'SELL', quantity: 20, type: 'MARKET' });
-  assert.equal((second.get('seed-new-aapl') as { status: string }).status, 'NEW');
+  assert.equal(second.get('seed-new-aapl').status, 'NEW');
   assert.equal(second.list().length, 5);
 });
 
 await test('returned orders cannot be mutated to bypass the lifecycle', () => {
   const book = new OrderBook();
-  const detail = book.get('seed-new-aapl') as { status: string };
+  const detail = book.get('seed-new-aapl');
   detail.status = 'FILLED';
-  const listed = book.list()[0] as { quantity: number };
+  const listed = book.list()[0];
+  assert.ok(listed);
   listed.quantity = -1;
-  assert.equal((book.get('seed-new-aapl') as { status: string }).status, 'NEW');
-  assert.equal((book.get('seed-new-aapl') as { quantity: number }).quantity, 100);
+  assert.equal(book.get('seed-new-aapl').status, 'NEW');
+  assert.equal(book.get('seed-new-aapl').quantity, 100);
 });

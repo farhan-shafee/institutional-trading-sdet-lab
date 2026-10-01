@@ -1,0 +1,518 @@
+openapi: 3.0.3
+info:
+  title: TradeFlow Lab API
+  version: 1.0.0
+  description: >-
+    Local synthetic interview and learning lab. No real orders, credentials,
+    brokerage connectivity, market data, or financial transactions. Every login
+    creates an isolated in-memory order book; DELETE /api/session releases it.
+servers:
+  - url: http://127.0.0.1:3000
+    description: Local loopback server; PORT may override 3000.
+tags:
+  - name: Environment
+  - name: Session
+  - name: Orders
+  - name: Positions
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      tags: [Environment]
+      operationId: getHealth
+      summary: Check local readiness and synthetic identity
+      security: []
+      responses:
+        '200':
+          description: Server is ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /openapi.yaml:
+    get:
+      tags: [Environment]
+      operationId: getOpenApiDocument
+      summary: Read this public API specification
+      security: []
+      responses:
+        '200':
+          description: This OpenAPI 3.0 YAML document.
+          content:
+            application/yaml:
+              schema:
+                type: string
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/session:
+    post:
+      tags: [Session]
+      operationId: createSession
+      summary: Authenticate synthetic credentials and create a fresh isolated book
+      description: >-
+        qa.user has trader permissions and qa.viewer has viewer permissions.
+        Both use the public synthetic password Password123!.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionRequest'
+            example:
+              username: qa.user
+              password: Password123!
+      responses:
+        '200':
+          description: Fresh synthetic session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid synthetic credentials (INVALID_CREDENTIALS).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      tags: [Session]
+      operationId: getSession
+      summary: Restore the identity of the current synthetic session
+      responses:
+        '200':
+          description: Current user; does not create a new book or token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentSessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [Session]
+      operationId: deleteSession
+      summary: Revoke the bearer token and release its isolated book
+      responses:
+        '204':
+          description: Session removed; no response body.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/orders:
+    get:
+      tags: [Orders]
+      operationId: listOrders
+      summary: List the authenticated session's synthetic orders
+      description: >-
+        Filters combine with AND. Unknown, empty, repeated, or unsupported filter
+        parameters return VALIDATION_ERROR. An omitted filter means all values.
+      parameters:
+        - name: symbol
+          in: query
+          schema:
+            $ref: '#/components/schemas/Symbol'
+        - name: side
+          in: query
+          schema:
+            $ref: '#/components/schemas/Side'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/OrderStatus'
+      responses:
+        '200':
+          description: Matching orders, including an empty array when no orders match.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrdersResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Orders]
+      operationId: createOrder
+      summary: Submit a synthetic order (trader role)
+      description: >-
+        A valid submission gets a unique ID, current UTC timestamp, and NEW
+        status. This lab simulates no fills or market executions. MARKET forbids
+        limitPrice; LIMIT requires a positive finite numeric limitPrice.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrder'
+            examples:
+              market:
+                value:
+                  symbol: AAPL
+                  side: BUY
+                  quantity: 100
+                  type: MARKET
+              limit:
+                value:
+                  symbol: MSFT
+                  side: SELL
+                  quantity: 50
+                  type: LIMIT
+                  limitPrice: 410.5
+      responses:
+        '201':
+          description: Order created in this session's book.
+          headers:
+            Location:
+              description: Relative URL of the synthetic order detail.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/orders/{id}:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    get:
+      tags: [Orders]
+      operationId: getOrder
+      summary: Inspect an order in the current session's book
+      responses:
+        '200':
+          description: Synthetic order detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/OrderNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/orders/{id}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    post:
+      tags: [Orders]
+      operationId: cancelOrder
+      summary: Cancel an eligible synthetic order (trader role)
+      description: >-
+        Only NEW and PARTIALLY_FILLED may transition to CANCELED. FILLED,
+        CANCELED, and REJECTED return 409 and remain unchanged. No body is needed.
+      responses:
+        '200':
+          description: Order now has CANCELED status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/OrderNotFound'
+        '409':
+          description: ORDER_NOT_CANCELABLE; the prior state is unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/positions:
+    get:
+      tags: [Positions]
+      operationId: listPositions
+      summary: Read the static synthetic positions model
+      description: Position quantities are deliberately not recalculated by order submission or cancellation.
+      responses:
+        '200':
+          description: Four synthetic reference positions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PositionsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Random, in-memory synthetic session token. No production identity provider.
+  parameters:
+    OrderId:
+      name: id
+      in: path
+      required: true
+      description: A seeded or session-generated synthetic order ID.
+      schema:
+        type: string
+        minLength: 1
+      example: seed-new-aapl
+  responses:
+    BadRequest:
+      description: Invalid fields or filters (VALIDATION_ERROR), or malformed JSON (INVALID_JSON).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid bearer token (UNAUTHORIZED).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Viewer role cannot mutate orders (FORBIDDEN).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    OrderNotFound:
+      description: Order does not exist in this session's book (ORDER_NOT_FOUND).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    PayloadTooLarge:
+      description: JSON body exceeds 16384 bytes (PAYLOAD_TOO_LARGE).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnsupportedMediaType:
+      description: JSON endpoint requires Content-Type application/json (UNSUPPORTED_MEDIA_TYPE).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Unexpected local server error (INTERNAL_ERROR).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    Symbol:
+      type: string
+      enum: [AAPL, MSFT, NVDA, SPY]
+    Side:
+      type: string
+      enum: [BUY, SELL]
+    OrderStatus:
+      type: string
+      enum: [NEW, PARTIALLY_FILLED, FILLED, CANCELED, REJECTED]
+    CreateOrder:
+      type: object
+      additionalProperties: false
+      required: [symbol, side, quantity, type]
+      properties:
+        symbol:
+          $ref: '#/components/schemas/Symbol'
+        side:
+          $ref: '#/components/schemas/Side'
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+        type:
+          type: string
+          enum: [MARKET, LIMIT]
+        limitPrice:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+      oneOf:
+        - properties:
+            type:
+              type: string
+              enum: [MARKET]
+          not:
+            required: [limitPrice]
+        - properties:
+            type:
+              type: string
+              enum: [LIMIT]
+          required: [limitPrice]
+    Order:
+      type: object
+      additionalProperties: false
+      required: [id, symbol, side, quantity, type, status, createdAt]
+      properties:
+        id:
+          type: string
+          minLength: 1
+        symbol:
+          $ref: '#/components/schemas/Symbol'
+        side:
+          $ref: '#/components/schemas/Side'
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+        type:
+          type: string
+          enum: [MARKET, LIMIT]
+        limitPrice:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        createdAt:
+          type: string
+          format: date-time
+      oneOf:
+        - properties:
+            type:
+              type: string
+              enum: [MARKET]
+          not:
+            required: [limitPrice]
+        - properties:
+            type:
+              type: string
+              enum: [LIMIT]
+          required: [limitPrice]
+    OrderResponse:
+      type: object
+      additionalProperties: false
+      required: [order]
+      properties:
+        order:
+          $ref: '#/components/schemas/Order'
+    OrdersResponse:
+      type: object
+      additionalProperties: false
+      required: [orders]
+      properties:
+        orders:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+    Position:
+      type: object
+      additionalProperties: false
+      required: [symbol, quantity, averagePrice]
+      properties:
+        symbol:
+          $ref: '#/components/schemas/Symbol'
+        quantity:
+          type: integer
+        averagePrice:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+    PositionsResponse:
+      type: object
+      additionalProperties: false
+      required: [positions]
+      properties:
+        positions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Position'
+    SessionRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 1
+          maxLength: 100
+        password:
+          type: string
+          minLength: 1
+          maxLength: 100
+    User:
+      type: object
+      additionalProperties: false
+      required: [username, role]
+      properties:
+        username:
+          type: string
+          enum: [qa.user, qa.viewer]
+        role:
+          type: string
+          enum: [trader, viewer]
+    SessionResponse:
+      type: object
+      additionalProperties: false
+      required: [token, user]
+      properties:
+        token:
+          type: string
+          minLength: 1
+        user:
+          $ref: '#/components/schemas/User'
+    CurrentSessionResponse:
+      type: object
+      additionalProperties: false
+      required: [user]
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              minLength: 1
+            message:
+              type: string
+              minLength: 1
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status, service, synthetic]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        service:
+          type: string
+          enum: [TradeFlow Lab]
+        synthetic:
+          type: boolean
+          enum: [true]
