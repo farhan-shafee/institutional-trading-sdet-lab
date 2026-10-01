@@ -88,4 +88,4 @@ Use the five-minute core, then spend the remaining time on questions the intervi
 npm run perf:smoke
 ```
 
-The smoke starts a separate server at loopback port 3001, authenticates a synthetic session, and sends 120 orders reads with concurrency four. It requires valid HTTP 200 bodies, zero errors, and a loose p95 latency threshold below 250 ms. The output is a local environment-sensitive signal. It is excluded from normal CI and does not establish enterprise load capacity, tail behavior under sustained load, or production trading performance.
+The smoke creates and owns an application server on an OS-assigned loopback port, uses its actual listening address, authenticates a synthetic session, and sends 120 orders reads with concurrency four. It deletes that session and closes its server in cleanup, so an existing server on port 3001 cannot supply its results. It requires valid HTTP 200 bodies, zero errors, and a loose p95 latency threshold below 250 ms. The output is a local environment-sensitive signal. It is excluded from normal CI and does not establish enterprise load capacity, tail behavior under sustained load, or production trading performance.
