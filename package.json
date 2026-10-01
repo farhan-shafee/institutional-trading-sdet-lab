@@ -1,0 +1,51 @@
+{
+  "name": "institutional-trading-sdet-lab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TradeFlow Lab: synthetic interview lab for evidence-driven SDET engineering",
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "build:ui": "esbuild app/public/app.ts --bundle --format=esm --target=es2022 --outfile=app/public/app.js",
+    "start": "npm run build:ui && tsx app/server/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test:unit": "tsx --test tests/unit/*.test.ts",
+    "contract:validate": "tsx scripts/validate-openapi.ts",
+    "workflow:validate": "tsx scripts/validate-workflow.ts",
+    "browsers:install": "playwright install chromium firefox webkit",
+    "test": "playwright test",
+    "test:ui": "playwright test tests/ui",
+    "test:api": "playwright test --project=service tests/api",
+    "test:contract": "playwright test --project=service tests/contract",
+    "test:integration": "playwright test tests/integration",
+    "demo:failure": "playwright test --config=playwright.demo.config.ts --grep-invert contract",
+    "demo:contract": "playwright test --config=playwright.demo.config.ts --grep contract",
+    "report": "playwright show-report playwright-report",
+    "report:demo": "playwright show-report demo-report",
+    "perf:smoke": "tsx scripts/perf-smoke.ts",
+    "validate": "npm run typecheck && npm run lint && npm run format:check && npm run contract:validate && npm run workflow:validate && npm run test:unit && npm test"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@apidevtools/swagger-parser": "^13.1.0",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.6.3",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.11.0",
+    "prettier": "^3.9.9",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.0",
+    "yaml": "^2.9.1"
+  }
+}

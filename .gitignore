@@ -1,0 +1,16 @@
+node_modules/
+app/public/app.js
+playwright-report/
+test-results/
+demo-report/
+demo-results/
+blob-report/
+playwright/.auth/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+Thumbs.db
+coverage/
+.local/

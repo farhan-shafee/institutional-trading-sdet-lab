@@ -1,0 +1,9 @@
+node_modules/
+package-lock.json
+app/public/app.js
+playwright-report/
+test-results/
+demo-report/
+demo-results/
+blob-report/
+.local/
