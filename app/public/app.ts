@@ -61,6 +61,16 @@ function showLogin(): void {
   orderRequestVersion++;
   detailRequestVersion++;
   localStorage.removeItem(TOKEN_KEY);
+  element('orders-body').replaceChildren();
+  element('order-count').textContent = '';
+  element('detail-fields').replaceChildren();
+  element('user-label').textContent = '';
+  const submit =
+    element<HTMLFormElement>('order-form').querySelector<HTMLButtonElement>(
+      'button[type="submit"]',
+    );
+  if (submit) submit.disabled = false;
+  element<HTMLButtonElement>('cancel-order').disabled = false;
   element('workspace').hidden = true;
   element('session-controls').hidden = true;
   element('login-screen').hidden = false;
@@ -147,16 +157,21 @@ function renderOrders(orders: Order[]): void {
 
 async function refreshOrders(): Promise<void> {
   const version = ++orderRequestVersion;
+  const requestToken = token;
   const filters = new URLSearchParams();
   for (const key of ['symbol', 'side', 'status']) {
     const filterValue = value(`filter-${key}`);
     if (filterValue) filters.set(key, filterValue);
   }
-  const result = await api(
-    `/api/orders${filters.size ? `?${filters.toString()}` : ''}`,
-    ordersResponseSchema,
-  );
-  if (version === orderRequestVersion) renderOrders(result.orders);
+  try {
+    const result = await api(
+      `/api/orders${filters.size ? `?${filters.toString()}` : ''}`,
+      ordersResponseSchema,
+    );
+    if (version === orderRequestVersion && requestToken === token) renderOrders(result.orders);
+  } catch (error) {
+    if (version === orderRequestVersion && requestToken === token) throw error;
+  }
 }
 
 function renderDetail(order: Order): void {
@@ -231,18 +246,24 @@ async function signIn(): Promise<void> {
   const form = element<HTMLFormElement>('login-form');
   const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
   if (submit) submit.disabled = true;
+  let sessionToken: string | undefined;
   try {
     const result = await api('/api/session', sessionResponseSchema, {
       method: 'POST',
       body: JSON.stringify({ username: value('username'), password: value('password') }),
     });
     token = result.token;
+    sessionToken = result.token;
     user = result.user;
     localStorage.setItem(TOKEN_KEY, token);
     element<HTMLInputElement>('password').value = '';
-    await openWorkspace();
   } finally {
     if (submit) submit.disabled = false;
+  }
+  try {
+    await openWorkspace();
+  } catch (error) {
+    if (sessionToken === token) throw error;
   }
 }
 
@@ -271,17 +292,21 @@ async function submitOrder(): Promise<void> {
       'button[type="submit"]',
     );
   if (submit) submit.disabled = true;
+  const requestToken = token;
   try {
     const result = await api('/api/orders', orderResponseSchema, {
       method: 'POST',
       body: JSON.stringify(parsed.data),
     });
+    if (requestToken !== token) return;
     element<HTMLFormElement>('filters').reset();
-    await refreshOrders();
     renderDetail(result.order);
     showSuccess('Order submitted.');
+    await refreshOrders();
+  } catch (error) {
+    if (requestToken === token) throw error;
   } finally {
-    if (submit) submit.disabled = false;
+    if (submit && requestToken === token) submit.disabled = false;
   }
 }
 
@@ -307,19 +332,25 @@ async function cancelOrder(): Promise<void> {
   } catch (error) {
     if (requestToken === token) throw error;
   } finally {
-    cancel.disabled = false;
+    if (requestToken === token) cancel.disabled = false;
   }
 }
 
 async function signOut(): Promise<void> {
   clearMessages();
-  const response = await fetch('/api/session', {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${token ?? ''}` },
-  });
-  if (!response.ok && response.status !== 401)
-    throw new Error('The synthetic session could not be closed.');
-  showLogin();
+  const requestToken = token;
+  try {
+    const response = await fetch('/api/session', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${requestToken ?? ''}` },
+    });
+    if (requestToken !== token) return;
+    if (!response.ok && response.status !== 401)
+      throw new Error('The synthetic session could not be closed.');
+    showLogin();
+  } catch (error) {
+    if (requestToken === token) throw error;
+  }
 }
 
 element('login-form').addEventListener('submit', (event) => {

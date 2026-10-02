@@ -18,6 +18,8 @@ The API is local and synthetic. Every protected request identifies a session by 
 
 Protected routes return `401` for absent or invalid tokens. Errors have `{ "error": { "code": "...", "message": "..." } }`. Tests assert the intended status and code; a failure with the wrong reason is still a regression. JSON body endpoints also reject unsupported content type with `415` and bodies over 16 KiB with `413`. `GET /openapi.yaml` serves the public specification. OpenAPI is the detailed source for documented schemas and statuses.
 
+Order detail and cancellation percent-decode the captured order ID once. For example, `%73eed-new-aapl` identifies the same order as `seed-new-aapl`. Malformed percent encoding returns `400 VALIDATION_ERROR`; a validly encoded ID absent from the authenticated session's book returns `404 ORDER_NOT_FOUND`.
+
 ## Valid input and status transitions
 
 Order input has `symbol`, `side`, `quantity`, and `type`. Allowed symbols are AAPL/MSFT/NVDA/SPY; side is BUY/SELL; type is MARKET/LIMIT. Quantity is an integer from 1 through 1,000,000. LIMIT requires a positive finite `limitPrice`; MARKET rejects price. The API repeats validation regardless of browser form controls.

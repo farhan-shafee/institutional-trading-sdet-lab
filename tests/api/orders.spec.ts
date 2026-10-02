@@ -22,7 +22,11 @@ test('authorized order retrieval includes all seeded lifecycle states', async ({
   ]);
 });
 
-test('combined filters narrow orders by symbol, side and status', async ({ apiClient }) => {
+test('combined filters narrow orders by symbol, side and status', async ({
+  apiClient,
+  orderFactory,
+}) => {
+  await orderFactory({ symbol: 'AAPL', side: 'SELL', type: 'MARKET' });
   const response = await apiClient.get('/api/orders', {
     params: { symbol: 'AAPL', side: 'BUY', status: 'NEW' },
   });
@@ -37,6 +41,16 @@ test('combined filters narrow orders by symbol, side and status', async ({ apiCl
   });
 });
 
+test('side filter returns only the three SELL seed orders', async ({ apiClient }) => {
+  const response = await apiClient.get('/api/orders', { params: { side: 'SELL' } });
+  expect(response.status()).toBe(200);
+  const { orders } = ordersResponseSchema.parse(await response.json());
+  expect(orders).toHaveLength(3);
+  expect(orders.map((order) => order.id).sort()).toEqual(
+    [seedIds.partialOrder, seedIds.canceledOrder, seedIds.rejectedOrder].sort(),
+  );
+});
+
 test('order detail returns the requested order', async ({ apiClient }) => {
   const response = await apiClient.get(`/api/orders/${seedIds.partialOrder}`);
   expect(response.status()).toBe(200);
@@ -46,6 +60,47 @@ test('order detail returns the requested order', async ({ apiClient }) => {
     status: 'PARTIALLY_FILLED',
   });
 });
+
+test('percent-encoded order IDs resolve for detail and cancellation', async ({ apiClient }) => {
+  const originalResponse = await apiClient.get(`/api/orders/${seedIds.newOrder}`);
+  expect(originalResponse.status()).toBe(200);
+  const original = orderResponseSchema.parse(await originalResponse.json()).order;
+  expect(original.status).toBe('NEW');
+
+  const detail = await apiClient.get('/api/orders/%73eed-new-aapl');
+  expect(detail.status()).toBe(200);
+  expect(orderResponseSchema.parse(await detail.json()).order).toEqual(original);
+
+  const cancellation = await apiClient.post('/api/orders/%73eed-new-aapl/cancel');
+  expect(cancellation.status()).toBe(200);
+  const canceled = orderResponseSchema.parse(await cancellation.json()).order;
+  expect(canceled).toEqual({ ...original, status: 'CANCELED' });
+
+  const retained = await apiClient.get(`/api/orders/${seedIds.newOrder}`);
+  expect(retained.status()).toBe(200);
+  expect(orderResponseSchema.parse(await retained.json()).order).toEqual(canceled);
+});
+
+for (const id of ['%ZZ', '%E0%A4%A']) {
+  test(`malformed percent-encoded order ID ${id} returns structured validation errors`, async ({
+    apiClient,
+  }) => {
+    const before = await apiClient.get('/api/orders');
+    expect(before.status()).toBe(200);
+    const original = ordersResponseSchema.parse(await before.json());
+
+    for (const method of ['get', 'post'] as const) {
+      const endpoint = `/api/orders/${id}${method === 'post' ? '/cancel' : ''}`;
+      const response = await apiClient[method](endpoint);
+      expect(response.status(), `${method.toUpperCase()} ${endpoint}`).toBe(400);
+      expect(errorResponseSchema.parse(await response.json()).error.code).toBe('VALIDATION_ERROR');
+    }
+
+    const after = await apiClient.get('/api/orders');
+    expect(after.status()).toBe(200);
+    expect(ordersResponseSchema.parse(await after.json())).toEqual(original);
+  });
+}
 
 test('submitting a market order persists its values and assigns a unique id', async ({
   apiClient,
@@ -116,6 +171,10 @@ const invalidOrders = [
 
 for (const scenario of invalidOrders) {
   test(`rejects ${scenario.name} without changing the order book`, async ({ apiClient }) => {
+    const before = await apiClient.get('/api/orders');
+    expect(before.status()).toBe(200);
+    const original = ordersResponseSchema.parse(await before.json());
+
     const response = await apiClient.post('/api/orders', { data: scenario.data });
     expect(response.status()).toBe(400);
     const body = errorResponseSchema.parse(await response.json());
@@ -123,7 +182,9 @@ for (const scenario of invalidOrders) {
     expect(body.error.message).not.toBe('');
     const orders = await apiClient.get('/api/orders');
     expect(orders.status()).toBe(200);
-    expect(ordersResponseSchema.parse(await orders.json()).orders).toHaveLength(5);
+    const retained = ordersResponseSchema.parse(await orders.json());
+    expect(retained.orders).toHaveLength(5);
+    expect(retained).toEqual(original);
   });
 }
 

@@ -14,6 +14,8 @@ Read `tests/fixtures/tradeflow.fixture.ts` beside `tests/integration/order-state
 
 API tests can use `request` directly for missing-token or credential scenarios. Tests should not require an authenticated page merely to send an HTTP request.
 
+Anonymous API cases import the built-in `test` from `@playwright/test`. The authenticated fixture module overrides `storageState`, and Playwright also consumes that option while preparing its built-in `request` contexts. Using the extended test for an anonymous case would therefore require a successful trader login before its test body runs. The in-memory localStorage token does not add a bearer header; it still creates an unwanted setup dependency.
+
 ## Custom fixtures
 
 | Fixture             | Scope  | Responsibility                                                                                  |
@@ -43,7 +45,7 @@ flowchart LR
 
 Code before `await use(value)` establishes the fixture. The awaited `use` call hands it to dependents and the test. Code after it releases owned resources when that lifetime finishes. A `try/finally` makes ownership explicit when cleanup must survive a downstream failure. Playwright disposes built-in contexts; the custom session fixture revokes server state it created.
 
-Login produces a fresh clone of the seed book. The fixture creates a setup context through built-in `playwright.request.newContext`, and disposes it after DELETE cleanup. The separate authenticated `apiClient` context is disposed too. Anonymous tests use the built-in `request` fixture directly.
+Login produces a fresh clone of the seed book. The fixture creates a setup context through built-in `playwright.request.newContext`, and disposes it after DELETE cleanup. The separate authenticated `apiClient` context is disposed too. Anonymous tests use the built-in `test` and `request` without the authenticated fixture extension.
 
 The fixture overrides built-in `storageState` with `{ cookies: [], origins: [...] }`, setting `tradeflow.token` for the configured origin. There is no committed `.auth` file and no shared worker login. API and browser see the same session only within the same test. The [authentication guide](https://playwright.dev/docs/auth) discusses choosing state lifetime according to whether tests modify server-side state.
 

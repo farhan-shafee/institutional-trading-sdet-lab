@@ -1,3 +1,4 @@
+import { test as baseTest } from '@playwright/test';
 import {
   errorResponseSchema,
   orderResponseSchema,
@@ -9,7 +10,7 @@ import { credentials, seedIds } from '../../test-data/fixtures/reference-data.js
 import { test, expect } from '../fixtures/tradeflow.fixture.js';
 import { OpenApiContracts } from './openapi-validator.js';
 
-test('health publishes the expected synthetic environment contract', async ({ request }) => {
+baseTest('health publishes the expected synthetic environment contract', async ({ request }) => {
   const contracts = await OpenApiContracts.load(request);
   const response = await request.get('/health');
   expect(response.status()).toBe(200);
@@ -38,7 +39,7 @@ test('session restore returns its user without replacing the order book', async 
   expect(orderResponseSchema.parse(await retained.json()).order.id).toBe(order.id);
 });
 
-test('session deletion satisfies its documented empty 204 response', async ({ request }) => {
+baseTest('session deletion satisfies its documented empty 204 response', async ({ request }) => {
   const contracts = await OpenApiContracts.load(request);
   expect(contracts.noContentResponse('delete', '/api/session', 204)).toBe(true);
   const login = await request.post('/api/session', { data: credentials.trader });
@@ -104,31 +105,34 @@ test('positions satisfy the live OpenAPI contract and runtime schema', async ({ 
   expect(positionsResponseSchema.safeParse(body).success).toBe(true);
 });
 
-test('session success and auth errors satisfy their published contracts', async ({ request }) => {
-  const contracts = await OpenApiContracts.load(request);
-  const login = await request.post('/api/session', { data: credentials.trader });
-  expect(login.status()).toBe(200);
-  const body: unknown = await login.json();
-  const session = sessionResponseSchema.parse(body);
-  try {
-    const validateSession = contracts.response('post', '/api/session', 200);
-    expect(validateSession(body), JSON.stringify(validateSession.errors)).toBe(true);
-    const denied = await request.get('/api/orders');
-    expect(denied.status()).toBe(401);
-    const errorBody: unknown = await denied.json();
-    const validateError = contracts.response('get', '/api/orders', 401);
-    expect(validateError(errorBody), JSON.stringify(validateError.errors)).toBe(true);
-    expect(errorResponseSchema.parse(errorBody).error.code).toBe('UNAUTHORIZED');
-  } finally {
-    expect(
-      (
-        await request.delete('/api/session', {
-          headers: { Authorization: `Bearer ${session.token}` },
-        })
-      ).status(),
-    ).toBe(204);
-  }
-});
+baseTest(
+  'session success and auth errors satisfy their published contracts',
+  async ({ request }) => {
+    const contracts = await OpenApiContracts.load(request);
+    const login = await request.post('/api/session', { data: credentials.trader });
+    expect(login.status()).toBe(200);
+    const body: unknown = await login.json();
+    const session = sessionResponseSchema.parse(body);
+    try {
+      const validateSession = contracts.response('post', '/api/session', 200);
+      expect(validateSession(body), JSON.stringify(validateSession.errors)).toBe(true);
+      const denied = await request.get('/api/orders');
+      expect(denied.status()).toBe(401);
+      const errorBody: unknown = await denied.json();
+      const validateError = contracts.response('get', '/api/orders', 401);
+      expect(validateError(errorBody), JSON.stringify(validateError.errors)).toBe(true);
+      expect(errorResponseSchema.parse(errorBody).error.code).toBe('UNAUTHORIZED');
+    } finally {
+      expect(
+        (
+          await request.delete('/api/session', {
+            headers: { Authorization: `Bearer ${session.token}` },
+          })
+        ).status(),
+      ).toBe(204);
+    }
+  },
+);
 
 test('conflict errors are structured and satisfy the OpenAPI contract', async ({ apiClient }) => {
   const contracts = await OpenApiContracts.load(apiClient);
@@ -147,7 +151,13 @@ const malformedFields = [
   { name: 'unknown side', fault: { side: 'HOLD' } },
   { name: 'string quantity', fault: { quantity: '10' } },
   { name: 'zero quantity', fault: { quantity: 0 } },
+  { name: 'fractional quantity', fault: { quantity: 1.5 } },
+  { name: 'quantity above maximum', fault: { quantity: 1_000_001 } },
   { name: 'unknown order type', fault: { type: 'STOP' } },
+  { name: 'LIMIT order without price', fault: { type: 'LIMIT', limitPrice: undefined } },
+  { name: 'MARKET order with price', fault: { type: 'MARKET', limitPrice: 100 } },
+  { name: 'zero LIMIT price', fault: { type: 'LIMIT', limitPrice: 0 } },
+  { name: 'unspecified response field', fault: { unexpectedField: true } },
   { name: 'unknown status', fault: { status: 'DONE' } },
   { name: 'invalid timestamp', fault: { createdAt: 'yesterday' } },
 ] as const;

@@ -2,6 +2,8 @@
 
 Recorded on October 1, 2026 for TradeFlow Lab, a local synthetic interview and learning lab. This record separates executed checks, inspected artifacts, static review, and verification limits. Passing checks do not imply production trading suitability or human acceptance of generated behavior.
 
+The local implementation results below are historical evidence for application snapshot `901f162`, preserved in delivery commit `5897203`. They retain their original counts. The hosted baseline at `5897203` is recorded separately below; subsequent hostile-audit findings and current verification belong in [AUDIT.md](AUDIT.md).
+
 ## Environment and tested snapshot
 
 | Item                            | Observed value                       |
@@ -12,14 +14,23 @@ Recorded on October 1, 2026 for TradeFlow Lab, a local synthetic interview and l
 | Playwright Test                 | 1.63.0                               |
 | Branch                          | `codex/tradeflow-lab`                |
 | Application/review-fix snapshot | `901f162`                            |
+| Historical delivery record      | `5897203`                            |
 | Browser engines executed        | Chromium, Firefox, WebKit            |
 | Normal local configuration      | 4 workers, fully parallel, 0 retries |
 
 The full validation run started at 4:34 p.m. America/New_York. Its machine-readable evidence is `.local/final-validation-results.json`; command output is `.local/final-validation.log`. These local evidence files and generated reports are intentionally ignored by Git. This committed document records their inspected results; a fresh clone generates its own artifacts by running the commands below.
 
-macOS, Linux, and hosted GitHub Actions execution have not been performed during this implementation. The Linux workflow is configured and structurally checked; local execution with `CI=true` is a separate configuration check, not a hosted Actions run.
+These implementation runs were local Windows checks. macOS has not been exercised. Local execution with `CI=true` remains a separate configuration check; the later hosted Linux execution is recorded below.
 
-## Full local gate
+## Hosted Linux baseline
+
+[GitHub Actions run 36932536997](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36932536997), attempt 1, completed successfully at commit `5897203757ee751c7febbe36f8e42ef2788a0668`. Its [quality job 110605110782](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36932536997/job/110605110782) passed the configured gates on Ubuntu 24.04.5, Node 24.21.0, and npm 11.19.0. The unit runner recorded **31 passed, 0 failed, 0 skipped**. The Playwright report recorded **141 passed in 155.117 seconds**, using two workers: service 54 and Chromium, Firefox, and WebKit 29 each. It recorded zero unexpected failures, flaky results, skipped tests, and actual retries.
+
+The successful HTML upload produced [playwright-report-1](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36932536997/artifacts/11196987186), artifact ID `11196987186`, size 332,464 bytes, with 14-day retention and recorded expiry `2026-10-15T22:06:09Z`. The failure-evidence upload was skipped because the job succeeded. Its configured seven-day retention and upload behavior on a failing hosted job remain unproven by this run.
+
+Inspected local copies are `.local/hosted-run.json`, `.local/hosted-run.log`, `.local/hosted-check-runs.json`, `.local/hosted-artifacts.json`, and `.local/hosted-report-data.json`. They are ignored evidence files. This run predates the current audit fixes, which need another hosted run. This task forbids pushing those fixes; [AUDIT.md](AUDIT.md) records their current evidence without extending this baseline's CI claim.
+
+## Historical full local gate
 
 `npm run validate` completed successfully. Its sequence was:
 
@@ -46,7 +57,7 @@ The log records strict compiler checks, zero-warning lint, successful formatting
 
 The project totals are service 54, Chromium 29, Firefox 29, and WebKit 29. Browser executions are counted separately from distinct scenarios; the 31 unit checks are not included in the 141 Playwright executions. These counts describe the recorded run, not a percentage of all possible domain behavior.
 
-## Repetition, local CI, and final demonstrations
+## Historical repetition, local CI, and final demonstrations
 
 The coordinating agent executed and inspected these final checks. Intentional-failure exits were verified against their intended assertion and evidence, rather than treated as generic nonzero outcomes.
 
@@ -57,7 +68,7 @@ The coordinating agent executed and inspected these final checks. Intentional-fa
 | Final intentional UI failure       | `npm run demo:failure`                          | Expected exit 1; actual NEW versus deliberate FILLED expectation; trace, screenshot, video, error context and HTML verified |
 | Final intentional contract failure | `npm run demo:contract`                         | Expected exit 1; malformed HTTP 200 quantity rejected by AJV; trace, screenshot, video, error context and HTML verified     |
 | Normal suite after demos           | `npm test`                                      | Exit 0; 141 passed in 41.284 seconds, 4 workers, 0 retries, 0 unexpected/flaky/skipped                                      |
-| Final evidence commit / clean tree | `git log -1 --oneline` and `git status --short` | The final evidence commit follows this document; verify the tree after committing                                           |
+| Historical evidence commit / tree  | `git log -1 --oneline` and `git status --short` | Delivery evidence was committed as `5897203`; this historical row makes no claim about the current working tree             |
 
 Repeated-run evidence is `.local/repeated-results.json` and `.local/repeated-suite.log`; each project records `repeatEach: 2`. The CI configuration evidence is `.local/ci-simulation-results.json` and `.local/ci-simulation.log`; all four projects record one allowed retry. Both JSON reports show no unexpected failures, flaky tests, or skipped tests. These Windows runs exercise the configured concurrency/repetition policy, not a GitHub-hosted Linux runner.
 
@@ -74,7 +85,7 @@ $env:CI = $tradeflowPreviousCI
 Write-Output "Playwright exit: $tradeflowCIExit"
 ```
 
-This configuration has `failOnFlakyTests` enabled, so a pass only after retry still fails the gate. In macOS/Linux shells, the equivalent configuration command is `CI=true npm test`; that platform execution is not claimed here.
+This configuration has `failOnFlakyTests` enabled, so a pass only after retry still fails the gate. In macOS/Linux shells, the equivalent configuration command is `CI=true npm test`. The shell recipe above was executed on Windows; the hosted Linux run is recorded separately.
 
 ## Adversarial review and demonstrated regressions
 
@@ -112,7 +123,7 @@ Normal generated output uses `test-results/` and `playwright-report/`. Demo outp
 
 The normal HTML report was served with `npm run report -- --host 127.0.0.1 --port 9323`. The final UI trace was served with `npx playwright show-trace demo-results/ui-evidence-intentional-UI-ceb94-wrong-lifecycle-expectation-failure-demo/trace.zip --host 127.0.0.1 --port 9325`. HTTP checks returned 200 for both the report and trace-viewer entry pages. Trace contents were inspected from the archive as described above; these HTTP checks establish viewer availability, not a separate browser interaction audit.
 
-The workflow uploads normal HTML reports with 14-day retention and available failure evidence with 7-day retention. Workflow YAML/gate validation is recorded; upload behavior on an actual GitHub runner is not yet executed. Use `npm run report` or `npm run report:demo` for the appropriate report.
+The workflow configures normal HTML reports with 14-day retention and available failure evidence with seven-day retention. The hosted baseline above confirms the successful HTML upload; its failure-evidence step was skipped, so the hosted failure path remains unverified. Use `npm run report` or `npm run report:demo` for the appropriate local report.
 
 ## Acceptance boundary
 

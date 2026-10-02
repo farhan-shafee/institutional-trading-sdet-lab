@@ -105,6 +105,17 @@ function bearerToken(request: IncomingMessage): string | undefined {
   return header?.match(/^Bearer ([^\s]+)$/i)?.[1];
 }
 
+function decodeOrderId(encodedId: string): string {
+  try {
+    return decodeURIComponent(encodedId);
+  } catch (error: unknown) {
+    if (error instanceof URIError) {
+      throw new DomainError(400, 'VALIDATION_ERROR', 'Order IDs must use valid percent encoding.');
+    }
+    throw error;
+  }
+}
+
 export function createApplicationServer() {
   const sessions = new SessionStore();
 
@@ -180,7 +191,11 @@ export function createApplicationServer() {
     }
     const detail = url.pathname.match(/^\/api\/orders\/([^/]+)$/);
     if (detail?.[1] && method === 'GET') {
-      json(response, 200, orderResponseSchema.parse({ order: session.book.get(detail[1]) }));
+      json(
+        response,
+        200,
+        orderResponseSchema.parse({ order: session.book.get(decodeOrderId(detail[1])) }),
+      );
       return;
     }
     const cancellation = url.pathname.match(/^\/api\/orders\/([^/]+)\/cancel$/);
@@ -197,7 +212,7 @@ export function createApplicationServer() {
         json(
           response,
           200,
-          orderResponseSchema.parse({ order: session.book.cancel(cancellation[1]) }),
+          orderResponseSchema.parse({ order: session.book.cancel(decodeOrderId(cancellation[1])) }),
         );
       }
       return;
