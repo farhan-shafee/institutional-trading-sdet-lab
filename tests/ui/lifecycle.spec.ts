@@ -67,6 +67,8 @@ test('closing details invalidates an earlier pending detail request', async ({
     await tradeBlotterPage.viewOrder(seedIds.newOrder);
     await held.started;
     await page.getByRole('button', { name: 'Close details', exact: true }).click();
+    const ordersTab = page.getByRole('tab', { name: 'Orders', exact: true });
+    await ordersTab.focus();
     const earlierResponse = page.waitForResponse(
       (response) => new URL(response.url()).pathname === path,
     );
@@ -79,6 +81,7 @@ test('closing details invalidates an earlier pending detail request', async ({
     expect(await (await filteredResponse).finished()).toBeNull();
     await expect(tradeBlotterPage.row(seedIds.partialOrder)).toBeVisible();
     await expect(page.getByRole('region', { name: 'Order details', exact: true })).toBeHidden();
+    await expect(ordersTab).toBeFocused();
   } finally {
     held.release();
   }

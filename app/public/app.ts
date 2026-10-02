@@ -405,6 +405,7 @@ async function loadDetail(id: string): Promise<void> {
     const result = await api(`/api/orders/${encodeURIComponent(id)}`, orderResponseSchema);
     if (version === detailRequestVersion && requestToken === token) {
       renderDetail(result.order);
+      element('order-detail-heading').focus();
       recordActivity(`Viewed order ${result.order.id}.`);
     }
   } catch (error) {

@@ -82,6 +82,10 @@ test('keyboard navigation between all four views preserves filters and the selec
   await expect(page.getByTestId('detail-status')).toHaveText('PARTIALLY_FILLED');
   for (const width of [1440, 1024, 768]) {
     await page.setViewportSize({ width, height: 900 });
+    await tradeBlotterPage.viewOrder(seedIds.partialOrder);
+    const detailHeading = page.getByRole('heading', { name: 'Order details', exact: true });
+    await expect(detailHeading).toBeFocused();
+    await expect(detailHeading).toBeInViewport();
     for (const name of ['Overview', 'Orders', 'Positions', 'Activity']) {
       await expect(page.getByRole('tab', { name, exact: true })).toBeVisible();
     }
