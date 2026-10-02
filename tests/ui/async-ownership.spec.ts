@@ -123,11 +123,12 @@ for (const status of [201, 500] as const) {
       expect(await response.finished()).toBeNull();
       await expect(
         page.getByRole('button', { name: 'Submit order', exact: true, includeHidden: true }),
-      ).toBeEnabled();
+      ).toBeDisabled();
       await page.getByText(/SYNTHETIC \/ LOCAL$/).click();
       expect(await page.evaluate(() => localStorage.getItem('tradeflow.token'))).toBe(viewer.token);
       await expect(page.getByText('qa.viewer · viewer', { exact: true })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeHidden();
+      await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeDisabled();
       await expect(page.getByRole('region', { name: 'Order details', exact: true })).toBeHidden();
       await expect(page.getByRole('status')).toBeHidden();
       await expect(page.getByRole('alert')).toBeHidden();
@@ -205,7 +206,8 @@ test('a delayed logout 204 cannot clear a login after the revoked token receives
     await page.getByText(/SYNTHETIC \/ LOCAL$/).click();
     expect(await page.evaluate(() => localStorage.getItem('tradeflow.token'))).toBe(viewer.token);
     await expect(page.getByText('qa.viewer · viewer', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeDisabled();
     await expect(page.getByRole('alert')).toBeHidden();
     const headers = { Authorization: `Bearer ${viewer.token}` };
     const session = await request.get('/api/session', { headers });
@@ -289,7 +291,8 @@ test('a delayed second logout 401 cannot clear a newer viewer login', async ({ p
     await page.getByText(/SYNTHETIC \/ LOCAL$/).click();
     expect(await page.evaluate(() => localStorage.getItem('tradeflow.token'))).toBe(viewer.token);
     await expect(page.getByText('qa.viewer · viewer', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeDisabled();
     await expect(page.getByRole('alert')).toBeHidden();
     const headers = { Authorization: `Bearer ${viewer.token}` };
     const session = await request.get('/api/session', { headers });
@@ -449,6 +452,13 @@ test('a committed creation retains its details and success when the list refresh
     const { orders } = ordersResponseSchema.parse(await book.json());
     expect(orders).toHaveLength(6);
     expect(orders.filter((candidate) => candidate.id === order.id)).toHaveLength(1);
+    await page.getByRole('tab', { name: 'Overview', exact: true }).click();
+    await expect(page.getByTestId('overview-total')).toHaveText('6');
+    await expect(page.getByTestId('overview-working')).toHaveText('3');
+    await page.getByRole('tab', { name: 'Activity', exact: true }).click();
+    await expect(page.getByRole('list', { name: 'Session activity', exact: true })).toContainText(
+      `Created order ${order.id}: SPY BUY 43, NEW.`,
+    );
   } finally {
     held.release();
     await releaseSessions(request, tokens);
