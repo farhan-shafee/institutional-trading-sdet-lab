@@ -1,3 +1,4 @@
+import { test, expect } from '@playwright/test';
 import {
   sessionResponseSchema,
   errorResponseSchema,
@@ -5,7 +6,6 @@ import {
   orderResponseSchema,
 } from '../../app/domain/schemas.js';
 import { credentials } from '../../test-data/fixtures/reference-data.js';
-import { test, expect } from '../fixtures/tradeflow.fixture.js';
 
 test('successful authentication creates a synthetic trader session', async ({ request }) => {
   const response = await request.post('/api/session', { data: credentials.trader });
