@@ -51,4 +51,32 @@ Sorting, charting, P&L, live feeds, historical performance, advanced orders, dur
 
 ## Hosted execution
 
-Pending exact-SHA push-triggered validation. Historical baseline/audit runs do not validate this pass. HTML retention remains 14 days; conditional failure evidence remains 7 days. A green run that skips the failure upload does not prove hosted failure-upload behavior.
+[Push-triggered run 36967330696](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36967330696) completed successfully at exact source SHA `62587a444e51428481ef4293a45bf970a82a4886`. The actual `quality` job, every step, full logs, artifact metadata, and downloaded embedded HTML report were inspected. This record was added after that run; historical baseline/audit runs are separate evidence.
+
+Hosted runtime was Ubuntu 24.04.5 / runner image `ubuntu-24.04` version `20260927.320.1`, Node `24.21.0`, npm `11.19.0`, and two concurrent workers. Playwright remains `1.63.0`. CI permits one retry and rejects flaky outcomes; the report contains exactly 205 attempts and zero retries. Windows local runs used Node `24.19.0`, npm `11.19.1`, four workers, and zero configured retries. No platform-specific implementation correction was required.
+
+| Actual hosted step                                | Result           |
+| ------------------------------------------------- | ---------------- |
+| Set up job                                        | Success          |
+| Checkout                                          | Success          |
+| Node 24 LTS and npm cache                         | Success          |
+| Install locked dependencies                       | Success          |
+| TypeScript strict checks                          | Success          |
+| Lint                                              | Success          |
+| Formatting                                        | Success          |
+| Validate OpenAPI                                  | Success          |
+| Validate workflow structure                       | Success          |
+| Domain unit checks                                | Success: 34/34   |
+| Install browsers and Linux libraries              | Success          |
+| API, contract and cross-browser tests             | Success: 205/205 |
+| HTML report                                       | Success          |
+| Failure evidence (trace, screenshot, video, JSON) | Skipped          |
+| Post Node 24 LTS and npm cache                    | Success          |
+| Post Checkout                                     | Success          |
+| Complete job                                      | Success          |
+
+The embedded report independently shows `42 service/API + 22 service/contract + 3 × (44 UI + 3 integration) = 205` expected results in 220.227 seconds, with zero failed, flaky, skipped, retried, or top-level errors. Chromium, Firefox, and WebKit each passed all 47 executions. This hosted run did not repeat the suite or execute the intentional demos/performance smoke.
+
+[Artifact `playwright-report-1`, ID 11210666114](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36967330696/artifacts/11210666114) uploaded successfully, size 506,718 bytes, created `2026-10-02T05:10:05Z`, expiry `2026-10-16T05:10:04Z`. Logs and expiry confirm 14-day HTML retention. Conditional failure evidence remains configured for seven days; its skipped step did not prove hosted failure-upload behavior. Local deliberate-demo artifact behavior is separately verified above.
+
+The runner emitted an advisory that `ubuntu-latest` will migrate to Ubuntu 26 beginning 2026-10-19. This run used Ubuntu 24.04.5; it does not validate that future image. GitHub About now describes the synthetic SDET scope, the default branch remains `main`, and visibility remains private. No merge or CI fix was made.
