@@ -132,4 +132,8 @@ Start with [test strategy](docs/TEST_STRATEGY.md), [fixtures](docs/FIXTURES.md),
 
 One loopback process holds in-memory state. Restarting it deletes sessions/orders. There is no matching engine, execution simulation, persistence, reconciliation, real identity provider, production security, P&L, or capacity claim. Lifecycle is a state projection; Activity is a browser observation list. Cross-browser/repeated results establish evidence for checked scenarios, not an absence-of-defects guarantee.
 
-The repository remains private during this pass. Published credentials are fake fixtures. Reports, browser auth files, environment files, logs, and machine artifacts are ignored. `package.json` stays `private: true` to prevent accidental npm publication. **No project license has been selected:** dependency licenses do not grant rights to this repository. The owner must choose a license before presenting it as reusable open-source software.
+The repository remains private during this pass. Published credentials are fake fixtures. Reports, browser auth files, environment files, logs, and machine artifacts are ignored. `package.json` stays `private: true` to prevent accidental npm publication.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
