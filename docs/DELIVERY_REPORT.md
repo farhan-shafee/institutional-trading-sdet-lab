@@ -1,6 +1,6 @@
 # TradeFlow Lab delivery report
 
-Prepared October 1, 2026. TradeFlow Lab is a local synthetic interview and learning repository. Recorded results below come from inspected implementation evidence, with detailed commands, counts, review corrections, and limits in [VALIDATION.md](VALIDATION.md). No production trading, employer experience, hosted CI execution, or human acceptance is implied.
+Prepared October 1, 2026. TradeFlow Lab is a local synthetic interview and learning repository. The implementation results below preserve the historical local baseline at `901f162`, recorded in delivery commit `5897203`. [VALIDATION.md](VALIDATION.md) also records the inspected hosted Actions baseline at `5897203`. [AUDIT.md](AUDIT.md) records the later hostile audit and current verification. No production trading, employer experience, or human acceptance is implied.
 
 ## 1. What was built
 
@@ -12,7 +12,7 @@ Node 24 runs a native local HTTP server with strict TypeScript. Zod validates ru
 
 ## 3. Test coverage
 
-The recorded full gate passed 31 domain unit checks and 141 Playwright executions: 38 API, 16 contract, 26 UI cases on each engine (78 executions), and 3 integration cases on each engine (9 executions). UI coverage includes login/logout, filters, validation, details, submission, cancellation, stale response ordering, session restoration, viewer identity, and accepted price display. Integration proves state across API/UI and runtime rejection of an actual malformed HTTP 200 response.
+The historical local full gate passed 31 domain unit checks and 141 Playwright executions: 38 API, 16 contract, 26 UI cases on each engine (78 executions), and 3 integration cases on each engine (9 executions). UI coverage includes login/logout, filters, validation, details, submission, cancellation, stale response ordering, session restoration, viewer identity, and accepted price display. Integration proves state across API/UI and runtime rejection of an actual malformed HTTP 200 response. Current audit counts and results are recorded separately in [AUDIT.md](AUDIT.md).
 
 ## 4. Fixtures implemented
 
@@ -28,11 +28,13 @@ Normal tracing starts on the first retry; screenshots capture failures and video
 
 ## 7. API and contract coverage
 
-Tests assert status, structured body, and meaningful resulting state for authentication, protected reads, viewer rejection, input validity, creation, filtering, ownership, cancellation conflicts, unknown records, malformed JSON, content type, and size limits. Contract checks validate the document, parse runtime bodies through Zod, and use AJV against the live published OpenAPI independently of app types. Eight malformed-body variants and browser interception prove HTTP 200 alone does not establish validity.
+Tests assert status, structured body, and meaningful resulting state for authentication, protected reads, viewer rejection, input validity, creation, filtering, ownership, cancellation conflicts, unknown records, malformed JSON, content type, and size limits. Contract checks validate the document, parse runtime bodies through Zod, and use AJV against the live published OpenAPI independently of app types. The historical baseline included eight malformed-body variants and browser interception. The current audit expands that matrix to 14 variants; its execution evidence is recorded in [AUDIT.md](AUDIT.md). These checks demonstrate that HTTP 200 alone does not establish validity.
 
 ## 8. CI/CD design
 
-GitHub Actions configures Ubuntu, Node 24, npm caching/locked install, typecheck, lint, formatting, OpenAPI/workflow validation, unit checks, browser/OS dependency installation, and the normal suite. Uploads retain the HTML report even after failure and available failure attachments on failure. One diagnostic retry is allowed, while `failOnFlakyTests` rejects a pass-after-failure. YAML structure was validated; a hosted Actions run has not been performed. The local `CI=true` configuration run passed 141 executions in 53.203 seconds with two workers and no flaky/skipped/unexpected results.
+GitHub Actions configures Ubuntu, Node 24, npm caching/locked install, typecheck, lint, formatting, OpenAPI/workflow validation, unit checks, browser/OS dependency installation, and the normal suite. Uploads retain the HTML report even after failure and available failure attachments on failure. One diagnostic retry is allowed, while `failOnFlakyTests` rejects a pass-after-failure. The historical local `CI=true` configuration run passed 141 executions in 53.203 seconds with two workers and no flaky/skipped/unexpected results.
+
+[Hosted Actions run 36932536997](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36932536997), attempt 1 at `5897203`, passed on Ubuntu 24.04.5 with Node 24.21.0 and npm 11.19.0: 31 unit checks and 141 Playwright executions in 155.117 seconds, two workers, zero failures/flaky/skipped results or actual retries. Its 14-day HTML artifact upload succeeded. The seven-day failure-evidence upload was skipped, leaving hosted failure-path behavior unverified. The current audit fixes need another hosted run; this task forbids pushing them.
 
 ## 9. AI-assisted workflow
 
@@ -77,28 +79,28 @@ The first targeted lifecycle command was deliberately run before the correction 
 
 ## 12. Counts and results
 
-The full gate records **31 unit checks passed** and **141 Playwright executions passed in 41.4 seconds**, with no unexpected failures, flaky results, or skipped tests. Project totals: service 54; Chromium 29; Firefox 29; WebKit 29. There are 83 distinct Playwright cases before browser expansion. The repeated suite passed **282 executions in 80.250 seconds**; the local CI configuration passed **141 in 53.203 seconds**. Both recorded zero unexpected failures, flaky results, and skipped tests. The separate normal run after both final demos passed **141 in 41.284 seconds**, again without unexpected/flaky/skipped results.
+The historical local full gate records **31 unit checks passed** and **141 Playwright executions passed in 41.4 seconds**, with no unexpected failures, flaky results, or skipped tests. Project totals: service 54; Chromium 29; Firefox 29; WebKit 29. There are 83 distinct Playwright cases before browser expansion. The repeated suite passed **282 executions in 80.250 seconds**; the local CI configuration passed **141 in 53.203 seconds**. Both recorded zero unexpected failures, flaky results, and skipped tests. The separate normal run after both final demos passed **141 in 41.284 seconds**, again without unexpected/flaky/skipped results. These counts are preserved baseline evidence, not counts for the current audit changes.
 
 ## 13. Focused Git commits
 
-| Commit                | Subject                                                                                  |
-| --------------------- | ---------------------------------------------------------------------------------------- |
-| `df6bb6b`             | chore: establish strict TypeScript and Playwright lab foundation                         |
-| `18c4769`             | feat: model validated synthetic orders and isolated sessions                             |
-| `e257cfb`             | feat: serve synthetic TradeFlow workflows and OpenAPI contract                           |
-| `189cfc5`             | test: add isolated fixtures and layered cross-browser automation                         |
-| `6b29bc2`             | ci: gate flaky results and retain bounded failure evidence                               |
-| `3477e77`             | docs: add interview demos curriculum and human-reviewed AI workflows                     |
-| `4ed4d2e`             | fix: preserve selected orders and sessions through delayed responses                     |
-| `862cfa0`             | perf: smoke test only an owned synthetic loopback server                                 |
-| `901f162`             | fix: prevent stale restoration from overwriting a newer login                            |
-| Final evidence commit | Follows this document after final evidence review; inspect `git log` for its actual hash |
+| Commit    | Subject                                                              |
+| --------- | -------------------------------------------------------------------- |
+| `df6bb6b` | chore: establish strict TypeScript and Playwright lab foundation     |
+| `18c4769` | feat: model validated synthetic orders and isolated sessions         |
+| `e257cfb` | feat: serve synthetic TradeFlow workflows and OpenAPI contract       |
+| `189cfc5` | test: add isolated fixtures and layered cross-browser automation     |
+| `6b29bc2` | ci: gate flaky results and retain bounded failure evidence           |
+| `3477e77` | docs: add interview demos curriculum and human-reviewed AI workflows |
+| `4ed4d2e` | fix: preserve selected orders and sessions through delayed responses |
+| `862cfa0` | perf: smoke test only an owned synthetic loopback server             |
+| `901f162` | fix: prevent stale restoration from overwriting a newer login        |
+| `5897203` | docs: record verified delivery and interview evidence                |
 
-The coordinating agent verifies a clean tree after that commit. No push or pull request is claimed.
+The initial local delivery record ended at the evidence commit and did not claim a push or pull request. The later push-triggered hosted run at `5897203` is now recorded above. The current audit's authorized scope excludes pushing its fixes.
 
 ## 14. Known limitations
 
-Validated on Windows with Node 24.19.0, npm 11.19.1, and Playwright 1.63.0. macOS, Linux, and hosted Actions execution have not been run. State is in memory, sessions have no expiry TTL, and positions are static. Public fake credentials/localStorage illustrate a testing pattern, not production security. No matching engine, fills, brokerage connectivity, persistence, audit/reconciliation, real financial precision, or distributed resilience is implemented. The OpenAPI helper supports the schema constructs used by this lab. Local smoke latency is environment dependent. Human review remains a separate acceptance decision.
+The historical baseline was validated locally on Windows with Node 24.19.0, npm 11.19.1, and Playwright 1.63.0, and later on hosted Ubuntu 24.04.5 with Node 24.21.0 and npm 11.19.0. macOS has not been exercised; the current audit fixes have not run on Actions. State is in memory, sessions have no expiry TTL, and positions are static. Public fake credentials/localStorage illustrate a testing pattern, not production security. No matching engine, fills, brokerage connectivity, persistence, audit/reconciliation, real financial precision, or distributed resilience is implemented. The OpenAPI helper supports the schema constructs used by this lab. Local smoke latency is environment dependent. Human review remains a separate acceptance decision.
 
 ## 15. Exact five-minute demo commands
 

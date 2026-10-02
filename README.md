@@ -24,6 +24,8 @@ npm run report
 
 Normal gates should exit `0`; the HTML report lists results by project. Actual commands, counts, and platform limitations from implementation verification are recorded in [validation evidence](docs/VALIDATION.md). The [delivery report](docs/DELIVERY_REPORT.md) maps the implementation to the requested coverage, commits, demo, and study priorities. This README is a guide to behavior, not a substitute for a test run.
 
+A [hosted Ubuntu Actions run](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36932536997) passed at baseline commit `5897203`: 31 unit checks and 141 Playwright executions. The [current hostile audit](docs/AUDIT.md) records later findings, fixes, and verification. Those fixes still require another hosted run; pushing is outside this audit's authorized scope.
+
 ## What to inspect
 
 | Capability                                     | Evidence in the repository                                                |
