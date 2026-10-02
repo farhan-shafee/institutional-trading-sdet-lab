@@ -10,7 +10,7 @@ The client also guards positions and complete-book reads by token/request versio
 
 Three added unit checks cover lifecycle partitions and mutation changes, a valid empty book, and signed-quantity average-cost notional. Seven added UI scenarios cover keyboard/responsive navigation, filter-independent metrics and actions, fixed quotes, viewer presentation, same-session stale reads, prior-session book/positions/draft isolation, and unavailable first reads. Existing scenarios gained reload-activity, validation-activity, accepted-mutation/failed-refresh, and failed-logout oracles. Assertions on exact IDs, HTTP statuses/bodies, complete books, and session ownership were retained.
 
-## Local execution
+## Initial productization execution
 
 Windows, Node `24.19.0`, npm `11.19.1`, Playwright `1.63.0`; four normal workers and zero retries. Counts were independently read from Playwright JSON, not copied from documentation.
 
@@ -43,13 +43,13 @@ Committed captures: [overview 1440](screenshots/tradeflow-overview-1440.png), [o
 
 ## Review and public readiness
 
-Four perspectives were reviewed: fintech manager (financial/data claims), principal SDET (ownership and independent oracles), Playwright expert (fixtures/races/browser coverage), and portfolio reviewer (visual credibility, evidence/provenance, scope). No further material issue remained in the reviewed implementation after the regressions above. This does not replace human review of the concrete diff.
+The initial review covered four perspectives: fintech manager (financial/data claims), principal SDET (ownership and independent oracles), Playwright expert (fixtures/races/browser coverage), and portfolio reviewer (visual credibility, evidence/provenance, scope). No further material issue was identified at that stage. The later portfolio review below found two additional usability/accessibility defects. These reviews do not replace human review of the concrete diff.
 
 A bounded scan of the 16 reachable baseline commits / 94 tracked blobs found no known secret, private-key, token, credential-URL, private-path, or machine/artifact-path signatures. A second current-source scan also found none. No employer/proprietary material was found in the reviewed synthetic content. These checks are bounded pattern/content reviews, not guarantees. The ignore rules exclude generated bundles/reports, browser auth, environment files, logs, and local evidence. `private: true` remains an npm publishing guard. No project license has been selected; only the owner can resolve that before open-source reuse. Dependency licenses do not establish the project's license.
 
 Sorting, charting, P&L, live feeds, historical performance, advanced orders, durable activity, new backend endpoints, persistence, and a SPA framework were deliberately omitted. Positions do not change after order entry. Full-book cache freshness follows accepted reads and this browser's mutations; another client sharing the token requires reload/unfiltered refresh. Activity is browser owned and bounded. Sub-700px layouts are secondary; automated accessibility certification and macOS execution are not established.
 
-## Hosted execution
+## Hosted execution at the recorded source revision
 
 [Push-triggered run 36967330696](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36967330696) completed successfully at exact source SHA `62587a444e51428481ef4293a45bf970a82a4886`. The actual `quality` job, every step, full logs, artifact metadata, and downloaded embedded HTML report were inspected. This record was added after that run; historical baseline/audit runs are separate evidence.
 
@@ -80,3 +80,24 @@ The embedded report independently shows `42 service/API + 22 service/contract + 
 [Artifact `playwright-report-1`, ID 11210666114](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36967330696/artifacts/11210666114) uploaded successfully, size 506,718 bytes, created `2026-10-02T05:10:05Z`, expiry `2026-10-16T05:10:04Z`. Logs and expiry confirm 14-day HTML retention. Conditional failure evidence remains configured for seven days; its skipped step did not prove hosted failure-upload behavior. Local deliberate-demo artifact behavior is separately verified above.
 
 The runner emitted an advisory that `ubuntu-latest` will migrate to Ubuntu 26 beginning 2026-10-19. This run used Ubuntu 24.04.5; it does not validate that future image. GitHub About now describes the synthetic SDET scope, the default branch remains `main`, and visibility remains private. No merge or CI fix was made.
+
+## Final hostile portfolio review
+
+This review began on clean `codex/productization-pass` at `9f2b16d411c7932fb42dd72790061ead3dbbe4e6`. [Run 36967915222](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36967915222) was independently retrieved again: its actual job and downloaded HTML report match that SHA, 34 unit checks, 205 passed browser/service executions, and zero failed, flaky, skipped, or retry attempts. Earlier records above retain their revision-specific provenance. Use [current branch Actions runs](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/workflows/quality.yml?query=branch%3Acodex%2Fproductization-pass) for the latest exact SHA and report.
+
+Two Medium defects were reproduced and corrected:
+
+- At 1024/768 with a 900px viewport, View left focus on its button while the selected detail began at y=1323/1302, entirely outside the viewport. The accepted detail request now focuses a programmatically focusable heading inside the existing token/version guard. The same live probe puts the tablet panel at y=467/453 with its bottom at y=811. Existing responsive and obsolete-detail scenarios gained focus/viewport assertions; no scenario was added.
+- Active custom input/select borders had 1.85:1 contrast against their panel and 1.97:1 against their fill. The corrected border achieves 3.64:1 and 3.87:1, exceeding the [3:1 non-text component contrast threshold](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html). Disabled controls are a separate case. This focused check does not establish complete WCAG conformance.
+
+The README now names Chromium/Firefox/WebKit in its opening paragraph and links current branch checks directly. The AI workflow's advertised full gate and acceptance checklist now include the mandatory repeated suite. These are portfolio discoverability and evidence-instruction corrections, not new product scope. The seven productization UI scenarios and three presentation unit checks protect observable risks; the prior API, contract, integration, fixture, retry, and isolation architecture is retained. The combined metrics/activity/lifecycle scenario is lengthy but its literal and exact-ID assertions remain diagnosable; no abstraction or count-driven cases were added.
+
+The targeted productization/lifecycle run passed 57 executions across three engines after the existing responsive case first failed on the missing focus behavior. All six real Chromium captures were regenerated and inspected; 13 layout checks covered all views at 1440/1024/768 and the created UUID/maximum-quantity/sub-cent LIMIT case, with no horizontal overflow or console errors.
+
+After both deliberate demos, fresh `npm run validate` exited 0: strict typecheck, lint, formatting, OpenAPI, workflow structure, 34 unit checks, and 205 normal Playwright executions (63.524 seconds). Fresh `npm test -- --repeat-each=2` exited 0 with 410 executions (119.825 seconds). Both actual JSON reports contain zero unexpected, flaky, skipped, or retry attempts and no top-level errors, using four Windows workers. Final documentation changes passed a separate formatting check. These local results do not substitute for the exact pushed revision's Actions run.
+
+A bounded current/history scan covered 79 tracked files, 19 reachable commits, and 123 unique historical blobs, finding no known secret, credential URL, private machine path, or email signature. Commit email metadata uses GitHub noreply addresses. Generated bundles, normal/demo reports, traces, auth files, environment files, logs, and local evidence remain ignored. The six requested PNG captures are intentional portfolio assets. No employer/proprietary material or production claim was found in the reviewed content. These checks are not guarantees.
+
+The five-minute app → configuration → fixture → UI → API negative → contract → prepared failure/trace → Actions → AI sequence remains valid. The documented filled-order command selected one passing case. Both fresh deliberate demos exited 1 for their intended oracle failures, with separate actual report/trace/screenshot/video evidence; full gates belong in preparation. Productization improves concrete behaviors to explain, but a full tour of every tab should not consume the technical demonstration.
+
+`package.json` remains `private: true`, an npm-publishing guard independent of GitHub visibility. The repository stays private in this task. No license was added: public visibility alone is not an open-source reuse license, and the owner must explicitly choose one. No merge, new feature, browser removal, assertion weakening, retry increase, or architectural redesign forms part of this review.

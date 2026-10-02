@@ -2,7 +2,7 @@
 
 **Synthetic Institutional-Trading SDET Lab**
 
-A small trading workstation built to make quality engineering inspectable: **Playwright, strict TypeScript, UI + API + contract + integration tests, test-scoped fixtures, parallel execution, three browser engines, OpenAPI/runtime validation, failure tracing, GitHub Actions, and human-reviewed AI assistance.** This is an interview and learning project, not a production trading platform.
+A small trading workstation built to make quality engineering inspectable: **Playwright, strict TypeScript, UI + API + contract + integration tests, test-scoped fixtures, parallel execution, Chromium / Firefox / WebKit, OpenAPI/runtime validation, failure tracing, GitHub Actions, and human-reviewed AI assistance.** This is an interview and learning project, not a production trading platform.
 
 Every user, credential, order, position, and quote is synthetic. There are no brokerage connections, live feeds, real trades, employer systems, proprietary code, or customer data. Familiar instrument symbols do not make invented prices market data.
 
@@ -81,9 +81,11 @@ API/contract tests run once in the browser-free `service` project. UI/integratio
 
 ## Evidence
 
+Check [current branch Actions runs](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/workflows/quality.yml?query=branch%3Acodex%2Fproductization-pass) for the exact latest SHA and its hosted report. The revision-specific results below retain their original provenance.
+
 Fresh local productization runs passed **34 unit checks, 205 normal Playwright executions, and 410 repeated executions**, with zero failed, flaky, skipped, or retried normal tests. The arithmetic is `42 API + 22 contract + 3 × (44 UI + 3 integration) = 205`. See [productization evidence](docs/PRODUCTIZATION.md) for commands, actual captures, review findings, and limits.
 
-The productization implementation passed [hosted Ubuntu CI, run 36967330696](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36967330696) at `62587a444e51428481ef4293a45bf970a82a4886`: **34 unit checks and 205 Playwright executions**. The downloaded [HTML artifact](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36967330696/artifacts/11210666114) independently confirms all three browsers and zero failed, flaky, skipped, or retried tests. This is the inspected source revision; this evidence record was added afterward.
+Before the final portfolio review, the productization implementation passed [hosted Ubuntu CI, run 36967330696](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36967330696) at `62587a444e51428481ef4293a45bf970a82a4886`: **34 unit checks and 205 Playwright executions**. The downloaded [HTML artifact](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36967330696/artifacts/11210666114) independently confirms all three browsers and zero failed, flaky, skipped, or retried tests. This is the inspected source revision; this evidence record was added afterward.
 
 The audited baseline passed [hosted Ubuntu CI, run 36959822791](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36959822791) at `f7f2f108576fd5d940f4a9649519d24be9ecb778`: **31 unit checks and 184 Playwright executions**, with zero failed, flaky, skipped, or retried tests. This historical run does not validate later changes.
 

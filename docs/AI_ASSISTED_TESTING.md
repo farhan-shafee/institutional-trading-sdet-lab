@@ -27,6 +27,7 @@ npm run test:api -- --grep "filled"
 npm run typecheck
 npm run lint
 npm run validate
+npm test -- --repeat-each=2
 ```
 
 Check that the grep selected at least one test. Review the HTTP response, assertion result, and normal HTML report. After a real Actions execution, use its job and artifacts as CI evidence; a local run is not an Actions result.
@@ -52,7 +53,7 @@ Ready-to-use bounded prompts: [requirements](prompts/requirements-to-tests.md), 
 - Selectors express user semantics; promises are awaited; no arbitrary delay is added.
 - HTTP status, structured body, and meaningful resulting state are checked where relevant.
 - No assertion, retry, skip, or timeout was changed to conceal a defect.
-- Targeted checks, typecheck, lint, and full validation were actually run and inspected.
+- Targeted checks, typecheck, lint, full validation, and the repeated suite were actually run and inspected.
 - The final summary identifies generated changes, actual results, uncertainty, and human review status.
 
 Review is an engineering decision, not a rubber stamp on a model's confidence. If the model and a deterministic gate disagree, investigate the evidence.
