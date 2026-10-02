@@ -52,7 +52,7 @@ Use these as explanations to demonstrate in source and evidence, not claims of e
 
 25. **Why not use shared TypeScript types as the sole contract?** The same wrong assumption can compile on producer and consumer, and static types do not inspect runtime JSON. Zod provides executable validation; an independently interpreted OpenAPI schema adds a second oracle for the wire boundary.
 
-26. **What does the HTTP-200 contract demo teach?** Transport success and semantic data validity are separate. Route interception returns malformed synthetic orders only in an explicit demo project, and a schema assertion fails. No permanent server fault is needed, so normal tests remain unaffected.
+26. **What does the HTTP-200 contract demo teach?** Transport success and semantic data validity are separate. The normal integration regression intercepts malformed synthetic orders and passes by asserting validator and UI rejection. The explicit demo uses a deliberately wrong schema assertion to produce a failure report. Both interceptions stay within their test's browser context and require no permanent server fault; intentional failures remain outside the normal suite.
 
 27. **What is static versus generated test data here?** Symbols, fake credentials, stable seed IDs, and fixed seed timestamps are reference data. Each session receives cloned records; factories build new inputs with explicit overrides. Generated order IDs come from the server and should be used in assertions.
 

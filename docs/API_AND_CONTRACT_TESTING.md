@@ -44,4 +44,4 @@ npm run demo:contract
 npm run report:demo
 ```
 
-The normal contract suite should exit `0`. The demonstration intentionally exits `1`; inspect the schema issue and intercepted response in its trace. The interception is confined to the explicit demo. It does not corrupt normal application behavior or require editing the server. A wire schema proves shape, not financial correctness: a well-formed FILLED order still needs a business-rule check that cancellation is rejected.
+The normal contract and integration suites should exit `0`: the integration regression intercepts a malformed response and asserts that the validators and UI reject it. The demonstration intentionally exits `1` because it makes a deliberately wrong assertion; inspect the schema issue and intercepted response in its trace. Both interceptions are scoped to their test's browser context and require no server edit. The deliberately failing expectation remains confined to the explicit demo. A wire schema proves shape, not financial correctness: a well-formed FILLED order still needs a business-rule check that cancellation is rejected.
