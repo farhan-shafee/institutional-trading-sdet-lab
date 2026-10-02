@@ -212,6 +212,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OrderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -235,6 +237,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OrderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -277,14 +281,18 @@ components:
       name: id
       in: path
       required: true
-      description: A seeded or session-generated synthetic order ID.
+      description: >-
+        A seeded or session-generated synthetic order ID. The server percent-decodes
+        the parameter once; malformed encoding returns 400 (VALIDATION_ERROR).
       schema:
         type: string
         minLength: 1
       example: seed-new-aapl
   responses:
     BadRequest:
-      description: Invalid fields or filters (VALIDATION_ERROR), or malformed JSON (INVALID_JSON).
+      description: >-
+        Invalid fields, filters, or path encoding (VALIDATION_ERROR),
+        or malformed JSON (INVALID_JSON).
       content:
         application/json:
           schema:
