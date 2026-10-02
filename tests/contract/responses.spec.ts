@@ -105,31 +105,34 @@ test('positions satisfy the live OpenAPI contract and runtime schema', async ({ 
   expect(positionsResponseSchema.safeParse(body).success).toBe(true);
 });
 
-baseTest('session success and auth errors satisfy their published contracts', async ({ request }) => {
-  const contracts = await OpenApiContracts.load(request);
-  const login = await request.post('/api/session', { data: credentials.trader });
-  expect(login.status()).toBe(200);
-  const body: unknown = await login.json();
-  const session = sessionResponseSchema.parse(body);
-  try {
-    const validateSession = contracts.response('post', '/api/session', 200);
-    expect(validateSession(body), JSON.stringify(validateSession.errors)).toBe(true);
-    const denied = await request.get('/api/orders');
-    expect(denied.status()).toBe(401);
-    const errorBody: unknown = await denied.json();
-    const validateError = contracts.response('get', '/api/orders', 401);
-    expect(validateError(errorBody), JSON.stringify(validateError.errors)).toBe(true);
-    expect(errorResponseSchema.parse(errorBody).error.code).toBe('UNAUTHORIZED');
-  } finally {
-    expect(
-      (
-        await request.delete('/api/session', {
-          headers: { Authorization: `Bearer ${session.token}` },
-        })
-      ).status(),
-    ).toBe(204);
-  }
-});
+baseTest(
+  'session success and auth errors satisfy their published contracts',
+  async ({ request }) => {
+    const contracts = await OpenApiContracts.load(request);
+    const login = await request.post('/api/session', { data: credentials.trader });
+    expect(login.status()).toBe(200);
+    const body: unknown = await login.json();
+    const session = sessionResponseSchema.parse(body);
+    try {
+      const validateSession = contracts.response('post', '/api/session', 200);
+      expect(validateSession(body), JSON.stringify(validateSession.errors)).toBe(true);
+      const denied = await request.get('/api/orders');
+      expect(denied.status()).toBe(401);
+      const errorBody: unknown = await denied.json();
+      const validateError = contracts.response('get', '/api/orders', 401);
+      expect(validateError(errorBody), JSON.stringify(validateError.errors)).toBe(true);
+      expect(errorResponseSchema.parse(errorBody).error.code).toBe('UNAUTHORIZED');
+    } finally {
+      expect(
+        (
+          await request.delete('/api/session', {
+            headers: { Authorization: `Bearer ${session.token}` },
+          })
+        ).status(),
+      ).toBe(204);
+    }
+  },
+);
 
 test('conflict errors are structured and satisfy the OpenAPI contract', async ({ apiClient }) => {
   const contracts = await OpenApiContracts.load(apiClient);

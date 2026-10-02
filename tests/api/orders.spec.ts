@@ -171,6 +171,10 @@ const invalidOrders = [
 
 for (const scenario of invalidOrders) {
   test(`rejects ${scenario.name} without changing the order book`, async ({ apiClient }) => {
+    const before = await apiClient.get('/api/orders');
+    expect(before.status()).toBe(200);
+    const original = ordersResponseSchema.parse(await before.json());
+
     const response = await apiClient.post('/api/orders', { data: scenario.data });
     expect(response.status()).toBe(400);
     const body = errorResponseSchema.parse(await response.json());
@@ -178,7 +182,9 @@ for (const scenario of invalidOrders) {
     expect(body.error.message).not.toBe('');
     const orders = await apiClient.get('/api/orders');
     expect(orders.status()).toBe(200);
-    expect(ordersResponseSchema.parse(await orders.json()).orders).toHaveLength(5);
+    const retained = ordersResponseSchema.parse(await orders.json());
+    expect(retained.orders).toHaveLength(5);
+    expect(retained).toEqual(original);
   });
 }
 
