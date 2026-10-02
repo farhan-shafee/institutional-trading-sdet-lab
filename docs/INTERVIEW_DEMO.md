@@ -26,6 +26,8 @@ The last command intentionally exits `1`. Keep its artifacts. Start the app with
 
 Use the recorded results in `docs/VALIDATION.md` only for the execution they describe. State what was run live and what was run beforehand.
 
+For the productized UI tour, use Overview to distinguish full-book totals from Orders filters, then submit/cancel one exact owned record. Show static Positions and the browser-only Activity list; neither implies fills or a durable audit trail. A viewer keeps visible disabled controls while the API enforces 403. Current productization results and actual screenshots are linked from the README; older delivery/audit counts remain historical.
+
 ## 30-second version
 
 “TradeFlow Lab is a synthetic local trading workflow created to demonstrate SDET architecture. Every test owns a fresh authenticated order book. Strict TypeScript and runtime schemas support unit, API, contract, integration, and UI coverage. Browser journeys run on Chromium, Firefox, and WebKit. Failures produce trace/report evidence, and CI rejects flaky results. AI can draft scenarios and analyze evidence; human review and deterministic gates decide acceptance.”

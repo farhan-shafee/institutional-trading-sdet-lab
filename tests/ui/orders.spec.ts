@@ -13,6 +13,7 @@ test('blotter loads all seed states and the synthetic positions summary', async 
       tradeBlotterPage.table.getByRole('cell', { name: status, exact: true }),
     ).toBeVisible();
   }
+  await authenticatedPage.getByRole('tab', { name: 'Positions', exact: true }).click();
   await expect(
     authenticatedPage.getByRole('table', { name: 'Positions', exact: true }),
   ).toBeVisible();
@@ -115,6 +116,10 @@ test('quantity validation blocks order creation', async ({
   const after = await apiClient.get('/api/orders');
   expect(after.status()).toBe(200);
   expect(ordersResponseSchema.parse(await after.json())).toEqual(originalBook);
+  await authenticatedPage.getByRole('tab', { name: 'Activity', exact: true }).click();
+  await expect(
+    authenticatedPage.getByRole('list', { name: 'Session activity', exact: true }),
+  ).toContainText('Validation failed: Quantity must be a whole number from 1 to 1,000,000.');
 });
 
 test('limit price validation blocks a nonpositive price', async ({

@@ -4,16 +4,16 @@ TradeFlow Lab has one process and one explicit purpose: make test engineering un
 
 ## Boundaries
 
-| Area                     | Responsibility                                                     | Reason                                                   |
-| ------------------------ | ------------------------------------------------------------------ | -------------------------------------------------------- |
-| `app/domain/`            | Types, runtime schemas, validation, seeded values, order rules     | Pure rules can be tested without HTTP or a browser       |
-| `app/server/`            | Routing, authentication, authorization, response mapping, sessions | Status codes and resource ownership have one owner       |
-| `app/public/`            | Login, blotter, filters, detail, entry and cancellation UI         | Thin client displays server truth                        |
-| `contracts/openapi.yaml` | Published request/response/status vocabulary                       | Consumers need a wire contract independent of TypeScript |
-| `tests/fixtures/`        | Lifecycle and ownership of test resources                          | Setup and cleanup compose without duplicated hooks       |
-| `pages/`                 | Focused locators and user actions                                  | Tests retain their intent and assertions                 |
-| `test-data/`             | Public reference constants and pure order factory                  | Generated inputs are explicit and reproducible           |
-| `scripts/`               | Contract validation and optional performance smoke                 | Gates remain separate from app behavior                  |
+| Area                     | Responsibility                                                       | Reason                                                   |
+| ------------------------ | -------------------------------------------------------------------- | -------------------------------------------------------- |
+| `app/domain/`            | Types, runtime schemas, validation, seeded values, order rules       | Pure rules can be tested without HTTP or a browser       |
+| `app/server/`            | Routing, authentication, authorization, response mapping, sessions   | Status codes and resource ownership have one owner       |
+| `app/public/`            | Four-view shell, order actions, derived metrics and browser activity | Thin client displays server truth                        |
+| `contracts/openapi.yaml` | Published request/response/status vocabulary                         | Consumers need a wire contract independent of TypeScript |
+| `tests/fixtures/`        | Lifecycle and ownership of test resources                            | Setup and cleanup compose without duplicated hooks       |
+| `pages/`                 | Focused locators and user actions                                    | Tests retain their intent and assertions                 |
+| `test-data/`             | Public reference constants and pure order factory                    | Generated inputs are explicit and reproducible           |
+| `scripts/`               | Contract validation and optional performance smoke                   | Gates remain separate from app behavior                  |
 
 ## Session-owned state
 
@@ -41,6 +41,14 @@ Tests keep storage state in memory. The browser uses localStorage key `tradeflow
 The supported symbols are AAPL, MSFT, NVDA, and SPY. Quantity is a positive integer at most 1,000,000. A LIMIT order requires a positive finite `limitPrice`; a MARKET order rejects a supplied price. Only NEW and PARTIALLY_FILLED orders can cancel. A successful cancellation changes status to CANCELED; an ineligible repeat receives `409`.
 
 The seed book includes NEW, PARTIALLY_FILLED, FILLED, CANCELED, and REJECTED records with fixed timestamps. New records receive unique IDs and creation timestamps. Positions are a fixed synthetic view; order submission does not imply a fill or change position balances.
+
+## Browser presentation
+
+Overview, Orders, Positions, and Activity are lightweight tab panels; Orders remains the initial view. Overview counts use a complete book rather than the filtered blotter. Open means NEW or PARTIALLY_FILLED; closed combines CANCELED and REJECTED. Synthetic gross position notional is `sum(abs(quantity) * averagePrice)`, an average-cost basis with no live valuation or P&L claim. The market snapshot is a fixed four-symbol client fixture.
+
+Complete-book and position caches are token owned. Request versions reject older reads; an accepted mutation invalidates earlier book reads and updates a known complete cache before a later refresh. An unknown first read remains unavailable, not zero. Navigation preserves filters and selected details. Logout/token replacement clears cached positions, book data, ticket drafts, and browser activity.
+
+Activity records actions observed in the current browser document, including accepted mutations even if the subsequent refresh fails. Its timestamps are browser observation times; it is bounded, nonpersistent, and not an authoritative server audit trail. Reload begins a new observation list. Order lifecycle displays only the known creation time and current state because the API supplies no transition-event history. Viewer controls are visible and disabled, while server-side 403 checks remain the authorization boundary.
 
 ## Choices an interviewer should challenge
 

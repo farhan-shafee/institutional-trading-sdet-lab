@@ -67,6 +67,8 @@ test('closing details invalidates an earlier pending detail request', async ({
     await tradeBlotterPage.viewOrder(seedIds.newOrder);
     await held.started;
     await page.getByRole('button', { name: 'Close details', exact: true }).click();
+    const ordersTab = page.getByRole('tab', { name: 'Orders', exact: true });
+    await ordersTab.focus();
     const earlierResponse = page.waitForResponse(
       (response) => new URL(response.url()).pathname === path,
     );
@@ -79,6 +81,7 @@ test('closing details invalidates an earlier pending detail request', async ({
     expect(await (await filteredResponse).finished()).toBeNull();
     await expect(tradeBlotterPage.row(seedIds.partialOrder)).toBeVisible();
     await expect(page.getByRole('region', { name: 'Order details', exact: true })).toBeHidden();
+    await expect(ordersTab).toBeFocused();
   } finally {
     held.release();
   }
@@ -264,9 +267,36 @@ for (const failure of ['server', 'network', 'contract'] as const) {
   });
 }
 
-test('an unauthorized restoration clears browser authentication', async ({
+test('unauthorized order reads and restoration clear authentication and explain the session boundary', async ({
   authenticatedPage: page,
+  authSession,
 }) => {
+  await expect(
+    page.getByRole('table', { name: 'Orders', exact: true }).getByRole('button'),
+  ).toHaveCount(5);
+  await page.route('**/api/orders?symbol=AAPL', async (route) => {
+    await route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: { code: 'UNAUTHORIZED', message: 'Session is invalid or expired.' },
+      }),
+    });
+  });
+  const expiredRead = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/api/orders' && response.status() === 401,
+  );
+  await page.getByLabel('Filter symbol', { exact: true }).selectOption('AAPL');
+  expect(await (await expiredRead).finished()).toBeNull();
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveText('Session is invalid or expired.');
+  expect(await page.evaluate(() => localStorage.getItem('tradeflow.token'))).toBeNull();
+  await expect(page.getByRole('table', { name: 'Orders', exact: true })).toBeHidden();
+  // Reuse only this test's owned token to exercise the independent restoration boundary.
+  await page.evaluate(
+    (ownedToken) => localStorage.setItem('tradeflow.token', ownedToken),
+    authSession.token,
+  );
   await page.route('**/api/session', async (route) => {
     await route.fulfill({
       status: 401,
@@ -374,7 +404,8 @@ for (const status of [401, 200] as const) {
           { exact: true },
         ),
       ).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeHidden();
+      await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeDisabled();
       const filteredResponse = page.waitForResponse(
         (response) => new URL(response.url()).search === '?symbol=MSFT',
       );

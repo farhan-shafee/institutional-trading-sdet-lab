@@ -10,6 +10,7 @@ import {
   type Order,
   type SessionResponse,
 } from '../domain/schemas.js';
+import { grossPositionNotional, summarizeOrders, type Position } from './presentation.js';
 
 const TOKEN_KEY = 'tradeflow.token';
 let token = localStorage.getItem(TOKEN_KEY);
@@ -17,6 +18,17 @@ let user: SessionResponse['user'] | undefined;
 let selectedOrder: Order | undefined;
 let orderRequestVersion = 0;
 let detailRequestVersion = 0;
+let bookRequestVersion = 0;
+let positionsRequestVersion = 0;
+let apiObservationVersion = 0;
+let completeOrders: Order[] | undefined;
+let sessionPositions: Position[] | undefined;
+let completeBookLoading = false;
+const pendingCancellations = new Set<string>();
+const activity: { time: string; message: string }[] = [];
+const views = ['overview', 'orders', 'positions', 'activity'] as const;
+type View = (typeof views)[number];
+const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
 class HttpError extends Error {
   constructor(
@@ -54,31 +66,120 @@ function showSuccess(text: string): void {
   message.hidden = false;
 }
 
-function showLogin(): void {
-  token = null;
-  user = undefined;
+function showView(view: View): void {
+  for (const candidate of views) {
+    const selected = candidate === view;
+    const tab = element<HTMLButtonElement>(`nav-${candidate}`);
+    tab.setAttribute('aria-selected', String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+    element(`view-${candidate}`).hidden = !selected;
+  }
+}
+
+function renderOverview(): void {
+  const summary = completeOrders === undefined ? undefined : summarizeOrders(completeOrders);
+  for (const key of ['total', 'working', 'filled', 'closed'] as const) {
+    element(`overview-${key}`).textContent = summary === undefined ? '—' : String(summary[key]);
+  }
+  element('overview-positions').textContent =
+    sessionPositions === undefined ? '—' : String(sessionPositions.length);
+  element('overview-notional').textContent =
+    sessionPositions === undefined ? '—' : money.format(grossPositionNotional(sessionPositions));
+  element('book-loading').hidden = completeOrders !== undefined || !token;
+  element('book-loading').textContent = completeBookLoading
+    ? 'Loading the complete session book…'
+    : 'The complete session book is unavailable. Metrics are not shown as zero.';
+}
+
+function renderActivity(): void {
+  const list = element('activity-list');
+  list.replaceChildren();
+  element('activity-empty').hidden = activity.length > 0;
+  for (const entry of activity) {
+    const item = document.createElement('li');
+    const time = document.createElement('time');
+    time.dateTime = entry.time;
+    time.textContent = `${entry.time.slice(11, 19)} UTC`;
+    const message = document.createElement('span');
+    message.textContent = entry.message;
+    item.append(time, message);
+    list.append(item);
+  }
+}
+
+function recordActivity(message: string): void {
+  if (!token) return;
+  activity.push({ time: new Date().toISOString(), message });
+  if (activity.length > 50) activity.shift();
+  renderActivity();
+}
+
+function resetSessionData(): void {
   selectedOrder = undefined;
+  completeOrders = undefined;
+  sessionPositions = undefined;
+  completeBookLoading = false;
   orderRequestVersion++;
   detailRequestVersion++;
-  localStorage.removeItem(TOKEN_KEY);
+  bookRequestVersion++;
+  positionsRequestVersion++;
+  apiObservationVersion++;
+  pendingCancellations.clear();
+  activity.length = 0;
+  element<HTMLFormElement>('order-form').reset();
+  element('limit-price-field').hidden = true;
   element('orders-body').replaceChildren();
+  element('positions-body').replaceChildren();
   element('order-count').textContent = '';
   element('detail-fields').replaceChildren();
+  element('order-lifecycle').replaceChildren();
+  element('book-loading').hidden = true;
+  element('orders-loading').hidden = true;
+  element('positions-loading').hidden = true;
+  element('orders-body').setAttribute('aria-busy', 'false');
+  element('positions-body').setAttribute('aria-busy', 'false');
+  renderOverview();
+  renderActivity();
+}
+
+function showLogin(): void {
+  clearMessages();
+  token = null;
+  user = undefined;
+  resetSessionData();
+  localStorage.removeItem(TOKEN_KEY);
   element('user-label').textContent = '';
+  element('session-role').textContent = '';
+  element('session-state').textContent = 'Session: signed out';
+  element('overview-session').textContent = 'Signed out';
+  element<HTMLFieldSetElement>('order-entry-fields').disabled = false;
   const submit =
     element<HTMLFormElement>('order-form').querySelector<HTMLButtonElement>(
       'button[type="submit"]',
     );
-  if (submit) submit.disabled = false;
+  if (submit) {
+    submit.disabled = false;
+    submit.setAttribute('aria-busy', 'false');
+  }
   element<HTMLButtonElement>('cancel-order').disabled = false;
+  element('cancel-order').setAttribute('aria-busy', 'false');
+  element('sign-out').setAttribute('aria-busy', 'false');
   element('workspace').hidden = true;
   element('session-controls').hidden = true;
   element('login-screen').hidden = false;
   element('order-detail').hidden = true;
+  showView('orders');
 }
 
 async function api<T>(path: string, schema: z.ZodType<T>, init: RequestInit = {}): Promise<T> {
   const requestToken = token;
+  const observation = ++apiObservationVersion;
+  const requestLabel = `${init.method ?? 'GET'} ${path}`;
+  const observe = (result: string) => {
+    if (requestToken === token && observation === apiObservationVersion)
+      element('api-state').textContent = `API: ${requestLabel} · ${result}`;
+  };
+  observe('pending');
   const headers = new Headers(init.headers);
   if (requestToken) headers.set('Authorization', `Bearer ${requestToken}`);
   if (init.body) headers.set('Content-Type', 'application/json');
@@ -86,6 +187,7 @@ async function api<T>(path: string, schema: z.ZodType<T>, init: RequestInit = {}
   try {
     response = await fetch(path, { ...init, headers });
   } catch {
+    observe('no response');
     throw new Error('The local server could not be reached.');
   }
   let body: unknown;
@@ -96,16 +198,25 @@ async function api<T>(path: string, schema: z.ZodType<T>, init: RequestInit = {}
   }
   if (!response.ok) {
     const result = errorResponseSchema.safeParse(body);
-    if (response.status === 401 && path !== '/api/session' && requestToken === token) showLogin();
-    throw new HttpError(
+    observe(`${response.status}${result.success ? '' : ' · contract rejected'}`);
+    const error = new HttpError(
       response.status,
       result.success
         ? result.data.error.message
         : 'Server response did not match the expected contract.',
     );
+    if (response.status === 401 && path !== '/api/session' && requestToken === token) {
+      showLogin();
+      showError(error);
+    }
+    throw error;
   }
   const result = schema.safeParse(body);
-  if (!result.success) throw new Error('Server response did not match the expected contract.');
+  if (!result.success) {
+    observe(`${response.status} · contract rejected`);
+    throw new Error('Server response did not match the expected contract.');
+  }
+  observe(`${response.status} · validated`);
   return result.data;
 }
 
@@ -130,14 +241,14 @@ function renderOrders(orders: Order[]): void {
   for (const order of orders) {
     const row = body.insertRow();
     row.dataset.testid = `order-row-${order.id}`;
-    cell(row, order.id);
+    cell(row, order.id, 'order-id');
     cell(row, order.symbol, 'symbol');
     cell(row, order.side, order.side === 'BUY' ? 'buy' : 'sell');
-    cell(row, String(order.quantity));
+    cell(row, String(order.quantity), 'numeric');
     cell(row, order.type);
     const status = row.insertCell();
     status.append(statusPill(order.status));
-    cell(row, `${order.createdAt.slice(0, 16).replace('T', ' ')} UTC`);
+    cell(row, `${order.createdAt.slice(0, 16).replace('T', ' ')} UTC`, 'created-time');
     const actions = row.insertCell();
     const view = document.createElement('button');
     view.textContent = 'View';
@@ -155,6 +266,28 @@ function renderOrders(orders: Order[]): void {
   }
 }
 
+async function loadCompleteBook(): Promise<void> {
+  if (completeBookLoading) return;
+  const version = ++bookRequestVersion;
+  const requestToken = token;
+  completeBookLoading = true;
+  renderOverview();
+  try {
+    const result = await api('/api/orders', ordersResponseSchema);
+    if (version === bookRequestVersion && requestToken === token) {
+      completeOrders = result.orders;
+      renderOverview();
+    }
+  } catch (error) {
+    if (version === bookRequestVersion && requestToken === token) throw error;
+  } finally {
+    if (version === bookRequestVersion && requestToken === token) {
+      completeBookLoading = false;
+      renderOverview();
+    }
+  }
+}
+
 async function refreshOrders(): Promise<void> {
   const version = ++orderRequestVersion;
   const requestToken = token;
@@ -163,15 +296,58 @@ async function refreshOrders(): Promise<void> {
     const filterValue = value(`filter-${key}`);
     if (filterValue) filters.set(key, filterValue);
   }
-  try {
+  const fullBookVersion = filters.size === 0 ? ++bookRequestVersion : undefined;
+  if (fullBookVersion !== undefined) completeBookLoading = true;
+  renderOverview();
+  element('orders-loading').textContent = 'Loading session orders…';
+  element('orders-loading').hidden = false;
+  element('orders-body').setAttribute('aria-busy', 'true');
+  const readList = async () => {
     const result = await api(
       `/api/orders${filters.size ? `?${filters.toString()}` : ''}`,
       ordersResponseSchema,
     );
-    if (version === orderRequestVersion && requestToken === token) renderOrders(result.orders);
+    if (version === orderRequestVersion && requestToken === token) {
+      renderOrders(result.orders);
+      element('orders-loading').hidden = true;
+    }
+    if (fullBookVersion === bookRequestVersion && requestToken === token) {
+      completeOrders = result.orders;
+      renderOverview();
+    }
+  };
+  try {
+    await Promise.all([
+      readList(),
+      filters.size > 0 && completeOrders === undefined ? loadCompleteBook() : Promise.resolve(),
+    ]);
   } catch (error) {
-    if (version === orderRequestVersion && requestToken === token) throw error;
+    if (version === orderRequestVersion && requestToken === token) {
+      element('orders-loading').textContent =
+        'Orders could not be refreshed. Displayed rows may be stale.';
+      element('orders-loading').hidden = false;
+      throw error;
+    }
+  } finally {
+    if (version === orderRequestVersion && requestToken === token)
+      element('orders-body').setAttribute('aria-busy', 'false');
+    if (fullBookVersion === bookRequestVersion && requestToken === token) {
+      completeBookLoading = false;
+      renderOverview();
+    }
   }
+}
+
+function updateCancelAction(): void {
+  const cancel = element<HTMLButtonElement>('cancel-order');
+  const eligible =
+    selectedOrder !== undefined && ['NEW', 'PARTIALLY_FILLED'].includes(selectedOrder.status);
+  const pending = selectedOrder !== undefined && pendingCancellations.has(selectedOrder.id);
+  cancel.hidden = !eligible;
+  cancel.disabled = user?.role !== 'trader' || pending;
+  cancel.setAttribute('aria-busy', String(pending));
+  cancel.title =
+    user?.role === 'viewer' ? 'Read-only session: cancellation requires a trader.' : '';
 }
 
 function renderDetail(order: Order): void {
@@ -203,9 +379,23 @@ function renderDetail(order: Order): void {
     group.append(term, description);
     fields.append(group);
   }
+  const lifecycle = element('order-lifecycle');
+  lifecycle.replaceChildren();
+  const projection = document.createElement('ol');
+  for (const text of [
+    `Created time: ${order.createdAt}`,
+    `Current synthetic state: ${order.status}`,
+  ]) {
+    const item = document.createElement('li');
+    item.textContent = text;
+    projection.append(item);
+  }
+  const explanation = document.createElement('p');
+  explanation.textContent =
+    'This is a state summary, not an event history. No exchange event history is recorded.';
+  lifecycle.append(projection, explanation);
   element('order-detail').hidden = false;
-  element('cancel-order').hidden =
-    user?.role !== 'trader' || !['NEW', 'PARTIALLY_FILLED'].includes(order.status);
+  updateCancelAction();
 }
 
 async function loadDetail(id: string): Promise<void> {
@@ -213,21 +403,48 @@ async function loadDetail(id: string): Promise<void> {
   const requestToken = token;
   try {
     const result = await api(`/api/orders/${encodeURIComponent(id)}`, orderResponseSchema);
-    if (version === detailRequestVersion && requestToken === token) renderDetail(result.order);
+    if (version === detailRequestVersion && requestToken === token) {
+      renderDetail(result.order);
+      element('order-detail-heading').focus();
+      recordActivity(`Viewed order ${result.order.id}.`);
+    }
   } catch (error) {
     if (version === detailRequestVersion && requestToken === token) throw error;
   }
 }
 
 async function loadPositions(): Promise<void> {
-  const result = await api('/api/positions', positionsResponseSchema);
-  const body = element<HTMLTableSectionElement>('positions-body');
-  body.replaceChildren();
-  for (const position of result.positions) {
-    const row = body.insertRow();
-    cell(row, position.symbol);
-    cell(row, String(position.quantity));
-    cell(row, `$${position.averagePrice.toFixed(2)}`);
+  const version = ++positionsRequestVersion;
+  const requestToken = token;
+  element('positions-loading').textContent = 'Loading synthetic positions…';
+  element('positions-loading').hidden = false;
+  element('positions-body').setAttribute('aria-busy', 'true');
+  try {
+    const result = await api('/api/positions', positionsResponseSchema);
+    if (version !== positionsRequestVersion || requestToken !== token) return;
+    sessionPositions = result.positions;
+    const body = element<HTMLTableSectionElement>('positions-body');
+    body.replaceChildren();
+    for (const position of result.positions) {
+      const row = body.insertRow();
+      cell(row, position.symbol, 'symbol');
+      cell(row, String(position.quantity), 'numeric');
+      cell(row, money.format(position.averagePrice), 'numeric');
+    }
+    if (result.positions.length === 0) {
+      const empty = cell(body.insertRow(), 'No synthetic positions are available.', 'empty-state');
+      empty.colSpan = 3;
+    }
+    element('positions-loading').hidden = true;
+    renderOverview();
+  } catch (error) {
+    if (version === positionsRequestVersion && requestToken === token) {
+      element('positions-loading').textContent = 'Synthetic positions could not be loaded.';
+      throw error;
+    }
+  } finally {
+    if (version === positionsRequestVersion && requestToken === token)
+      element('positions-body').setAttribute('aria-busy', 'false');
   }
 }
 
@@ -236,8 +453,14 @@ async function openWorkspace(): Promise<void> {
   element('workspace').hidden = false;
   element('session-controls').hidden = false;
   element('user-label').textContent = `${user?.username ?? ''} · ${user?.role ?? ''}`;
-  element('order-form').hidden = user?.role === 'viewer';
+  const roleLabel = user?.role === 'viewer' ? 'read-only viewer' : 'trader';
+  element('session-role').textContent = user?.role === 'viewer' ? 'Read-only viewer' : 'Trader';
+  element('session-state').textContent = `Session: active · ${roleLabel}`;
+  element('overview-session').textContent = `Active · ${roleLabel}`;
+  element('order-form').hidden = false;
+  element<HTMLFieldSetElement>('order-entry-fields').disabled = user?.role === 'viewer';
   element('viewer-note').hidden = user?.role !== 'viewer';
+  showView('orders');
   await Promise.all([refreshOrders(), loadPositions()]);
 }
 
@@ -255,8 +478,10 @@ async function signIn(): Promise<void> {
     token = result.token;
     sessionToken = result.token;
     user = result.user;
+    resetSessionData();
     localStorage.setItem(TOKEN_KEY, token);
     element<HTMLInputElement>('password').value = '';
+    recordActivity(`Session opened: ${user.username} (${user.role}).`);
   } finally {
     if (submit) submit.disabled = false;
   }
@@ -267,12 +492,31 @@ async function signIn(): Promise<void> {
   }
 }
 
+function validationFailure(message: string): never {
+  recordActivity(`Validation failed: ${message}`);
+  throw new Error(message);
+}
+
+function acceptMutation(order: Order): void {
+  // Invalidate reads begun before this accepted mutation, including same-session reads.
+  bookRequestVersion++;
+  orderRequestVersion++;
+  completeBookLoading = false;
+  if (completeOrders !== undefined) {
+    const exists = completeOrders.some((candidate) => candidate.id === order.id);
+    completeOrders = exists
+      ? completeOrders.map((candidate) => (candidate.id === order.id ? order : candidate))
+      : [...completeOrders, order];
+    renderOverview();
+  }
+}
+
 async function submitOrder(): Promise<void> {
   clearMessages();
   const quantityText = value('quantity');
   const quantity = Number(quantityText);
   if (!quantityText || !Number.isInteger(quantity) || quantity < 1 || quantity > 1_000_000) {
-    throw new Error('Quantity must be a whole number from 1 to 1,000,000.');
+    validationFailure('Quantity must be a whole number from 1 to 1,000,000.');
   }
   const type = value('order-type');
   const input = {
@@ -283,15 +527,18 @@ async function submitOrder(): Promise<void> {
     ...(type === 'LIMIT' ? { limitPrice: Number(value('limit-price')) } : {}),
   };
   if (type === 'LIMIT' && (!Number.isFinite(input.limitPrice) || (input.limitPrice ?? 0) <= 0)) {
-    throw new Error('Limit price must be greater than zero.');
+    validationFailure('Limit price must be greater than zero.');
   }
   const parsed = createOrderSchema.safeParse(input);
-  if (!parsed.success) throw new Error('Order fields do not match the expected schema.');
+  if (!parsed.success) validationFailure('Order fields do not match the expected schema.');
   const submit =
     element<HTMLFormElement>('order-form').querySelector<HTMLButtonElement>(
       'button[type="submit"]',
     );
-  if (submit) submit.disabled = true;
+  if (submit) {
+    submit.disabled = true;
+    submit.setAttribute('aria-busy', 'true');
+  }
   const requestToken = token;
   try {
     const result = await api('/api/orders', orderResponseSchema, {
@@ -299,6 +546,10 @@ async function submitOrder(): Promise<void> {
       body: JSON.stringify(parsed.data),
     });
     if (requestToken !== token) return;
+    acceptMutation(result.order);
+    recordActivity(
+      `Created order ${result.order.id}: ${result.order.symbol} ${result.order.side} ${result.order.quantity}, ${result.order.status}.`,
+    );
     element<HTMLFormElement>('filters').reset();
     renderDetail(result.order);
     showSuccess('Order submitted.');
@@ -306,7 +557,10 @@ async function submitOrder(): Promise<void> {
   } catch (error) {
     if (requestToken === token) throw error;
   } finally {
-    if (submit && requestToken === token) submit.disabled = false;
+    if (submit && requestToken === token) {
+      submit.disabled = false;
+      submit.setAttribute('aria-busy', 'false');
+    }
   }
 }
 
@@ -316,8 +570,8 @@ async function cancelOrder(): Promise<void> {
   const version = detailRequestVersion;
   const requestToken = token;
   clearMessages();
-  const cancel = element<HTMLButtonElement>('cancel-order');
-  cancel.disabled = true;
+  pendingCancellations.add(target.id);
+  updateCancelAction();
   try {
     const result = await api(
       `/api/orders/${encodeURIComponent(target.id)}/cancel`,
@@ -325,31 +579,88 @@ async function cancelOrder(): Promise<void> {
       { method: 'POST' },
     );
     if (requestToken !== token) return;
+    acceptMutation(result.order);
+    recordActivity(`Canceled order ${result.order.id}.`);
     if (version === detailRequestVersion && selectedOrder?.id === target.id)
       renderDetail(result.order);
+    showSuccess('Order canceled.');
     await refreshOrders();
-    if (requestToken === token) showSuccess('Order canceled.');
   } catch (error) {
     if (requestToken === token) throw error;
   } finally {
-    if (requestToken === token) cancel.disabled = false;
+    if (requestToken === token) {
+      pendingCancellations.delete(target.id);
+      updateCancelAction();
+    }
   }
 }
 
 async function signOut(): Promise<void> {
   clearMessages();
   const requestToken = token;
+  const observation = ++apiObservationVersion;
+  let responseReceived = false;
+  element('api-state').textContent = 'API: DELETE /api/session · pending';
+  element('sign-out').setAttribute('aria-busy', 'true');
   try {
     const response = await fetch('/api/session', {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${requestToken ?? ''}` },
     });
+    responseReceived = true;
     if (requestToken !== token) return;
+    if (observation === apiObservationVersion)
+      element('api-state').textContent = `API: DELETE /api/session · ${response.status}`;
     if (!response.ok && response.status !== 401)
       throw new Error('The synthetic session could not be closed.');
     showLogin();
   } catch (error) {
-    if (requestToken === token) throw error;
+    if (requestToken === token) {
+      if (!responseReceived && observation === apiObservationVersion)
+        element('api-state').textContent = 'API: DELETE /api/session · no response';
+      throw error;
+    }
+  } finally {
+    if (requestToken === token) element('sign-out').setAttribute('aria-busy', 'false');
+  }
+}
+
+for (const view of views) {
+  const tab = element<HTMLButtonElement>(`nav-${view}`);
+  tab.addEventListener('click', () => showView(view));
+  tab.addEventListener('keydown', (event) => {
+    const index = views.indexOf(view);
+    const next =
+      event.key === 'ArrowRight'
+        ? (index + 1) % views.length
+        : event.key === 'ArrowLeft'
+          ? (index + views.length - 1) % views.length
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? views.length - 1
+              : undefined;
+    const target = next === undefined ? undefined : views[next];
+    if (target === undefined) return;
+    event.preventDefault();
+    showView(target);
+    element(`nav-${target}`).focus();
+  });
+}
+
+function renderMarketSnapshot(): void {
+  const body = element<HTMLTableSectionElement>('market-body');
+  const quotes = [
+    ['AAPL', 185.2, 185.3, 185.25],
+    ['MSFT', 410.4, 410.6, 410.5],
+    ['NVDA', 138.7, 138.8, 138.75],
+    ['SPY', 550.0, 550.1, 550.05],
+  ] as const;
+  body.replaceChildren();
+  for (const [symbol, bid, ask, last] of quotes) {
+    const row = body.insertRow();
+    cell(row, symbol, 'symbol');
+    for (const price of [bid, ask, last]) cell(row, money.format(price), 'numeric');
   }
 }
 
@@ -388,6 +699,7 @@ async function restoreSession(): Promise<void> {
     const result = await api('/api/session', z.object({ user: userSchema }).strict());
     if (requestToken !== token) return;
     user = result.user;
+    recordActivity(`Session restored: ${user.username} (${user.role}).`);
     await openWorkspace();
   } catch (error) {
     if (requestToken !== token) return;
@@ -396,4 +708,6 @@ async function restoreSession(): Promise<void> {
   }
 }
 
+renderMarketSnapshot();
+renderOverview();
 void restoreSession();

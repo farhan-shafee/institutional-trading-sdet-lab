@@ -124,7 +124,8 @@ test('a newer session never displays the prior book while its order list is pend
     expect(viewerBook.orders.map((candidate) => candidate.id)).not.toContain(order.id);
 
     await expect(page.getByText('qa.viewer · viewer', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeDisabled();
     await expect(blotter.row(order.id)).toHaveCount(0);
     await expect(blotter.rows).toHaveCount(0);
 

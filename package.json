@@ -2,7 +2,7 @@
   "name": "institutional-trading-sdet-lab",
   "version": "1.0.0",
   "private": true,
-  "description": "TradeFlow Lab: synthetic interview lab for evidence-driven SDET engineering",
+  "description": "TradeFlow: synthetic institutional-trading SDET lab with Playwright and TypeScript",
   "type": "module",
   "engines": {
     "node": ">=24 <25"
