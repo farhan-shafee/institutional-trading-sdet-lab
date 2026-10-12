@@ -44,13 +44,13 @@ Orders is the default view. Four lightweight, keyboard-accessible tabs keep the 
 
 The four-symbol snapshot contains fixed synthetic bid/ask/last values. Details show the known creation timestamp and current API status, not invented exchange events or transition timestamps. The footer reports observed API responses and session state, not infrastructure health monitoring.
 
-Actual local Chromium captures, with synthetic data:
+Actual local browser captures, with synthetic data:
 
-![TradeFlow session overview at 1440 pixels](docs/screenshots/tradeflow-overview-1440.png)
+![TradeFlow session overview at a 1440px viewport](docs/screenshots/premium/tradeflow-overview-1440.jpg)
 
-![TradeFlow orders, ticket, and exact-record details at 1440 pixels](docs/screenshots/tradeflow-orders-1440.png)
+![TradeFlow orders and ticket at a 1440px viewport](docs/screenshots/premium/tradeflow-orders-1440.jpg)
 
-Additional captures: [768px orders with a created UUID and sub-cent LIMIT price](docs/screenshots/tradeflow-orders-768.png), [1024px read-only viewer](docs/screenshots/tradeflow-viewer-1024.png), [positions](docs/screenshots/tradeflow-positions-1024.png), and [browser activity](docs/screenshots/tradeflow-activity-1024.png). These are observed renders, not generated mockups or visual-regression baselines.
+Additional captures: [1440px exact-record details](docs/screenshots/premium/tradeflow-details-1440.jpg), [768px orders with a created UUID, maximum quantity, and sub-cent LIMIT price](docs/screenshots/premium/tradeflow-orders-768.jpg), [1024px read-only viewer](docs/screenshots/premium/tradeflow-viewer-1024.jpg), [positions](docs/screenshots/premium/tradeflow-positions-1024.jpg), and [browser activity](docs/screenshots/premium/tradeflow-activity-1024.jpg). These are observed renders, not generated mockups or visual-regression baselines.
 
 ## Architecture and ownership
 
