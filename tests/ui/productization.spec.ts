@@ -95,6 +95,16 @@ test('keyboard navigation between all four views preserves filters and the selec
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       `The ${width}px workstation must not overflow the page horizontally`,
     ).toBe(true);
+    for (const name of ['Overview', 'Positions', 'Activity', 'Orders']) {
+      await page.getByRole('tab', { name, exact: true }).click();
+      await expect(page.getByRole('tabpanel', { name, exact: true })).toBeVisible();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+        `The ${width}px ${name} view must not overflow the page horizontally`,
+      ).toBe(true);
+    }
+    await expect(page.getByLabel('Filter symbol', { exact: true })).toHaveValue('MSFT');
+    await expect(page.getByTestId('detail-id')).toHaveText(seedIds.partialOrder);
   }
 });
 
