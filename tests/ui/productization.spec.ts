@@ -80,28 +80,70 @@ test('keyboard navigation between all four views preserves filters and the selec
   await expect(tradeBlotterPage.rows).toHaveCount(1);
   await expect(page.getByTestId('detail-id')).toHaveText(seedIds.partialOrder);
   await expect(page.getByTestId('detail-status')).toHaveText('PARTIALLY_FILLED');
-  for (const width of [1440, 1024, 768]) {
+  for (const width of [360, 390, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await tradeBlotterPage.viewOrder(seedIds.partialOrder);
     const detailHeading = page.getByRole('heading', { name: 'Order details', exact: true });
     await expect(detailHeading).toBeFocused();
     await expect(detailHeading).toBeInViewport();
-    for (const name of ['Overview', 'Orders', 'Positions', 'Activity']) {
-      await expect(page.getByRole('tab', { name, exact: true })).toBeVisible();
-    }
     await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Cancel order', exact: true })).toBeVisible();
+    await page.getByRole('tablist', { name: 'Workspace', exact: true }).scrollIntoViewIfNeeded();
+    for (const name of ['Overview', 'Orders', 'Positions', 'Activity']) {
+      const tab = page.getByRole('tab', { name, exact: true });
+      await expect(tab).toBeVisible();
+      await expect(tab).toBeEnabled();
+      await expect(tab).toBeInViewport({ ratio: 1 });
+      const target = await tab.boundingBox();
+      expect(target).not.toBeNull();
+      expect(target!.width, `${name} must retain a usable tap target`).toBeGreaterThanOrEqual(44);
+      expect(target!.height, `${name} must retain a usable tap target`).toBeGreaterThanOrEqual(44);
+      await expect(tab).toHaveCSS('font-size', '16px');
+    }
     expect(
-      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
       `The ${width}px workstation must not overflow the page horizontally`,
     ).toBe(true);
     for (const name of ['Overview', 'Positions', 'Activity', 'Orders']) {
       await page.getByRole('tab', { name, exact: true }).click();
       await expect(page.getByRole('tabpanel', { name, exact: true })).toBeVisible();
       expect(
-        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
         `The ${width}px ${name} view must not overflow the page horizontally`,
       ).toBe(true);
+    }
+    if (width === 360) {
+      await orders.focus();
+      await orders.press('Home');
+      for (const name of ['Overview', 'Orders', 'Positions', 'Activity']) {
+        const tab = page.getByRole('tab', { name, exact: true });
+        await expect(tab).toBeFocused();
+        await expect(tab).toHaveAttribute('aria-selected', 'true');
+        await expect(tab).toBeInViewport({ ratio: 1 });
+        await expect(page.getByRole('tabpanel', { name, exact: true })).toBeVisible();
+        await tab.press('ArrowRight');
+      }
+      await expect(overview).toBeFocused();
+      await overview.press('End');
+      await expect(activity).toBeFocused();
+      await activity.press('Home');
+      await expect(overview).toBeFocused();
+      await overview.press('ArrowRight');
+      await expect(orders).toBeFocused();
+      await orders.press('Tab');
+      const ordersPanel = page.getByRole('tabpanel', { name: 'Orders', exact: true });
+      await expect(ordersPanel).toBeFocused();
+      await ordersPanel.press('Tab');
+      const symbolFilter = page.getByLabel('Filter symbol', { exact: true });
+      await expect(symbolFilter).toBeFocused();
+      await symbolFilter.press('Shift+Tab');
+      await expect(ordersPanel).toBeFocused();
+      await ordersPanel.press('Shift+Tab');
+      await expect(orders).toBeFocused();
     }
     await expect(page.getByLabel('Filter symbol', { exact: true })).toHaveValue('MSFT');
     await expect(page.getByTestId('detail-id')).toHaveText(seedIds.partialOrder);
