@@ -822,6 +822,9 @@ footer {
   .workspace-nav button {
     padding: 12px 16px;
   }
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
   .filters {
     flex-wrap: wrap;
   }
