@@ -1,4 +1,9 @@
-import { test as unauthenticatedTest, type APIRequestContext, type Page } from '@playwright/test';
+import {
+  test as unauthenticatedTest,
+  type APIRequestContext,
+  type Locator,
+  type Page,
+} from '@playwright/test';
 import {
   orderResponseSchema,
   ordersResponseSchema,
@@ -45,6 +50,45 @@ async function releaseSessions(request: APIRequestContext, tokens: string[]): Pr
   }
 }
 
+async function measureMetricText(value: Locator) {
+  await value.scrollIntoViewIfNeeded();
+  return value.evaluate((element) => {
+    const card = element.closest('article')!;
+    const bounds = card.getBoundingClientRect();
+    const style = getComputedStyle(card);
+    const content = {
+      left: bounds.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft),
+      right: bounds.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight),
+      top: bounds.top + parseFloat(style.borderTopWidth) + parseFloat(style.paddingTop),
+      bottom: bounds.bottom - parseFloat(style.borderBottomWidth) - parseFloat(style.paddingBottom),
+    };
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const rects = Array.from(range.getClientRects(), (rect) => ({
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+      bottom: rect.bottom,
+    }));
+    // Hit-test each character: a complete DOM value can still be covered by a neighboring card.
+    const text = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    let unobstructed = true;
+    for (let node = text.nextNode(); node; node = text.nextNode()) {
+      for (let offset = 0; offset < node.textContent!.length; offset++) {
+        range.setStart(node, offset);
+        range.setEnd(node, offset + 1);
+        const rect = range.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2,
+        );
+        unobstructed &&= hit !== null && element.contains(hit);
+      }
+    }
+    return { content, rects, unobstructed };
+  });
+}
+
 test('keyboard navigation between all four views preserves filters and the selected order', async ({
   authenticatedPage: page,
   tradeBlotterPage,
@@ -80,21 +124,95 @@ test('keyboard navigation between all four views preserves filters and the selec
   await expect(tradeBlotterPage.rows).toHaveCount(1);
   await expect(page.getByTestId('detail-id')).toHaveText(seedIds.partialOrder);
   await expect(page.getByTestId('detail-status')).toHaveText('PARTIALLY_FILLED');
-  for (const width of [1440, 1024, 768]) {
+  for (const width of [360, 390, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await tradeBlotterPage.viewOrder(seedIds.partialOrder);
     const detailHeading = page.getByRole('heading', { name: 'Order details', exact: true });
     await expect(detailHeading).toBeFocused();
     await expect(detailHeading).toBeInViewport();
-    for (const name of ['Overview', 'Orders', 'Positions', 'Activity']) {
-      await expect(page.getByRole('tab', { name, exact: true })).toBeVisible();
-    }
     await expect(page.getByRole('button', { name: 'Submit order', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Cancel order', exact: true })).toBeVisible();
+    await page.getByRole('tablist', { name: 'Workspace', exact: true }).scrollIntoViewIfNeeded();
+    for (const name of ['Overview', 'Orders', 'Positions', 'Activity']) {
+      const tab = page.getByRole('tab', { name, exact: true });
+      await expect(tab).toBeVisible();
+      await expect(tab).toBeEnabled();
+      await expect(tab).toBeInViewport({ ratio: 1 });
+      const target = await tab.boundingBox();
+      expect(target).not.toBeNull();
+      expect(target!.width, `${name} must retain a usable tap target`).toBeGreaterThanOrEqual(44);
+      expect(target!.height, `${name} must retain a usable tap target`).toBeGreaterThanOrEqual(44);
+      await expect(tab).toHaveCSS('font-size', '16px');
+    }
     expect(
-      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
       `The ${width}px workstation must not overflow the page horizontally`,
     ).toBe(true);
+    for (const name of ['Overview', 'Positions', 'Activity', 'Orders']) {
+      await page.getByRole('tab', { name, exact: true }).click();
+      await expect(page.getByRole('tabpanel', { name, exact: true })).toBeVisible();
+      if (name === 'Overview' && width <= 390) {
+        const notional = page.getByTestId('overview-notional');
+        await expect(notional).toHaveText('$270,522.50');
+        await expect(notional).toHaveCSS('font-size', '34px');
+        const values = page
+          .getByRole('tabpanel', { name: 'Overview', exact: true })
+          .locator('strong');
+        await expect(values).toHaveCount(6);
+        for (const value of await values.all()) {
+          const layout = await measureMetricText(value);
+          expect(layout.rects.length).toBeGreaterThan(0);
+          for (const rect of layout.rects) {
+            expect(rect.right).toBeGreaterThan(rect.left);
+            expect(rect.bottom).toBeGreaterThan(rect.top);
+            expect(rect.left).toBeGreaterThanOrEqual(layout.content.left - 1);
+            expect(rect.right).toBeLessThanOrEqual(layout.content.right + 1);
+            expect(rect.top).toBeGreaterThanOrEqual(layout.content.top - 1);
+            expect(rect.bottom).toBeLessThanOrEqual(layout.content.bottom + 1);
+          }
+          expect(layout.unobstructed, `${width}px metric text must not be covered`).toBe(true);
+        }
+      }
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+        `The ${width}px ${name} view must not overflow the page horizontally`,
+      ).toBe(true);
+    }
+    if (width === 360) {
+      await orders.focus();
+      await orders.press('Home');
+      for (const name of ['Overview', 'Orders', 'Positions', 'Activity']) {
+        const tab = page.getByRole('tab', { name, exact: true });
+        await expect(tab).toBeFocused();
+        await expect(tab).toHaveAttribute('aria-selected', 'true');
+        await expect(tab).toBeInViewport({ ratio: 1 });
+        await expect(page.getByRole('tabpanel', { name, exact: true })).toBeVisible();
+        await tab.press('ArrowRight');
+      }
+      await expect(overview).toBeFocused();
+      await overview.press('End');
+      await expect(activity).toBeFocused();
+      await activity.press('Home');
+      await expect(overview).toBeFocused();
+      await overview.press('ArrowRight');
+      await expect(orders).toBeFocused();
+      await orders.press('Tab');
+      const ordersPanel = page.getByRole('tabpanel', { name: 'Orders', exact: true });
+      await expect(ordersPanel).toBeFocused();
+      await ordersPanel.press('Tab');
+      const symbolFilter = page.getByLabel('Filter symbol', { exact: true });
+      await expect(symbolFilter).toBeFocused();
+      await symbolFilter.press('Shift+Tab');
+      await expect(ordersPanel).toBeFocused();
+      await ordersPanel.press('Shift+Tab');
+      await expect(orders).toBeFocused();
+    }
+    await expect(page.getByLabel('Filter symbol', { exact: true })).toHaveValue('MSFT');
+    await expect(page.getByTestId('detail-id')).toHaveText(seedIds.partialOrder);
   }
 });
 
@@ -232,6 +350,49 @@ unauthenticatedTest(
       await expect(page.getByRole('list', { name: 'Session activity', exact: true })).toContainText(
         `Viewed order ${seedIds.newOrder}.`,
       );
+      for (const width of [360, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page
+          .getByRole('tablist', { name: 'Workspace', exact: true })
+          .scrollIntoViewIfNeeded();
+        for (const name of ['Overview', 'Positions', 'Activity', 'Orders']) {
+          const tab = page.getByRole('tab', { name, exact: true });
+          await expect(tab).toBeEnabled();
+          await expect(tab).toBeInViewport({ ratio: 1 });
+          await tab.click();
+          await expect(page.getByRole('tabpanel', { name, exact: true })).toBeVisible();
+          if (name === 'Overview') {
+            const notional = page.getByTestId('overview-notional');
+            await expect(notional).toHaveText('$270,522.50');
+            await expect(notional).toHaveCSS('font-size', '34px');
+            const layout = await measureMetricText(notional);
+            expect(layout.rects.length).toBeGreaterThan(0);
+            for (const rect of layout.rects) {
+              expect(rect.right).toBeGreaterThan(rect.left);
+              expect(rect.bottom).toBeGreaterThan(rect.top);
+              expect(rect.left).toBeGreaterThanOrEqual(layout.content.left - 1);
+              expect(rect.right).toBeLessThanOrEqual(layout.content.right + 1);
+              expect(rect.top).toBeGreaterThanOrEqual(layout.content.top - 1);
+              expect(rect.bottom).toBeLessThanOrEqual(layout.content.bottom + 1);
+            }
+            expect(layout.unobstructed, `${width}px viewer notional must not be covered`).toBe(
+              true,
+            );
+            await page
+              .getByRole('tablist', { name: 'Workspace', exact: true })
+              .scrollIntoViewIfNeeded();
+          }
+          expect(
+            await page.evaluate(
+              () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+            ),
+            `The ${width}px viewer ${name} view must not overflow horizontally`,
+          ).toBe(true);
+        }
+        await expect(submit).toBeDisabled();
+        await expect(cancel).toBeDisabled();
+        await expect(page.getByTestId('detail-id')).toHaveText(seedIds.newOrder);
+      }
     } finally {
       await releaseSessions(request, tokens);
     }

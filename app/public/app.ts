@@ -374,7 +374,8 @@ function renderDetail(order: Order): void {
     const term = document.createElement('dt');
     term.textContent = label ?? '';
     const description = document.createElement('dd');
-    description.textContent = text ?? '';
+    if (testId === 'detail-status') description.append(statusPill(order.status));
+    else description.textContent = text ?? '';
     if (testId) description.dataset.testid = testId;
     group.append(term, description);
     fields.append(group);

@@ -271,22 +271,26 @@
                       </select>
                     </div>
                   </div>
-                  <label for="quantity">Quantity</label
-                  ><input
-                    id="quantity"
-                    type="number"
-                    min="1"
-                    max="1000000"
-                    step="1"
-                    inputmode="numeric"
-                    value="100"
-                    aria-describedby="ticket-rules"
-                  />
-                  <label for="order-type">Order type</label
-                  ><select id="order-type">
-                    <option>MARKET</option>
-                    <option>LIMIT</option>
-                  </select>
+                  <div>
+                    <label for="quantity">Quantity</label
+                    ><input
+                      id="quantity"
+                      type="number"
+                      min="1"
+                      max="1000000"
+                      step="1"
+                      inputmode="numeric"
+                      value="100"
+                      aria-describedby="ticket-rules"
+                    />
+                  </div>
+                  <div>
+                    <label for="order-type">Order type</label
+                    ><select id="order-type">
+                      <option>MARKET</option>
+                      <option>LIMIT</option>
+                    </select>
+                  </div>
                   <div id="limit-price-field" hidden>
                     <label for="limit-price">Limit price</label
                     ><input
