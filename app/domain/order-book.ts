@@ -64,6 +64,12 @@ export const positions = Object.freeze([
 export class OrderBook {
   private readonly orders = new Map(seeds.map((order) => [order.id, { ...order }]));
 
+  constructor(private readonly maxOrders = Infinity) {
+    if (maxOrders !== Infinity && (!Number.isSafeInteger(maxOrders) || maxOrders < seeds.length)) {
+      throw new RangeError('Order capacity must include all five synthetic seed records.');
+    }
+  }
+
   list(filters: OrderFilters = {}): Order[] {
     return [...this.orders.values()]
       .filter(
@@ -87,6 +93,13 @@ export class OrderBook {
     const parsed = createOrderSchema.safeParse(input);
     if (!parsed.success) {
       throw new DomainError(400, 'VALIDATION_ERROR', 'The synthetic order is invalid.');
+    }
+    if (this.orders.size >= this.maxOrders) {
+      throw new DomainError(
+        409,
+        'ORDER_CAPACITY_REACHED',
+        'This synthetic session has reached its order capacity.',
+      );
     }
     const order: Order = {
       ...parsed.data,

@@ -9,7 +9,10 @@
   },
   "scripts": {
     "build:ui": "esbuild app/public/app.ts --bundle --format=esm --target=es2022 --outfile=app/public/app.js",
+    "build": "tsx scripts/build.ts",
     "start": "npm run build:ui && tsx app/server/index.ts",
+    "start:production": "node dist/app/server/index.js",
+    "smoke:production": "tsx scripts/verify-production.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
@@ -28,7 +31,7 @@
     "report": "playwright show-report playwright-report",
     "report:demo": "playwright show-report demo-report",
     "perf:smoke": "tsx scripts/perf-smoke.ts",
-    "validate": "npm run typecheck && npm run lint && npm run format:check && npm run contract:validate && npm run workflow:validate && npm run test:unit && npm test"
+    "validate": "npm run typecheck && npm run lint && npm run format:check && npm run contract:validate && npm run workflow:validate && npm run test:unit && npm run build && npm run smoke:production && npm test"
   },
   "dependencies": {
     "zod": "^4.6.5"

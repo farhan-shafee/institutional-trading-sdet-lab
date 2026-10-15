@@ -40,6 +40,10 @@ jobs:
         run: npm run workflow:validate
       - name: Domain unit checks
         run: npm run test:unit
+      - name: Build production artifact
+        run: npm run build
+      - name: Production loopback smoke
+        run: npm run smoke:production
       - name: Install browsers and Linux libraries
         run: npx playwright install --with-deps chromium firefox webkit
       - name: API, contract and cross-browser tests

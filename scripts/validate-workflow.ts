@@ -37,6 +37,8 @@ for (const command of [
   'npm run contract:validate',
   'npm run workflow:validate',
   'npm run test:unit',
+  'npm run build',
+  'npm run smoke:production',
   'npm test',
 ]) {
   assert(

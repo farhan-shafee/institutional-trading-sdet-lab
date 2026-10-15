@@ -188,7 +188,11 @@ async function api<T>(path: string, schema: z.ZodType<T>, init: RequestInit = {}
     response = await fetch(path, { ...init, headers });
   } catch {
     observe('no response');
-    throw new Error('The local server could not be reached.');
+    throw new Error(
+      document.body.dataset.demoMode === 'hosted-demo'
+        ? 'The demo server could not be reached.'
+        : 'The local server could not be reached.',
+    );
   }
   let body: unknown;
   try {
