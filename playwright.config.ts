@@ -25,7 +25,10 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   projects: [
-    { name: 'service', testMatch: ['**/api/**/*.spec.ts', '**/contract/**/*.spec.ts'] },
+    {
+      name: 'service',
+      testMatch: ['**/api/**/*.spec.ts', '**/contract/**/*.spec.ts', '**/hosted/**/*.spec.ts'],
+    },
     {
       name: 'chromium',
       testMatch: ['**/ui/**/*.spec.ts', '**/integration/**/*.spec.ts'],
@@ -47,6 +50,6 @@ export default defineConfig({
     url: 'http://127.0.0.1:3000/health',
     reuseExistingServer: false,
     timeout: 30_000,
-    env: { PORT: '3000' },
+    env: { PORT: '3000', TRADEFLOW_MODE: 'local', TRADEFLOW_HOST: '127.0.0.1' },
   },
 });

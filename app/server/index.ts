@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import type { z } from 'zod';
 import { DomainError } from '../domain/errors.js';
+import { AdmissionWindow } from '../domain/admission.js';
 import { positions } from '../domain/order-book.js';
 import {
   errorResponseSchema,
@@ -14,6 +15,11 @@ import {
   sessionResponseSchema,
 } from '../domain/schemas.js';
 import { SessionStore } from '../domain/session-store.js';
+import {
+  ConfigurationError,
+  readConfiguration,
+  type ApplicationConfiguration,
+} from './configuration.js';
 
 const BODY_LIMIT_BYTES = 16_384;
 const staticFiles = new Map([
@@ -76,6 +82,7 @@ function readJson(request: IncomingMessage): Promise<unknown> {
     let size = 0;
     let oversized = false;
     request.on('data', (chunk: Buffer) => {
+      if (oversized) return;
       size += chunk.length;
       if (size > BODY_LIMIT_BYTES) {
         oversized = true;
@@ -116,8 +123,46 @@ function decodeOrderId(encodedId: string): string {
   }
 }
 
-export function createApplicationServer() {
-  const sessions = new SessionStore();
+export function createApplicationServer(
+  options: {
+    configuration?: ApplicationConfiguration;
+    now?: () => number;
+  } = {},
+) {
+  const configuration = options.configuration ?? readConfiguration({});
+  const now = options.now ?? (() => performance.now());
+  const hosted = configuration.mode === 'hosted-demo';
+  const sessions = new SessionStore({
+    ...(hosted ? { limits: configuration.limits } : {}),
+    now,
+  });
+  const requests = hosted
+    ? new AdmissionWindow(configuration.admission.requestsPerMinute, 60_000, now)
+    : undefined;
+  const authentication = hosted
+    ? new AdmissionWindow(configuration.admission.authPerMinute, 60_000, now)
+    : undefined;
+  const mutations = hosted
+    ? new AdmissionWindow(configuration.admission.mutationsPerMinute, 60_000, now)
+    : undefined;
+
+  function publicDemoHtml(contents: Buffer): string {
+    if (!hosted) return contents.toString('utf8');
+    return contents
+      .toString('utf8')
+      .replace('data-demo-mode="local"', 'data-demo-mode="hosted-demo"')
+      .replace('a local synthetic trading environment', 'a synthetic public demo')
+      .replace('SYNTHETIC / LOCAL', 'SYNTHETIC / PUBLIC DEMO')
+      .replace(
+        'Environment: Synthetic · local only',
+        'Environment: Synthetic · public demo · ephemeral',
+      )
+      .replace('Local synthetic orders only.', 'Ephemeral synthetic orders only.')
+      .replace(
+        'Every login starts with a fresh synthetic book.',
+        `Public synthetic demo. Sessions expire after ${configuration.limits.ttlMs / 1000} seconds. Logout or restart discards your book. Resource limits may reject requests. No production identity system.`,
+      );
+  }
 
   async function route(request: IncomingMessage, response: ServerResponse): Promise<void> {
     response.setHeader('Cache-Control', 'no-store');
@@ -127,8 +172,22 @@ export function createApplicationServer() {
       'Content-Security-Policy',
       "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'",
     );
-    const url = new URL(request.url ?? '/', 'http://127.0.0.1');
     const method = request.method ?? 'GET';
+    const target = request.url ?? '/';
+    const path = target.split('?')[0];
+    if (
+      !(method === 'GET' && path === '/health') &&
+      !(method === 'DELETE' && path === '/api/session')
+    )
+      requests?.take();
+    let url: URL;
+    try {
+      if (!target.startsWith('/') || target.startsWith('//')) throw new Error('Invalid target');
+      url = new URL(target, 'http://127.0.0.1');
+      if (url.origin !== 'http://127.0.0.1') throw new Error('Invalid origin');
+    } catch {
+      throw new DomainError(400, 'VALIDATION_ERROR', 'The request target must be a local path.');
+    }
 
     if (method === 'GET' && url.pathname === '/health') {
       json(response, 200, { status: 'ok', service: 'TradeFlow Lab', synthetic: true });
@@ -138,10 +197,11 @@ export function createApplicationServer() {
     if (method === 'GET' && file) {
       const contents = await readFile(file.path);
       response.writeHead(200, { 'Content-Type': file.type });
-      response.end(contents);
+      response.end(file.type.startsWith('text/html') ? publicDemoHtml(contents) : contents);
       return;
     }
     if (method === 'POST' && url.pathname === '/api/session') {
+      authentication?.take();
       const input = validate(sessionRequestSchema, await readJson(request));
       json(
         response,
@@ -151,7 +211,7 @@ export function createApplicationServer() {
       return;
     }
     if (!url.pathname.startsWith('/api/')) {
-      throw new DomainError(404, 'ROUTE_NOT_FOUND', 'This local route does not exist.');
+      throw new DomainError(404, 'ROUTE_NOT_FOUND', 'This route does not exist.');
     }
     const token = bearerToken(request);
     const session = sessions.authenticate(token);
@@ -204,8 +264,13 @@ export function createApplicationServer() {
       if (session.user.role !== 'trader') {
         throw new DomainError(403, 'FORBIDDEN', 'Viewer sessions cannot change synthetic orders.');
       }
+      mutations?.take();
+      sessions.admitMutation(token);
       if (createOrder) {
-        const order = session.book.create(await readJson(request));
+        const input = await readJson(request);
+        // A body can arrive after logout/expiry; never mutate the earlier held session.
+        const current = sessions.authenticate(token);
+        const order = current.book.create(input);
         response.setHeader('Location', `/api/orders/${order.id}`);
         json(response, 201, orderResponseSchema.parse({ order }));
       } else if (cancellation?.[1]) {
@@ -217,53 +282,100 @@ export function createApplicationServer() {
       }
       return;
     }
-    throw new DomainError(404, 'ROUTE_NOT_FOUND', 'This local API route does not exist.');
+    throw new DomainError(404, 'ROUTE_NOT_FOUND', 'This API route does not exist.');
   }
 
-  const server = createServer((request, response) => {
-    void route(request, response).catch((error: unknown) => {
-      if (response.headersSent || response.destroyed) return;
-      const failure =
-        error instanceof DomainError
-          ? error
-          : new DomainError(500, 'INTERNAL_ERROR', 'An unexpected local server error occurred.');
-      if (!(error instanceof DomainError)) console.error('Unexpected application error:', error);
-      json(
-        response,
-        failure.status,
-        errorResponseSchema.parse({
-          error: { code: failure.code, message: failure.message },
-        }),
-      );
-    });
-  });
+  const server = createServer(
+    {
+      ...(hosted ? { maxHeaderSize: 8192, connectionsCheckingInterval: 1000 } : {}),
+    },
+    (request, response) => {
+      if (request.headers['transfer-encoding'] || Number(request.headers['content-length']) > 0) {
+        response.setHeader('Connection', 'close');
+      }
+      response.once('finish', () => {
+        if (!request.complete) request.destroy();
+      });
+      void route(request, response).catch((error: unknown) => {
+        if (response.headersSent || response.destroyed) return;
+        const failure =
+          error instanceof DomainError
+            ? error
+            : new DomainError(500, 'INTERNAL_ERROR', 'An unexpected server error occurred.');
+        if (!(error instanceof DomainError)) console.error('TradeFlow INTERNAL_ERROR');
+        if (failure.retryAfterSeconds !== undefined) {
+          response.setHeader('Retry-After', String(failure.retryAfterSeconds));
+        }
+        json(
+          response,
+          failure.status,
+          errorResponseSchema.parse({
+            error: { code: failure.code, message: failure.message },
+          }),
+        );
+      });
+    },
+  );
   server.requestTimeout = 10_000;
-  server.headersTimeout = 10_000;
+  server.headersTimeout = hosted ? 5_000 : 10_000;
+  if (hosted) {
+    server.maxConnections = 128;
+    server.maxHeadersCount = 64;
+    server.maxRequestsPerSocket = 100;
+    server.keepAliveTimeout = 5_000;
+    server.setTimeout(10_000, (socket) => socket.destroy());
+  }
+  const expirySweep = hosted ? setInterval(() => sessions.pruneExpired(), 30_000) : undefined;
+  expirySweep?.unref();
+  server.once('close', () => {
+    clearInterval(expirySweep);
+    sessions.clear();
+  });
   return server;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const portText = process.env.PORT ?? '3000';
-  const port = Number(portText);
-  if (!/^\d+$/.test(portText) || !Number.isInteger(port) || port < 1 || port > 65_535) {
-    throw new Error('PORT must be an integer between 1 and 65535.');
-  }
-  const server = createApplicationServer();
-  server.once('error', (error) => {
-    console.error('TradeFlow Lab could not start:', error.message);
+async function start(): Promise<void> {
+  const configuration = readConfiguration();
+  // Verify the complete runtime artifact before reporting readiness or opening a listener.
+  await Promise.all(
+    [...staticFiles.values()].map(async (file) => {
+      const bytes = await readFile(file.path);
+      if (bytes.length === 0) throw new Error('Empty runtime asset');
+    }),
+  );
+  const server = createApplicationServer({ configuration });
+  server.once('error', () => {
+    console.error('TradeFlow could not listen on the configured host and PORT.');
     process.exitCode = 1;
   });
-  server.listen(port, '127.0.0.1', () => {
-    console.log(`TradeFlow Lab synthetic interview lab: http://127.0.0.1:${port}`);
+  server.listen(configuration.port, configuration.host, () => {
+    console.log(
+      `TradeFlow Lab synthetic ${configuration.mode}: http://${configuration.host}:${configuration.port}`,
+    );
   });
+  let closing = false;
   const shutdown = () => {
+    if (closing) return;
+    closing = true;
+    const deadline = setTimeout(() => server.closeAllConnections(), 5_000);
+    deadline.unref();
     server.close(() => {
+      clearTimeout(deadline);
       process.exitCode = 0;
     });
     server.closeIdleConnections();
-    const deadline = setTimeout(() => server.closeAllConnections(), 5_000);
-    deadline.unref();
   };
   process.once('SIGTERM', shutdown);
   process.once('SIGINT', shutdown);
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  void start().catch((error: unknown) => {
+    console.error(
+      error instanceof ConfigurationError
+        ? `TradeFlow configuration error: ${error.message}`
+        : 'TradeFlow runtime assets are missing or unreadable. Run a successful build before starting.',
+    );
+    process.exitCode = 1;
+  });
 }

@@ -3,12 +3,27 @@ info:
   title: TradeFlow Lab API
   version: 1.0.0
   description: >-
-    Local synthetic interview and learning lab. No real orders, credentials,
-    brokerage connectivity, market data, or financial transactions. Every login
-    creates an isolated in-memory order book; DELETE /api/session releases it.
+    Synthetic interview and learning lab with a local default and a bounded
+    hosted-demo mode. No real orders, credentials, brokerage connectivity,
+    market data, or financial transactions. Every login creates an isolated
+    in-memory order book; DELETE /api/session releases it. A process restart
+    discards all sessions and books. Hosted-demo defaults are an absolute
+    30-minute session lifetime, 50 live sessions, and 100 total orders per book,
+    including the five seed orders. Requests do not extend session lifetime.
+    Hosted-demo admission uses fixed 60-second windows: 600 requests globally,
+    60 session-creation attempts before body parsing, and 120 order mutations
+    globally plus 30 order mutations per session. All routes consume the global
+    request budget except GET /health and DELETE /api/session; those two
+    operations are exempt from all admission budgets. Local mode applies none
+    of these hosted-demo limits. JSON body limits remain 16384 bytes in both
+    modes. Native HTTP transport protections may return 408, 431, or a socket
+    admission 503 without the application JSON error envelope; those transport
+    responses are distinct from the application responses documented below.
 servers:
   - url: http://127.0.0.1:3000
     description: Local loopback server; PORT may override 3000.
+  - url: /
+    description: Current host when this specification is served by a hosted demo.
 tags:
   - name: Environment
   - name: Session
@@ -21,7 +36,8 @@ paths:
     get:
       tags: [Environment]
       operationId: getHealth
-      summary: Check local readiness and synthetic identity
+      summary: Check readiness and synthetic identity
+      description: Exempt from hosted-demo request and mutation admission budgets.
       security: []
       responses:
         '200':
@@ -45,6 +61,8 @@ paths:
             application/yaml:
               schema:
                 type: string
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/session:
@@ -54,7 +72,9 @@ paths:
       summary: Authenticate synthetic credentials and create a fresh isolated book
       description: >-
         qa.user has trader permissions and qa.viewer has viewer permissions.
-        Both use the public synthetic password Password123!.
+        Both use the public synthetic password Password123!. In hosted-demo
+        mode, session creation is rate limited before body parsing and a full
+        live-session capacity rejects creation without allocating a book.
       security: []
       requestBody:
         required: true
@@ -84,12 +104,17 @@ paths:
           $ref: '#/components/responses/PayloadTooLarge'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/SessionCapacityReached'
     get:
       tags: [Session]
       operationId: getSession
       summary: Restore the identity of the current synthetic session
+      description: Restoring a hosted-demo session does not extend its absolute lifetime.
       responses:
         '200':
           description: Current user; does not create a new book or token.
@@ -99,12 +124,15 @@ paths:
                 $ref: '#/components/schemas/CurrentSessionResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
     delete:
       tags: [Session]
       operationId: deleteSession
       summary: Revoke the bearer token and release its isolated book
+      description: Exempt from all hosted-demo admission budgets so logout remains available.
       responses:
         '204':
           description: Session removed; no response body.
@@ -144,6 +172,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
     post:
@@ -154,6 +184,8 @@ paths:
         A valid submission gets a unique ID, current UTC timestamp, and NEW
         status. This lab simulates no fills or market executions. MARKET forbids
         limitPrice; LIMIT requires a positive finite numeric limitPrice.
+        Hosted-demo order capacity counts every order in the session book,
+        including seed and terminal orders; cancellation does not release a slot.
       requestBody:
         required: true
         content:
@@ -192,10 +224,14 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/OrderCapacityReached'
         '413':
           $ref: '#/components/responses/PayloadTooLarge'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/orders/{id}:
@@ -218,6 +254,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/OrderNotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/orders/{id}/cancel:
@@ -230,6 +268,8 @@ paths:
       description: >-
         Only NEW and PARTIALLY_FILLED may transition to CANCELED. FILLED,
         CANCELED, and REJECTED return 409 and remain unchanged. No body is needed.
+        Hosted-demo order capacity does not prevent cancellation; request and
+        mutation admission budgets still apply.
       responses:
         '200':
           description: Order now has CANCELED status.
@@ -251,6 +291,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/positions:
@@ -268,6 +310,8 @@ paths:
                 $ref: '#/components/schemas/PositionsResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
 components:
@@ -298,7 +342,7 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     Unauthorized:
-      description: Missing or invalid bearer token (UNAUTHORIZED).
+      description: Missing, invalid, expired, or revoked bearer token (UNAUTHORIZED).
       content:
         application/json:
           schema:
@@ -315,6 +359,15 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+    OrderCapacityReached:
+      description: >-
+        Hosted-demo session book reached its total order capacity
+        (ORDER_CAPACITY_REACHED). The book is unchanged. Cancellation remains
+        available but does not release capacity. No Retry-After header is sent.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
     PayloadTooLarge:
       description: JSON body exceeds 16384 bytes (PAYLOAD_TOO_LARGE).
       content:
@@ -327,8 +380,33 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+    RateLimited:
+      description: >-
+        A hosted-demo request, authentication, or order-mutation admission
+        budget is exhausted (RATE_LIMITED). The request does not perform its
+        requested action. Retry after the indicated fixed-window reset.
+      headers:
+        Retry-After:
+          description: Positive integer seconds until the exhausted admission window resets.
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    SessionCapacityReached:
+      description: >-
+        Hosted-demo live-session capacity is full (SESSION_CAPACITY_REACHED).
+        No session or book is created. Capacity becomes available when a live
+        session expires or is deleted. No Retry-After header is sent.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
     InternalError:
-      description: Unexpected local server error (INTERNAL_ERROR).
+      description: Unexpected server error (INTERNAL_ERROR).
       content:
         application/json:
           schema:
