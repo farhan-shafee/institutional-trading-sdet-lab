@@ -15,6 +15,8 @@ The highest risks are accepting invalid input, allowing an unauthorized mutation
 
 The API/contract `service` project runs once. Chromium, Firefox, and WebKit run UI and integration cases. Browser-free API tests do not need three copies merely because three engines exist.
 
+Hosted-boundary cases also run once in `service`, each owning an ephemeral loopback server and request context. They inject a monotonic clock to verify expiration/admission boundaries without sleeps, and use HTTP request-event barriers for revocation/expiry during an unfinished body. They validate statuses, literal error codes, runtime/OpenAPI bodies, Retry-After, unchanged books, and recovery. Configuration/domain checks cover finite bounds and resource cleanup. The existing normal fixtures and local-mode expectations remain unchanged; public limits never depend on a hidden CI exemption.
+
 ## Risk-based negative paths
 
 Missing or invalid bearer tokens receive `401`. Authenticated viewers receive `403` on mutation. Bad symbol, quantity, type, or required fields receive `400`; unknown records receive `404`; canceling FILLED, CANCELED, or REJECTED records receives `409`. Assertions inspect `error.code` as well as status so a generic server error cannot masquerade as the intended boundary.
@@ -39,6 +41,8 @@ npm test -- --repeat-each=2
 ```
 
 `validate` runs static checks, formatting, OpenAPI validation, workflow validation, domain tests, and the normal Playwright suite. Stop a manually started app before this command: tests own port 3000. CI uses conservative parallelism, finite artifacts, and a retry policy that fails the gate for flaky tests. An assertion failure is evidence to investigate; passing after retry does not erase it.
+
+It also builds the complete production artifact and runs `smoke:production`: a clean production-only installation outside the checkout, native Node startup from an unrelated working directory, real wire workflows/resource limits, and one intentional wait for a one-second session lifetime. Ubuntu additionally verifies SIGTERM with an unfinished request body and the bounded force-close path; Windows termination is explicitly reported as forced. This smoke is separate from unit/Playwright scenario counts. Application admission does not certify deployed TLS, DNS, proxy identity, edge protection, billing controls, or capacity. See [deployment readiness](PUBLIC_DEPLOYMENT_READINESS.md).
 
 The two intentional-failure commands are separate demonstrations. One fails a visible UI expectation; the other exposes a malformed body returned with HTTP 200. Both must remain excluded from normal tests. See [triage](TRACING_AND_FAILURE_TRIAGE.md) and [actual validation evidence](VALIDATION.md).
 

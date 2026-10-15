@@ -25,6 +25,8 @@ Open [TradeFlow](http://127.0.0.1:3000).
 
 Each login creates an isolated order book. **Stop the manual server with Ctrl+C before tests.** Playwright starts its own server on port 3000 with `reuseExistingServer: false`; a stale manual process cannot supply results.
 
+Public-demo hosting is preparation only. The default remains loopback-only; an explicit `hosted-demo` profile enables finite resource limits. Production build/runtime verification and the future Railway/Cloudflare owner decisions are documented in [public deployment readiness](docs/PUBLIC_DEPLOYMENT_READINESS.md). No deployed service or configured domain is claimed.
+
 ```sh
 npm run validate
 npm test -- --repeat-each=2
@@ -56,7 +58,7 @@ Additional captures: [1440px exact-record details](docs/screenshots/premium/trad
 
 ```mermaid
 flowchart LR
-    UI[HTML / CSS / browser TypeScript] -->|HTTP + bearer token| API[Local Node HTTP server]
+    UI[HTML / CSS / browser TypeScript] -->|HTTP + bearer token| API[Node HTTP server]
     UI --> Presentation[Session metrics / observed activity]
     API --> Schema[Zod runtime schemas]
     API --> Domain[Order rules]
@@ -77,7 +79,7 @@ flowchart BT
     Integration --> Browser[UI: Chromium / Firefox / WebKit journeys]
 ```
 
-API/contract tests run once in the browser-free `service` project. UI/integration tests run on all three engines. Projects define coverage; four local workers or two CI workers define concurrency. The diagram expresses responsibilities, not a promised pyramid ratio.
+API/contract and hosted-boundary tests run once in the browser-free `service` project. Hosted-boundary cases own separate loopback servers and injected clocks; the normal lab server remains in local mode. UI/integration tests run on all three engines. Projects define coverage; four local workers or two CI workers define concurrency. The diagram expresses responsibilities, not a promised pyramid ratio.
 
 ## Evidence
 
@@ -92,6 +94,8 @@ The merged canonical `main` passed [hosted Ubuntu CI, run 37021360984](https://g
 **Historical audited baseline:** [hosted Ubuntu CI, run 36959822791](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36959822791) passed at `f7f2f108576fd5d940f4a9649519d24be9ecb778`: **31 unit checks and 184 Playwright executions**, with zero failed, flaky, skipped, or retried tests. This historical run does not validate later changes.
 
 CI installs the lockfile and Linux browser dependencies, then gates TypeScript, lint, formatting, OpenAPI, workflow structure, units, and the normal suite. `failOnFlakyTests` rejects a test that passes only on retry. HTML reports retain for **14 days**; conditional failure evidence retains for **7 days**. A green run skips the failure upload and does not prove that path. Local failure demos independently produce actual traces, screenshots, videos, and JSON.
+
+The deployment-readiness changes add 20 unit checks and six browser-free hosted-boundary scenarios: **54 units and 211 Playwright executions**, or **422 with repeat-each=2**. The browser baseline remains **44 UI + 3 integration per engine**. CI also builds the production artifact and verifies a separate production-only installation over loopback. These counts extend the revision-specific historical evidence above; current results belong to their exact Actions run.
 
 Historical evidence remains in [validation](docs/VALIDATION.md), the [hostile audit](docs/AUDIT.md), and the [delivery report](docs/DELIVERY_REPORT.md). Counts/results belong to their revision and run.
 
