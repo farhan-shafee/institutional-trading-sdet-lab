@@ -4,6 +4,8 @@
 
 A small trading workstation built to make quality engineering inspectable: **Playwright, strict TypeScript, UI + API + contract + integration tests, test-scoped fixtures, parallel execution, Chromium / Firefox / WebKit, OpenAPI/runtime validation, failure tracing, GitHub Actions, and human-reviewed AI assistance.** This is an interview and learning project, not a production trading platform.
 
+[Live synthetic demo](https://tradeflow.farhan-shafee.com) · [Main CI](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/workflows/quality.yml?query=branch%3Amain)
+
 Every user, credential, order, position, and quote is synthetic. There are no brokerage connections, live feeds, real trades, employer systems, proprietary code, or customer data. Familiar instrument symbols do not make invented prices market data.
 
 ## Run locally
@@ -25,7 +27,7 @@ Open [TradeFlow](http://127.0.0.1:3000).
 
 Each login creates an isolated order book. **Stop the manual server with Ctrl+C before tests.** Playwright starts its own server on port 3000 with `reuseExistingServer: false`; a stale manual process cannot supply results.
 
-Public-demo hosting is preparation only. The default remains loopback-only; an explicit `hosted-demo` profile enables finite resource limits. Production build/runtime verification and the future Railway/Cloudflare owner decisions are documented in [public deployment readiness](docs/PUBLIC_DEPLOYMENT_READINESS.md). No deployed service or configured domain is claimed.
+Public hosting observation (October 20, 2026): the branded [TradeFlow demo](https://tradeflow.farhan-shafee.com) returned HTTP 200. This establishes reachability, not authenticated infrastructure settings, a deployed source SHA, or uptime. The default remains loopback-only, while explicit hosted-demo mode adds finite limits. [Public deployment readiness](docs/PUBLIC_DEPLOYMENT_READINESS.md) remains historical preparation evidence.
 
 ```sh
 npm run validate
