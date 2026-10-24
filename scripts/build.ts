@@ -38,7 +38,12 @@ await build({
   logLevel: 'info',
 });
 
-const copiedFiles = ['app/public/index.html', 'app/public/style.css', 'app/public/favicon.svg', 'contracts/openapi.yaml'];
+const copiedFiles = [
+  'app/public/index.html',
+  'app/public/style.css',
+  'app/public/favicon.svg',
+  'contracts/openapi.yaml',
+];
 for (const file of copiedFiles) {
   await copyFile(resolve(repositoryRoot, file), resolve(outputRoot, file));
 }
