@@ -32,6 +32,10 @@ const staticFiles = new Map([
     { path: new URL('../public/index.html', import.meta.url), type: 'text/html; charset=utf-8' },
   ],
   [
+    '/favicon.svg',
+    { path: new URL('../public/favicon.svg', import.meta.url), type: 'image/svg+xml' },
+  ],
+  [
     '/style.css',
     { path: new URL('../public/style.css', import.meta.url), type: 'text/css; charset=utf-8' },
   ],
