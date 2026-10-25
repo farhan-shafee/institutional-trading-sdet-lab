@@ -59,3 +59,7 @@ Activity records actions observed in the current browser document, including acc
 The in-memory domain model avoids database migrations and durable-store dependencies; local development needs no application container. It does not model distributed execution, failover, durable storage, risk checks, fills, exchange connectivity, or reconciliation. LocalStorage and public fake passwords demonstrate reusable auth setup and role checks; they are not a production identity design.
 
 Zod provides executable runtime validation. OpenAPI supplies a second independently interpreted contract, so a TypeScript type shared by client and server cannot be the only oracle. Domain tests, service tests, and browser tests catch different failures. See [the layer strategy](TEST_STRATEGY.md) for what each gate proves.
+
+## Runtime and maintenance dependency boundary
+
+Zod is the sole production npm dependency and is also bundled into browser validation. Swagger/OpenAPI reference parsing and AJV belong to development validation; their Undici and fast-uri dependencies are not installed in the clean production-only smoke. The [October 25 maintenance record](SECURITY_MAINTENANCE_2026-10-25.md) binds the compatible patch versions, blocking full/production audits, actual CI and deployed source. This update preserves application contracts, per-session state and the existing Railway/Cloudflare Tunnel topology.

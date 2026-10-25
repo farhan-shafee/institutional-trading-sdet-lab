@@ -37,25 +37,29 @@ Produces: a reviewed compatible patch and a passing local/hosted validation rece
 - [x] Update Zod to ^4.6.7 and refresh only Zod, Undici and fast-uri within compatible ranges.
 - [x] Inspect the lockfile diff; require full and production audits with zero findings.
 - [x] Run typecheck, lint, validate and the twice-repeated normal suite without weakening checks.
-- [ ] Document exact versions and bounded evidence; obtain one fresh review and publish a guarded commit.
+- [x] Document exact versions and bounded evidence; obtain one fresh review and publish a guarded commit.
 
 ## Task 2: Existing production release
 
 Consumes: Task 1's reviewed source SHA and successful CI.
 Files: current production runbook and a dated release receipt.
 
-- [ ] Verify no unrelated staged Railway changes.
-- [ ] Stage and accept only the original production app's new source pin.
-- [ ] Observe terminal SUCCESS at the exact patch SHA.
-- [ ] Verify public site/health, same-origin assets, synthetic role/session workflows and bounded app/tunnel logs.
-- [ ] Record source, deployment, timestamps and finite acceptance results.
+- [x] Verify no unrelated staged Railway changes.
+- [x] Stage and accept only the original production app's new source pin.
+- [x] Observe terminal SUCCESS at the exact patch SHA.
+- [x] Verify public site/health, same-origin assets, synthetic role/session workflows and bounded app/tunnel logs.
+- [x] Record source, deployment, timestamps and finite acceptance results.
 
 ## Task 3: Public evidence synchronization
 
 Consumes: the reviewed patch versions, actual CI and production receipts.
 Files: portfolio TradeFlow data/evidence, deployment matrix, relevant current docs, llms.txt, now page and the personal GitHub README.
 
-- [ ] Search every tracked TradeFlow reference; update current claims and retain dated history.
-- [ ] Run portfolio formatting, lint, types, units, build, browser checks and full/production audits.
-- [ ] Publish guarded portfolio/profile commits and verify actual CI, Railway deployment and served content.
-- [ ] Update the existing documentation-sync report with the closed TradeFlow finding and linked proof.
+- [x] Search every tracked TradeFlow reference; update current claims and retain dated history.
+- [x] Run portfolio formatting, lint, types, units, build, browser checks and full/production audits.
+- [x] Publish guarded portfolio/profile commits and verify actual CI, Railway deployment and served content.
+- [x] Update the existing documentation-sync report with the closed TradeFlow finding and linked proof.
+
+## Execution closeout
+
+The compatible patch, required local and hosted gates, exact pinned app release, 20 public application checks, portfolio/profile publications, 22 public portfolio checks and saved report follow-up completed on October 25. See the dated [maintenance record](../../SECURITY_MAINTENANCE_2026-10-25.md) for source-bound receipts and the retained initial local Firefox failure. Report identity and native diagnostic files remain private and are not published in this repository.

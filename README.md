@@ -103,7 +103,7 @@ The deployment-readiness changes add 20 unit checks and six browser-free hosted-
 
 Historical evidence remains in [validation](docs/VALIDATION.md), the [hostile audit](docs/AUDIT.md), and the [delivery report](docs/DELIVERY_REPORT.md). Counts/results belong to their revision and run.
 
-The [October 25 dependency-maintenance record](docs/SECURITY_MAINTENANCE_2026-10-25.md) documents the compatible Zod, Undici and fast-uri updates, blocking audit gates and release verification. A dated zero-finding audit is not a guarantee against unknown or later vulnerabilities.
+The [October 25 dependency-maintenance record](docs/SECURITY_MAINTENANCE_2026-10-25.md) documents the compatible Zod, Undici and fast-uri updates, blocking audit gates and release verification. The patch `265c9e0` passed [hosted CI run 40214510996](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/40214510996) with 54 unit checks and 211 Playwright executions; the local repeated suite passed 422. The exact patch was released on Railway and passed 20 public acceptance checks. The record retains the earlier local Firefox timeout and its subsequent clean runs. A dated zero-finding audit is not a guarantee against unknown or later vulnerabilities.
 
 ## Five-minute screen-share
 

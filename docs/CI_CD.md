@@ -7,7 +7,7 @@ Read `.github/workflows/quality.yml` with `package.json` and `playwright.config.
 1. Check out the repository and configure Node 24.
 2. Cache npm's download cache using the lockfile, then install reproducibly with `npm ci`.
 3. Require `npm audit` and `npm audit --omit=dev` to succeed without audit-level exclusions, conditional execution or ignored failures.
-4. Run strict type checking, lint, formatting, OpenAPI-document validation, workflow YAML/gate validation, and domain checks.
+4. Run strict type checking, lint, formatting, OpenAPI-document validation, workflow YAML/gate validation, and domain checks, then build and smoke-test a clean production-only artifact.
 5. Install Chromium, Firefox, and WebKit with the OS dependencies needed by the Linux runner.
 6. Run the normal Playwright projects against the local server.
 7. Upload the HTML report with finite retention, including after a test failure.

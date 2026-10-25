@@ -16,13 +16,15 @@ flowchart TD
 
 | Item       | Observed configuration                                                                    |
 | ---------- | ----------------------------------------------------------------------------------------- |
-| App source | Public repository `main`, pinned to `7b125f63198b0eb38a2e7140aba0d83d2e7fcdc1`            |
+| App source | Public repository `main`, pinned to `265c9e0ed1fdc528193cd474d966513decd03d3b`            |
 | Build      | Node 24, Railpack, `npm ci --include=dev && npm run build`                                |
 | Start      | `node dist/app/server/index.js`                                                           |
 | Health     | `/health`                                                                                 |
 | Capacity   | One sfo replica, 0.5 vCPU / 500 MB configured ceiling                                     |
 | Ingress    | Separate cloudflared service; no public Railway app ingress in the reviewed configuration |
 | Monitor    | Railway Function every 15 minutes, website and public health checks                       |
+
+The October 25 compatible dependency patch `265c9e0` passed [CI run 40214510996](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/40214510996) and reached Railway SUCCESS at 2026-10-25T17:08:36.249Z (deployment `30ca206b-765b-4fe5-ad22-50a1f2d02aec`). Twenty public acceptance checks passed at 2026-10-25T17:09:14.687237+00:00, including exact served-asset hashes and isolated synthetic trader/viewer workflows. The earlier reviewed pin was `7b125f63198b0eb38a2e7140aba0d83d2e7fcdc1`. See [dependency maintenance and its evidence limits](SECURITY_MAINTENANCE_2026-10-25.md).
 
 The app release is pinned. A documentation push to main does not itself prove that production changed revisions. Read actual deployment metadata for future releases; CI checks and runtime publication are separate facts.
 
@@ -42,7 +44,7 @@ Railway ingress metrics can be empty because requests enter through the tunnel; 
 
 For an authorized application release:
 
-1. Validate reviewed source with the repository's compiler, lint, formatting, contract, unit, production-build/smoke and three-browser test gates.
+1. Validate reviewed source with the repository's full and production dependency audits, compiler, lint, formatting, contract, unit, production-build/smoke and three-browser test gates.
 2. Review the actual source pin and deploy only the approved release. Require terminal SUCCESS at that SHA for the app and a healthy tunnel.
 3. Check website/health, same-origin assets/API, synthetic disclosures, login/viewer boundaries and bounded errors. Production mutation checks need an explicitly authorized synthetic scope.
 4. Review resource use and availability without treating finite checks as load tolerance, immediate paging or guaranteed recovery.
