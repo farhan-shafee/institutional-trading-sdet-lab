@@ -40,7 +40,7 @@ npm run validate
 npm test -- --repeat-each=2
 ```
 
-`validate` runs static checks, formatting, OpenAPI validation, workflow validation, domain tests, and the normal Playwright suite. Stop a manually started app before this command: tests own port 3000. CI uses conservative parallelism, finite artifacts, and a retry policy that fails the gate for flaky tests. An assertion failure is evidence to investigate; passing after retry does not erase it.
+`validate` first requires full and production-only npm audits to pass, then runs static checks, formatting, OpenAPI validation, workflow validation, domain tests, and the normal Playwright suite. Stop a manually started app before this command: tests own port 3000. CI uses conservative parallelism, finite artifacts, and a retry policy that fails the gate for flaky tests. An assertion failure is evidence to investigate; passing after retry does not erase it.
 
 It also builds the complete production artifact and runs `smoke:production`: a clean production-only installation outside the checkout, native Node startup from an unrelated working directory, real wire workflows/resource limits, and one intentional wait for a one-second session lifetime. Ubuntu additionally verifies SIGTERM with an unfinished request body and the bounded force-close path; Windows termination is explicitly reported as forced. This smoke is separate from unit/Playwright scenario counts. Application admission does not certify deployed TLS, DNS, proxy identity, edge protection, billing controls, or capacity. See [deployment readiness](PUBLIC_DEPLOYMENT_READINESS.md).
 

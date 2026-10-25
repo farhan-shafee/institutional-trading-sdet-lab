@@ -6,11 +6,12 @@ Read `.github/workflows/quality.yml` with `package.json` and `playwright.config.
 
 1. Check out the repository and configure Node 24.
 2. Cache npm's download cache using the lockfile, then install reproducibly with `npm ci`.
-3. Run strict type checking, lint, formatting, OpenAPI-document validation, workflow YAML/gate validation, and domain checks.
-4. Install Chromium, Firefox, and WebKit with the OS dependencies needed by the Linux runner.
-5. Run the normal Playwright projects against the local server.
-6. Upload the HTML report with finite retention, including after a test failure.
-7. Upload available failure evidence from `test-results/` when the job fails.
+3. Require `npm audit` and `npm audit --omit=dev` to succeed without audit-level exclusions, conditional execution or ignored failures.
+4. Run strict type checking, lint, formatting, OpenAPI-document validation, workflow YAML/gate validation, and domain checks.
+5. Install Chromium, Firefox, and WebKit with the OS dependencies needed by the Linux runner.
+6. Run the normal Playwright projects against the local server.
+7. Upload the HTML report with finite retention, including after a test failure.
+8. Upload available failure evidence from `test-results/` when the job fails.
 
 The locked dependency graph is reviewed source, not a promise that third-party packages can never have defects. Browser installation and npm caching solve different problems; caching npm does not install the browser binaries or Linux libraries.
 
@@ -41,7 +42,7 @@ npm run validate
 npm test -- --repeat-each=2
 ```
 
-On a fresh Linux CI machine, Playwright browser installation includes system dependencies; a desktop installation usually does not need that option. `validate` is the complete local gate, including normal Playwright tests. Stop a manual app before running it; the tests own port 3000. `workflow:validate` parses YAML and verifies the expected gate/artifact structure; it does not establish that GitHub accepted or executed the job. Intentional demos and the environment-sensitive performance smoke remain outside it.
+On a fresh Linux CI machine, Playwright browser installation includes system dependencies; a desktop installation usually does not need that option. `validate` is the complete local gate, including both dependency audits and normal Playwright tests. Audit results depend on the registry advisory database at execution time; a registry failure also fails the gate. See [the October 25 maintenance record](SECURITY_MAINTENANCE_2026-10-25.md). Stop a manual app before running it; the tests own port 3000. `workflow:validate` parses YAML and verifies the expected gate/artifact structure; it does not establish that GitHub accepted or executed the job. Intentional demos and the environment-sensitive performance smoke remain outside it.
 
 ## Review questions
 

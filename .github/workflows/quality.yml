@@ -28,6 +28,10 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      - name: Audit all locked dependencies
+        run: npm audit
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
       - name: TypeScript strict checks
         run: npm run typecheck
       - name: Lint

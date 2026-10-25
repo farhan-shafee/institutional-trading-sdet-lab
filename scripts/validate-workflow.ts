@@ -18,6 +18,7 @@ const workflowSchema = z.object({
           uses: z.string().optional(),
           run: z.string().optional(),
           if: z.string().optional(),
+          'continue-on-error': z.boolean().optional(),
           with: z.record(z.string(), z.unknown()).optional(),
         }),
       ),
@@ -31,6 +32,8 @@ const workflow = workflowSchema.parse(
 const steps = workflow.jobs.quality.steps;
 for (const command of [
   'npm ci',
+  'npm audit',
+  'npm audit --omit=dev',
   'npm run typecheck',
   'npm run lint',
   'npm run format:check',
@@ -44,6 +47,13 @@ for (const command of [
   assert(
     steps.some((step) => step.run === command),
     `Missing CI gate: ${command}`,
+  );
+}
+for (const command of ['npm audit', 'npm audit --omit=dev']) {
+  const step = steps.find((candidate) => candidate.run === command);
+  assert(
+    step && step.if === undefined && step['continue-on-error'] !== true,
+    'Dependency audits must be unconditional blocking gates.',
   );
 }
 assert(

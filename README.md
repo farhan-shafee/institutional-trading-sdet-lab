@@ -97,11 +97,13 @@ The merged canonical `main` passed [hosted Ubuntu CI, run 37021360984](https://g
 
 **Historical audited baseline:** [hosted Ubuntu CI, run 36959822791](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36959822791) passed at `f7f2f108576fd5d940f4a9649519d24be9ecb778`: **31 unit checks and 184 Playwright executions**, with zero failed, flaky, skipped, or retried tests. This historical run does not validate later changes.
 
-CI installs the lockfile and Linux browser dependencies, then gates TypeScript, lint, formatting, OpenAPI, workflow structure, units, and the normal suite. `failOnFlakyTests` rejects a test that passes only on retry. HTML reports retain for **14 days**; conditional failure evidence retains for **7 days**. A green run skips the failure upload and does not prove that path. Local failure demos independently produce actual traces, screenshots, videos, and JSON.
+CI installs the lockfile and Linux browser dependencies, then gates full and production dependency audits, TypeScript, lint, formatting, OpenAPI, workflow structure, units, and the normal suite. `failOnFlakyTests` rejects a test that passes only on retry. HTML reports retain for **14 days**; conditional failure evidence retains for **7 days**. A green run skips the failure upload and does not prove that path. Local failure demos independently produce actual traces, screenshots, videos, and JSON.
 
 The deployment-readiness changes add 20 unit checks and six browser-free hosted-boundary scenarios: **54 units and 211 Playwright executions**, or **422 with repeat-each=2**. The browser baseline remains **44 UI + 3 integration per engine**. CI also builds the production artifact and verifies a separate production-only installation over loopback. These counts extend the revision-specific historical evidence above; current results belong to their exact Actions run.
 
 Historical evidence remains in [validation](docs/VALIDATION.md), the [hostile audit](docs/AUDIT.md), and the [delivery report](docs/DELIVERY_REPORT.md). Counts/results belong to their revision and run.
+
+The [October 25 dependency-maintenance record](docs/SECURITY_MAINTENANCE_2026-10-25.md) documents the compatible Zod, Undici and fast-uri updates, blocking audit gates and release verification. A dated zero-finding audit is not a guarantee against unknown or later vulnerabilities.
 
 ## Five-minute screen-share
 
@@ -124,17 +126,18 @@ Use prepared evidence if a live command exceeds the screen-share time; state whe
 
 ## Commands and code to inspect
 
-| Command                                                       | Purpose                                                      |
-| ------------------------------------------------------------- | ------------------------------------------------------------ |
-| `npm run typecheck` / `npm run lint` / `npm run format:check` | Static and formatting gates                                  |
-| `npm run contract:validate` / `npm run workflow:validate`     | Specification/workflow-structure gates; not hosted execution |
-| `npm run test:unit`                                           | Domain, schema, and presentation checks                      |
-| `npm test`                                                    | Normal API/contract/UI/integration suite                     |
-| `npm run validate`                                            | All static, specification, unit, and normal Playwright gates |
-| `npm test -- --repeat-each=2`                                 | Repeated normal execution to expose intermittency            |
-| `npm run demo:failure` / `npm run demo:contract`              | Deliberate failures; expected exit 1                         |
-| `npm run report` / `npm run report:demo`                      | Normal / most recent demo HTML report                        |
-| `npm run perf:smoke`                                          | Optional local API signal; excluded from deterministic CI    |
+| Command                                                       | Purpose                                                                         |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `npm run typecheck` / `npm run lint` / `npm run format:check` | Static and formatting gates                                                     |
+| `npm run contract:validate` / `npm run workflow:validate`     | Specification/workflow-structure gates; not hosted execution                    |
+| `npm run test:unit`                                           | Domain, schema, and presentation checks                                         |
+| `npm test`                                                    | Normal API/contract/UI/integration suite                                        |
+| `npm audit` / `npm audit --omit=dev`                          | Full and runtime-only known-advisory gates                                      |
+| `npm run validate`                                            | Dependency audits, static/specification/unit checks and normal Playwright gates |
+| `npm test -- --repeat-each=2`                                 | Repeated normal execution to expose intermittency                               |
+| `npm run demo:failure` / `npm run demo:contract`              | Deliberate failures; expected exit 1                                            |
+| `npm run report` / `npm run report:demo`                      | Normal / most recent demo HTML report                                           |
+| `npm run perf:smoke`                                          | Optional local API signal; excluded from deterministic CI                       |
 
 Start with [test strategy](docs/TEST_STRATEGY.md), [fixtures](docs/FIXTURES.md), [parallelism](docs/PARALLELISM_AND_FLAKINESS.md), [API/contracts](docs/API_AND_CONTRACT_TESTING.md), [failure triage](docs/TRACING_AND_FAILURE_TRIAGE.md), and [CI](docs/CI_CD.md). First code files to study: `playwright.config.ts`, `tests/fixtures/tradeflow.fixture.ts`, `tests/ui/productization.spec.ts`, `tests/api/orders.spec.ts`, and `tests/contract/responses.spec.ts`.
 
