@@ -1,4 +1,6 @@
-# TradeFlow public-demo deployment readiness
+# Historical public deployment-readiness record
+
+> **Superseded hosting proposal:** The public Railway app and separate cloudflared tunnel are deployed. [Current source pin, architecture, health and reset behavior](RAILWAY_PRODUCTION.md) describes the selected production topology. The proposed direct-ingress controls, approvals and pre-deployment statements below belong to this original readiness phase; they are not current deployment status.
 
 Proposed URL: `https://tradeflow.farhan-shafee.com`. This is a readiness branch, not a deployed service. No hosting project, domain attachment, DNS record, billing feature, or paid infrastructure is authorized by this work. Main remains the approved portfolio baseline until owner review.
 

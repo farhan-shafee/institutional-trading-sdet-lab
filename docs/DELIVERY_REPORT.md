@@ -1,5 +1,7 @@
 # TradeFlow Lab delivery report
 
+> **Historical deployment context** - This record retains its original milestone, source revisions, measured results and approval boundaries. Earlier hosting/source-visibility/pending-release statements are dated history. Use [the current production documentation](RAILWAY_PRODUCTION.md) for the October 24-25 Railway topology, release state and remaining closeout.
+
 Prepared October 1, 2026. TradeFlow Lab is a local synthetic interview and learning repository. The implementation results below preserve the historical local baseline at `901f162`, recorded in delivery commit `5897203`. [VALIDATION.md](VALIDATION.md) also records the inspected hosted Actions baseline at `5897203`. [AUDIT.md](AUDIT.md) records the later hostile audit and its local verification. No production trading, employer experience, or human acceptance is implied.
 
 ## 1. What was built

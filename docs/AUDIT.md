@@ -1,5 +1,7 @@
 # Hostile SDET audit
 
+> **Historical deployment context** - This record retains its original milestone, source revisions, measured results and approval boundaries. Earlier hosting/source-visibility/pending-release statements are dated history. Use [the current production documentation](RAILWAY_PRODUCTION.md) for the October 24-25 Railway topology, release state and remaining closeout.
+
 This audit began with a clean `codex/tradeflow-lab` working tree at `5897203757ee751c7febbe36f8e42ef2788a0668`. It examined a synthetic interview lab, not a production trading platform. At the time of this audit, its fixes remained local; its scope did not authorize a push, merge, `main` creation, default-branch change, or visibility change. Human acceptance of generated behavior and tests remains separate from these checks.
 
 ## Findings and disposition

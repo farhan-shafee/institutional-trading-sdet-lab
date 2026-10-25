@@ -2,6 +2,10 @@
 
 TradeFlow Lab has one process and one explicit purpose: make test engineering understandable. Node 24 runs a lightweight native HTTP server; `tsx` runs server TypeScript; esbuild bundles browser TypeScript. Semantic HTML/CSS avoids a framework lifecycle that contributes little to the demonstration.
 
+## Hosted deployment
+
+The public workstation runs on Railway: Cloudflare HTTPS → separate Railway cloudflared tunnel → private Railway Node.js app. It is independent of the owner's computer. One process owns ephemeral session books; there is no database, persistent volume or durable backup. Restarts reset synthetic state. The app source remains pinned to a reviewed release; see [current production operations](RAILWAY_PRODUCTION.md) for source identity, health, resource and security boundaries.
+
 ## Boundaries
 
 | Area                     | Responsibility                                                       | Reason                                                   |
@@ -52,6 +56,6 @@ Activity records actions observed in the current browser document, including acc
 
 ## Choices an interviewer should challenge
 
-The in-memory model avoids migrations, containers, and real environment dependencies. It does not model distributed execution, failover, durable storage, risk checks, fills, exchange connectivity, or reconciliation. LocalStorage and public fake passwords demonstrate reusable auth setup and role checks; they are not a production identity design.
+The in-memory domain model avoids database migrations and durable-store dependencies; local development needs no application container. It does not model distributed execution, failover, durable storage, risk checks, fills, exchange connectivity, or reconciliation. LocalStorage and public fake passwords demonstrate reusable auth setup and role checks; they are not a production identity design.
 
 Zod provides executable runtime validation. OpenAPI supplies a second independently interpreted contract, so a TypeScript type shared by client and server cannot be the only oracle. Domain tests, service tests, and browser tests catch different failures. See [the layer strategy](TEST_STRATEGY.md) for what each gate proves.

@@ -27,7 +27,7 @@ Open [TradeFlow](http://127.0.0.1:3000).
 
 Each login creates an isolated order book. **Stop the manual server with Ctrl+C before tests.** Playwright starts its own server on port 3000 with `reuseExistingServer: false`; a stale manual process cannot supply results.
 
-Public hosting observation (October 20, 2026): the branded [TradeFlow demo](https://tradeflow.farhan-shafee.com) returned HTTP 200. This establishes reachability, not authenticated infrastructure settings, a deployed source SHA, or uptime. The default remains loopback-only, while explicit hosted-demo mode adds finite limits. [Public deployment readiness](docs/PUBLIC_DEPLOYMENT_READINESS.md) remains historical preparation evidence.
+Current hosting (October 25, 2026): Railway runs the Node.js app and a separate cloudflared service behind the [canonical Cloudflare hostname](https://tradeflow.farhan-shafee.com). The public demo does not depend on the owner's computer. No database or persistent volume is used; synthetic sessions/orders reset on app restart. The app remains pinned to reviewed source. See [current production architecture and operating boundaries](docs/RAILWAY_PRODUCTION.md); [deployment readiness](docs/PUBLIC_DEPLOYMENT_READINESS.md) preserves the earlier preparation evidence.
 
 ```sh
 npm run validate
@@ -57,6 +57,8 @@ Actual local browser captures, with synthetic data:
 Additional captures: [1440px exact-record details](docs/screenshots/premium/tradeflow-details-1440.jpg), [768px orders with a created UUID, maximum quantity, and sub-cent LIMIT price](docs/screenshots/premium/tradeflow-orders-768.jpg), [1024px read-only viewer](docs/screenshots/premium/tradeflow-viewer-1024.jpg), [positions](docs/screenshots/premium/tradeflow-positions-1024.jpg), and [browser activity](docs/screenshots/premium/tradeflow-activity-1024.jpg). These are observed renders, not generated mockups or visual-regression baselines.
 
 ## Architecture and ownership
+
+Hosted ingress is Cloudflare HTTPS → Railway cloudflared → private Railway Node.js app. The process-local architecture below applies to both local development and the bounded public demo; it is not a durable trading system.
 
 ```mermaid
 flowchart LR

@@ -1,5 +1,7 @@
 # Interview demonstration
 
+[Live synthetic workstation](https://tradeflow.farhan-shafee.com) · [Railway/Cloudflare topology and reset behavior](RAILWAY_PRODUCTION.md). Local demonstrations below remain reproducible; hosted availability does not imply a brokerage, durable session storage or live trading.
+
 The goal is to make the rule, ownership, oracle, and evidence visible within five minutes. Run the complete gate beforehand; use a small live test during the presentation. Do not promise a full three-engine run fits every laptop or network within that time.
 
 ## Preparation

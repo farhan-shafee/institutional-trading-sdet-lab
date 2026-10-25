@@ -1,6 +1,6 @@
 # CI/CD and quality gates
 
-Read `.github/workflows/quality.yml` with `package.json` and `playwright.config.ts`. The workflow expresses a quality gate for a synthetic lab; it does not deploy trading infrastructure. Review the [validation record](VALIDATION.md) to distinguish local execution from an actual hosted Actions run.
+Read `.github/workflows/quality.yml` with `package.json` and `playwright.config.ts`. The workflow expresses a quality gate for a synthetic lab; it validates the synthetic lab and does not deploy real trading infrastructure. Public hosting uses Railway and Cloudflare Tunnel with a pinned application release; CI success alone does not change that source pin. See [current production deployment](RAILWAY_PRODUCTION.md). Review the [validation record](VALIDATION.md) to distinguish local execution from an actual hosted Actions run.
 
 ## Pipeline
 

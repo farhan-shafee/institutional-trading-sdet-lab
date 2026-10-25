@@ -1,5 +1,7 @@
 # Validation evidence
 
+> **Historical deployment context** - This record retains its original milestone, source revisions, measured results and approval boundaries. Earlier hosting/source-visibility/pending-release statements are dated history. Use [the current production documentation](RAILWAY_PRODUCTION.md) for the October 24-25 Railway topology, release state and remaining closeout.
+
 Recorded on October 1, 2026 for TradeFlow Lab, a local synthetic interview and learning lab. This record separates executed checks, inspected artifacts, static review, and verification limits. Passing checks do not imply production trading suitability or human acceptance of generated behavior.
 
 The local implementation results below are historical evidence for application snapshot `901f162`, preserved in delivery commit `5897203`. They retain their original counts. The hosted baseline at `5897203` is recorded separately below; subsequent hostile-audit findings and current verification belong in [AUDIT.md](AUDIT.md).
