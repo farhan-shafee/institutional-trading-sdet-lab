@@ -1,3 +1,4 @@
+import { fixedIncomeView } from './fixed-income.js';
 import { z } from 'zod';
 import {
   createOrderSchema,
@@ -114,7 +115,16 @@ function recordActivity(message: string): void {
   renderActivity();
 }
 
+const fixedIncome = fixedIncomeView(
+  () => token,
+  () => {
+    showLogin();
+    showError(new Error('Session expired. Sign in again.'));
+  },
+);
+
 function resetSessionData(): void {
+  fixedIncome.reset();
   selectedOrder = undefined;
   completeOrders = undefined;
   sessionPositions = undefined;

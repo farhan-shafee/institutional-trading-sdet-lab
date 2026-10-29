@@ -35,9 +35,9 @@ try {
     packages: Record<string, unknown>;
   };
   assert.deepEqual(
-    Object.keys(installed.packages),
-    ['node_modules/zod'],
-    'Runtime must contain only zod, not development tooling.',
+    Object.keys(installed.packages).sort(),
+    ['node_modules/decimal.js', 'node_modules/zod'],
+    'Runtime must contain only reviewed decimal.js and zod, not development tooling.',
   );
   await run(
     [
