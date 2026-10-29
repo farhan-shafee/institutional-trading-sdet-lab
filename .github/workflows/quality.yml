@@ -26,6 +26,10 @@ jobs:
         with:
           node-version: '24'
           cache: npm
+      - name: Python independent oracle
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
       - name: Install locked dependencies
         run: npm ci
       - name: Audit all locked dependencies
@@ -44,6 +48,8 @@ jobs:
         run: npm run workflow:validate
       - name: Domain unit checks
         run: npm run test:unit
+      - name: Independent financial verification
+        run: npm run test:financial
       - name: Build production artifact
         run: npm run build
       - name: Production loopback smoke

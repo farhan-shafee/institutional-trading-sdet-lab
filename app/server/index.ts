@@ -1,3 +1,4 @@
+import { fixedIncomeRead } from './fixed-income.js';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
@@ -219,6 +220,13 @@ export function createApplicationServer(
     }
     const token = bearerToken(request);
     const session = sessions.authenticate(token);
+    if (method === 'GET') {
+      const result = fixedIncomeRead(url.pathname, url.searchParams);
+      if (result !== undefined) {
+        json(response, 200, result);
+        return;
+      }
+    }
 
     if (url.pathname === '/api/session' && method === 'GET') {
       json(response, 200, { user: session.user });

@@ -40,6 +40,7 @@ for (const command of [
   'npm run contract:validate',
   'npm run workflow:validate',
   'npm run test:unit',
+  'npm run test:financial',
   'npm run build',
   'npm run smoke:production',
   'npm test',

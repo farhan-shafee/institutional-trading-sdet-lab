@@ -65,6 +65,90 @@ paths:
           $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/fixed-income/v1/instruments:
+    get:
+      operationId: listFixedIncomeInstruments
+      summary: Read synthetic fixed-income instruments
+      description: Authenticated stateless read for both roles; consumes ordinary global admission, never mutates or extends a session.
+      responses:
+        '200':
+          description: Valid synthetic instruments; decimal quantities are strings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FixedIncomeInstruments'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/fixed-income/v1/analytics:
+    get:
+      operationId: getFixedIncomeAnalytics
+      summary: Read synthetic fixed-income analytics
+      description: >-
+        Authenticated stateless read for both roles; consumes ordinary global admission,
+        never mutates or extends a session. Supply exactly one of yield or clean_price.
+        Unknown/repeated parameters are rejected. Rates are annual decimal fractions
+        (0.04 is 4%), compounded semiannually; prices are per 100 par. Yield range
+        [-0.10, 1.00]; positive clean price <=10000 must imply a yield in that bracket.
+        Par is USD face amount from 1 through 1000000000 with at most 2 decimal places.
+        Settlement must be >=2025-01-15 and <2031-01-15; settlement-day coupons are excluded.
+      parameters:
+        - in: query
+          name: instrument_id
+          required: true
+          schema:
+            type: string
+            maxLength: 24
+            enum: [SYN-UST-2031, SYN-CORP-2031]
+        - in: query
+          name: settlement_date
+          required: true
+          schema:
+            type: string
+            maxLength: 24
+            format: date
+            pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+        - in: query
+          name: par_amount
+          required: true
+          schema:
+            type: string
+            maxLength: 24
+            pattern: '^[0-9]{1,10}(\.[0-9]{1,2})?$'
+        - in: query
+          name: yield
+          required: false
+          schema:
+            type: string
+            maxLength: 24
+            pattern: '^-?[0-9]{1,10}(\.[0-9]{1,12})?$'
+        - in: query
+          name: clean_price
+          required: false
+          schema:
+            type: string
+            maxLength: 24
+            pattern: '^-?[0-9]{1,10}(\.[0-9]{1,12})?$'
+      responses:
+        '200':
+          description: Valid synthetic analytics; decimal quantities are strings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FixedIncomeAnalytics'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/session:
     post:
       tags: [Session]
@@ -412,6 +496,129 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    FixedIncomeInstrument:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          issuer,
+          currency,
+          coupon_rate,
+          dated_date,
+          maturity_date,
+          frequency,
+          day_count,
+          fictional,
+        ]
+      properties:
+        id: { type: string, enum: [SYN-UST-2031, SYN-CORP-2031] }
+        issuer: { type: string, minLength: 1 }
+        currency: { type: string, enum: [USD] }
+        coupon_rate: { type: string, enum: ['0.04'] }
+        dated_date: { type: string, enum: ['2025-01-15'] }
+        maturity_date: { type: string, enum: ['2031-01-15'] }
+        frequency: { type: integer, enum: [2] }
+        day_count: { type: string, enum: [ACT_ACT_ICMA, THIRTY_360_US] }
+        fictional: { type: boolean, enum: [true] }
+    FixedIncomeInstruments:
+      type: object
+      additionalProperties: false
+      required: [instruments]
+      properties:
+        instruments:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items: { $ref: '#/components/schemas/FixedIncomeInstrument' }
+    FixedIncomeAnalytics:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          instrument,
+          settlement_date,
+          par_amount,
+          yield,
+          clean_price,
+          dirty_price,
+          accrued_interest,
+          macaulay_duration,
+          modified_duration,
+          convexity,
+          dv01_usd,
+          consideration_usd,
+          previous_coupon_date,
+          next_coupon_date,
+          remaining_coupon_dates,
+          conventions,
+        ]
+      properties:
+        instrument: { $ref: '#/components/schemas/FixedIncomeInstrument' }
+        settlement_date: { type: string, format: date }
+        previous_coupon_date: { type: string, format: date }
+        next_coupon_date: { type: string, format: date }
+        remaining_coupon_dates:
+          type: array
+          minItems: 1
+          items: { type: string, format: date }
+        par_amount:
+          type: string
+          pattern: '^-?[0-9]+\.[0-9]{2}$'
+        yield:
+          type: string
+          pattern: '^-?[0-9]+\.[0-9]{12}$'
+        clean_price:
+          type: string
+          pattern: '^-?[0-9]+\.[0-9]{10}$'
+        dirty_price:
+          type: string
+          pattern: '^-?[0-9]+\.[0-9]{10}$'
+        accrued_interest:
+          type: string
+          pattern: '^-?[0-9]+\.[0-9]{10}$'
+        macaulay_duration:
+          type: string
+          pattern: '^-?[0-9]+\.[0-9]{10}$'
+        modified_duration:
+          type: string
+          pattern: '^-?[0-9]+\.[0-9]{10}$'
+        convexity:
+          type: string
+          pattern: '^-?[0-9]+\.[0-9]{10}$'
+        dv01_usd:
+          type: string
+          pattern: '^-?[0-9]+\.[0-9]{8}$'
+        consideration_usd:
+          type: string
+          pattern: '^-?[0-9]+\.[0-9]{2}$'
+        conventions:
+          type: object
+          additionalProperties: false
+          required:
+            [precision_digits, rounding, price_unit, rate_unit, risk_unit, schedule, valuation]
+          properties:
+            precision_digits:
+              type: integer
+              enum: [50]
+            rounding:
+              type: string
+              enum: ['ROUND_HALF_EVEN']
+            price_unit:
+              type: string
+              enum: ['per 100 par']
+            rate_unit:
+              type: string
+              enum: ['annual decimal fraction, semiannual compounding']
+            risk_unit:
+              type: string
+              enum: ['duration years; convexity years squared; DV01 USD for stated long par']
+            schedule:
+              type: string
+              enum: ['regular semiannual, unadjusted, settlement-day coupon excluded']
+            valuation:
+              type: string
+              enum: ['fractional-period compound discounting; no holiday adjustment or ex-dividend']
     Symbol:
       type: string
       enum: [AAPL, MSFT, NVDA, SPY]

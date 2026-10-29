@@ -1,0 +1,149 @@
+{
+  "provenance": "Independent rational cash-flow prices and analytic first/second derivatives; Decimal 85-digit ln/exp for the one-basis-point reprice. Frozen from the written convention contract without application imports.",
+  "cases": [
+    {
+      "name": "dated-zero-ust",
+      "instrument_id": "SYN-UST-2031",
+      "settlement_date": "2025-01-15",
+      "yield": "0",
+      "par_amount": "100",
+      "expected": {
+        "yield": "0.000000000000",
+        "clean_price": "124.0000000000",
+        "dirty_price": "124.0000000000",
+        "accrued_interest": "0.0000000000",
+        "macaulay_duration": "5.4677419355",
+        "modified_duration": "5.4677419355",
+        "convexity": "34.3870967742",
+        "dv01_usd": "0.06780000",
+        "consideration_usd": "124.00"
+      }
+    },
+    {
+      "name": "dated-par-ust",
+      "instrument_id": "SYN-UST-2031",
+      "settlement_date": "2025-01-15",
+      "yield": "0.04",
+      "par_amount": "1000000",
+      "expected": {
+        "yield": "0.040000000000",
+        "clean_price": "100.0000000000",
+        "dirty_price": "100.0000000000",
+        "accrued_interest": "0.0000000000",
+        "macaulay_duration": "5.3934240227",
+        "modified_duration": "5.2876706105",
+        "convexity": "32.4737729989",
+        "dv01_usd": "528.76709750",
+        "consideration_usd": "1000000.00"
+      }
+    },
+    {
+      "name": "dated-negative-corp",
+      "instrument_id": "SYN-CORP-2031",
+      "settlement_date": "2025-01-15",
+      "yield": "-0.02",
+      "par_amount": "250000.25",
+      "expected": {
+        "yield": "-0.020000000000",
+        "clean_price": "138.4534298506",
+        "dirty_price": "138.4534298506",
+        "accrued_interest": "0.0000000000",
+        "macaulay_duration": "5.5019033826",
+        "modified_duration": "5.5574781643",
+        "convexity": "35.3687862618",
+        "dv01_usd": "192.36318485",
+        "consideration_usd": "346133.92"
+      }
+    },
+    {
+      "name": "coupon-reset-ust",
+      "instrument_id": "SYN-UST-2031",
+      "settlement_date": "2025-07-15",
+      "yield": "0",
+      "par_amount": "1000",
+      "expected": {
+        "yield": "0.000000000000",
+        "clean_price": "122.0000000000",
+        "dirty_price": "122.0000000000",
+        "accrued_interest": "0.0000000000",
+        "macaulay_duration": "5.0491803279",
+        "modified_duration": "5.0491803279",
+        "convexity": "29.3934426230",
+        "dv01_usd": "0.61600004",
+        "consideration_usd": "1220.00"
+      }
+    },
+    {
+      "name": "leap-february-ust",
+      "instrument_id": "SYN-UST-2031",
+      "settlement_date": "2028-02-29",
+      "yield": "0",
+      "par_amount": "1000000",
+      "expected": {
+        "yield": "0.000000000000",
+        "clean_price": "111.5054945055",
+        "dirty_price": "112.0000000000",
+        "accrued_interest": "0.4945054945",
+        "macaulay_duration": "2.7424450549",
+        "modified_duration": "2.7424450549",
+        "convexity": "9.1198262589",
+        "dv01_usd": "307.15385270",
+        "consideration_usd": "1120000.00"
+      }
+    },
+    {
+      "name": "leap-february-corp",
+      "instrument_id": "SYN-CORP-2031",
+      "settlement_date": "2028-02-29",
+      "yield": "0",
+      "par_amount": "1000000",
+      "expected": {
+        "yield": "0.000000000000",
+        "clean_price": "111.5111111111",
+        "dirty_price": "112.0000000000",
+        "accrued_interest": "0.4888888889",
+        "macaulay_duration": "2.7438492063",
+        "modified_duration": "2.7438492063",
+        "convexity": "9.1282319224",
+        "dv01_usd": "307.31111767",
+        "consideration_usd": "1120000.00"
+      }
+    },
+    {
+      "name": "last-day-ust",
+      "instrument_id": "SYN-UST-2031",
+      "settlement_date": "2031-01-14",
+      "yield": "0",
+      "par_amount": "1",
+      "expected": {
+        "yield": "0.000000000000",
+        "clean_price": "100.0108695652",
+        "dirty_price": "102.0000000000",
+        "accrued_interest": "1.9891304348",
+        "macaulay_duration": "0.0027173913",
+        "modified_duration": "0.0027173913",
+        "convexity": "0.0013660799",
+        "dv01_usd": "0.00000028",
+        "consideration_usd": "1.02"
+      }
+    },
+    {
+      "name": "last-day-corp",
+      "instrument_id": "SYN-CORP-2031",
+      "settlement_date": "2031-01-14",
+      "yield": "0",
+      "par_amount": "1",
+      "expected": {
+        "yield": "0.000000000000",
+        "clean_price": "100.0111111111",
+        "dirty_price": "102.0000000000",
+        "accrued_interest": "1.9888888889",
+        "macaulay_duration": "0.0027777778",
+        "modified_duration": "0.0027777778",
+        "convexity": "0.0013966049",
+        "dv01_usd": "0.00000028",
+        "consideration_usd": "1.02"
+      }
+    }
+  ]
+}
