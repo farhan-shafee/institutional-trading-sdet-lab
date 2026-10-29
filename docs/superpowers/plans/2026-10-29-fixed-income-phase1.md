@@ -38,3 +38,5 @@ Date parsing including year/leap boundaries; 30/360 February and EOM adjustments
 - Final review found a material shared cent-rounding blind spot: repeating AI before multiplying par made exact46.005 round46.01. Literal RED regression added. Exact rational/algebraic midpoint comparisons now decide cash, with independent Python Fraction verification.
 - Production-only smoke initially rejected the newly approved decimal.js runtime dependency under its old zod-only allowlist. Updated the exact allowlist to decimal.js+zod, retaining exclusion of development tooling and adding a native financial tie check.
 - Native workstation Git push was denied for a different configured account; authenticated GitHub connector publication will create only the feature ref with the verified source tree.
+
+- Full cross-browser RED: all three engines caught disclosure summary interrupting nav-to-active-panel Tab order. Moved disclosure after the four existing tabpanels, preserving unchanged keyboard tests and all controls.
