@@ -37,6 +37,46 @@ export class ReconciliationService {
     actor: string,
     verify: () => void,
   ) {
+    const payload = { run_id: run },
+      hash = createHash('sha256')
+        .update(
+          JSON.stringify({
+            version: 1,
+            method: 'POST',
+            operation: action,
+            sandbox_id: binding.sandboxId,
+            payload,
+          }),
+        )
+        .digest('hex');
+    const rpc = (metadata: VerificationMetadata | Record<string, never> | null) =>
+      this.database.transaction(false, verify, async (c) => {
+        const r = workflowResultSchema.parse(
+          (
+            await c.query<{ result: unknown }>(
+              'SELECT fi_control.reconciliation_command($1,$2,$3,$4,$5,$6,$7,$8,$9) AS result',
+              [
+                binding.sandboxId,
+                binding.digest,
+                binding.generation,
+                action,
+                JSON.stringify(payload),
+                hash,
+                key,
+                actor,
+                metadata === null ? null : JSON.stringify(metadata),
+              ],
+            )
+          ).rows[0]?.result,
+        );
+        if (r.status === 200 || r.status === 201)
+          r.body = reconciliationReferenceSchema.parse(r.body);
+        return r;
+      });
+    if (action === 'RECOVER_RECONCILIATION') return rpc({});
+    // Resolve immutable receipts before requiring a configured or available scanner.
+    const replay = await rpc(null);
+    if (replay.status !== 503) return replay;
     if (action === 'CREATE_RECONCILIATION' && !this.runner)
       throw new DomainError(
         503,
@@ -52,42 +92,8 @@ export class ReconciliationService {
       );
     if (action === 'CREATE_RECONCILIATION')
       await this.runner!.database.transaction(true, verify, () => Promise.resolve());
-    const payload = { run_id: run },
-      hash = createHash('sha256')
-        .update(
-          JSON.stringify({
-            version: 1,
-            method: 'POST',
-            operation: action,
-            sandbox_id: binding.sandboxId,
-            payload,
-          }),
-        )
-        .digest('hex');
-    const result = await this.database.transaction(false, verify, async (c) => {
-      const r = workflowResultSchema.parse(
-        (
-          await c.query<{ result: unknown }>(
-            'SELECT fi_control.reconciliation_command($1,$2,$3,$4,$5,$6,$7,$8,$9) AS result',
-            [
-              binding.sandboxId,
-              binding.digest,
-              binding.generation,
-              action,
-              JSON.stringify(payload),
-              hash,
-              key,
-              actor,
-              JSON.stringify(metadata),
-            ],
-          )
-        ).rows[0]?.result,
-      );
-      if (r.status === 200 || r.status === 201)
-        r.body = reconciliationReferenceSchema.parse(r.body);
-      return r;
-    });
-    if (action === 'CREATE_RECONCILIATION' && result.status === 201)
+    const result = await rpc(metadata);
+    if (action === 'CREATE_RECONCILIATION' && result.status === 201 && !result.replayed)
       await this.runner!.execute(binding, run, awaitMetadata(metadata), verify);
     return result;
   }

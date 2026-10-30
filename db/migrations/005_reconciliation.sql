@@ -138,12 +138,14 @@ BEGIN
  IF p_id IS NULL OR p_proof IS NULL OR p_generation IS NULL OR p_actor IS NULL OR p_key IS NULL OR p_key !~ '^[A-Za-z0-9_-]{8,128}$' OR p_hash IS NULL OR p_hash !~ '^[a-f0-9]{64}$'
  OR p_action IS NULL OR p_action NOT IN ('CREATE_RECONCILIATION','RECOVER_RECONCILIATION') OR jsonb_typeof(p) IS DISTINCT FROM 'object' OR p IS NULL OR NOT(p ? 'run_id') OR (SELECT count(*) FROM jsonb_object_keys(p))<>1 OR jsonb_typeof(p->'run_id') IS DISTINCT FROM 'string' THEN RETURN fi_control.failure(400,'VALIDATION_ERROR'); END IF;
  rid:=(p->>'run_id')::uuid;
- IF p_action='CREATE_RECONCILIATION' AND NOT fi_control.valid_reconciliation_metadata(p_metadata) THEN RETURN fi_control.failure(400,'VALIDATION_ERROR'); END IF;
  PERFORM set_config('tradeflow.sandbox_id',p_id::text,true);SELECT * INTO s FROM fi.sandboxes WHERE id=p_id FOR UPDATE;
  IF NOT FOUND OR NOT fi_control.proof_valid(p_id,p_proof,'trade') OR s.generation<>p_generation THEN RETURN fi_control.failure(404,'SANDBOX_NOT_FOUND'); END IF;
  SELECT * INTO c FROM fi.reconciliation_commands WHERE sandbox_id=p_id AND idempotency_key=p_key;
  IF FOUND THEN IF c.operation<>p_action OR c.request_hash<>p_hash THEN RETURN fi_control.failure(409,'IDEMPOTENCY_KEY_REUSED'); END IF;RETURN fi_control.result(c.http_status,c.response_body,true); END IF;
  IF EXISTS(SELECT 1 FROM fi_control.command_keys WHERE sandbox_id=p_id AND idempotency_key=p_key) THEN RETURN fi_control.failure(409,'IDEMPOTENCY_KEY_REUSED');END IF;
+ -- NULL metadata is an authenticated receipt-only attempt: never create a run or require a live scanner for replay.
+ IF p_action='CREATE_RECONCILIATION' AND p_metadata IS NULL THEN RETURN fi_control.failure(503,'RECONCILER_NOT_CONFIGURED'); END IF;
+ IF p_action='CREATE_RECONCILIATION' AND NOT fi_control.valid_reconciliation_metadata(p_metadata) THEN RETURN fi_control.failure(400,'VALIDATION_ERROR'); END IF;
  decided:=clock_timestamp();IF decided>=s.write_expires_at THEN RETURN fi_control.failure(409,'SANDBOX_EXPIRED');END IF;
  INSERT INTO fi_control.reconciliation_capacity(sandbox_id) VALUES(p_id) ON CONFLICT DO NOTHING;
  SELECT command_count+1,recovery_reserved INTO seq,reserved FROM fi_control.reconciliation_capacity WHERE sandbox_id=p_id;

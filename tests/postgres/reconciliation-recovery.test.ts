@@ -264,3 +264,48 @@ for (const mode of ['logout', 'rotation'])
       await f.close();
     }
   });
+
+await test('independent review regression: completed original-key replay works with only app credentials after optional reconciler removal', async () => {
+  const f = await reconciliationHttp();
+  let restarted: Awaited<ReturnType<typeof httpLab>> | undefined;
+  try {
+    const run = randomUUID(),
+      key = randomUUID(),
+      path = `${f.root}/reconciliation-runs`,
+      body = { run_id: run };
+    const first = await f.lab.request(path, f.token, 'POST', body, key);
+    assert.equal(first.status, 201);
+    const reference: unknown = await first.json();
+    await f.lab.close();
+    restarted = await httpLab({
+      ...f.config,
+      workflow: { databaseUrl: f.config.workflow!.databaseUrl },
+    });
+    const token = await restarted.login();
+    assert.equal(
+      (
+        await restarted.request('/api/fixed-income/v1/sandboxes/recover', token, 'POST', {
+          sandbox_id: f.keys.sandbox_id,
+          capability: f.keys.trade_capability,
+          scope: 'trade',
+        })
+      ).status,
+      200,
+    );
+    const replay = await restarted.request(path, token, 'POST', body, key);
+    assert.equal(replay.status, 201);
+    assert.equal(replay.headers.get('Idempotency-Replayed'), 'true');
+    assert.deepEqual(await replay.json(), reference);
+    assert.equal(
+      (await restarted.request(path, token, 'POST', { run_id: randomUUID() }, key)).status,
+      409,
+    );
+    assert.equal(
+      (await restarted.request(path, token, 'POST', { run_id: randomUUID() }, randomUUID())).status,
+      503,
+    );
+  } finally {
+    await restarted?.close();
+    await f.close();
+  }
+});

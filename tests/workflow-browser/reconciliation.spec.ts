@@ -1,6 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { reconciliationHttp } from '../postgres/reconciliation-http-fixture.js';
+import { capabilityDigest } from '../../app/server/fixed-income-workflow/service.js';
+import { rfqInput, digest } from '../postgres/rfq-fixture.js';
 import { connection } from '../postgres/harness.js';
 async function fixture(page: Page, viewer = false) {
   const f = await reconciliationHttp();
@@ -66,6 +68,42 @@ test('typed findings filter, page and trace records; a later clean run preserves
   const f = await fixture(page),
     admin = await connection('admin');
   try {
+    // Actual command traffic places the investigated execution beyond the first 100 audit events.
+    const app = await connection('app');
+    try {
+      const command = async (action: string, p: unknown) =>
+        (
+          await app.query<{ result: { status: number } }>(
+            'SELECT fi_control.rfq_command($1,$2,$3,$4,$5,$6,$7,$8) AS result',
+            [
+              f.keys.sandbox_id,
+              capabilityDigest(f.keys.sandbox_id, 'trade', f.keys.trade_capability),
+              '1',
+              action,
+              JSON.stringify(p),
+              digest(JSON.stringify({ action, p })),
+              randomUUID(),
+              randomUUID(),
+            ],
+          )
+        ).rows[0]!.result;
+      for (let n = 0; n < 35; n++) {
+        const input = rfqInput();
+        expect((await command('CREATE_RFQ', input)).status).toBe(201);
+        expect(
+          (
+            await command('RESPOND_DEALER', {
+              rfq_id: input.rfq_id,
+              expected_version: '1',
+              dealer_id: 'ATLAS',
+              response: 'QUOTE',
+            })
+          ).status,
+        ).toBe(200);
+      }
+    } finally {
+      await app.end();
+    }
     await page.getByLabel('RFQ par amount USD').fill('100.00');
     await page.getByLabel('RFQ settlement (unadjusted)').fill('2028-01-15');
     await page.getByRole('button', { name: 'Send RFQ', exact: true }).click();
@@ -97,7 +135,18 @@ test('typed findings filter, page and trace records; a later clean run preserves
     await expect(page.locator('#recon-findings')).toContainText('recorded');
     await page.locator('#recon-findings button').first().click();
     await expect(page.locator('#recon-trace')).toContainText('current_records_observed_separately');
-    await expect(page.locator('#recon-trace')).toContainText('audit_first_page');
+    await expect(page.locator('#recon-trace')).toContainText('audit_events');
+    await expect(page.locator('#recon-trace')).toContainText('EXECUTION_RECORDED');
+    const trace = JSON.parse(await page.locator('#recon-trace').innerText()) as {
+      historical_finding: { related: { command_seq: string } };
+      audit_events: { command_seq: string }[];
+    };
+    expect(trace.audit_events.length).toBeGreaterThan(0);
+    expect(
+      trace.audit_events.every(
+        (e) => e.command_seq === trace.historical_finding.related.command_seq,
+      ),
+    ).toBe(true);
     await admin.query('BEGIN');
     await admin.query("SET LOCAL session_replication_role='replica'");
     await admin.query(
@@ -182,9 +231,7 @@ test('viewer can inspect prior historical evidence without reconciliation mutati
     await expect(
       page.getByRole('button', { name: 'Request reconciliation', exact: true }),
     ).toBeDisabled();
-    await expect(
-      page.getByRole('button', { name: 'Recover interrupted run', exact: true }),
-    ).toBeDisabled();
+    await expect(page.locator('#recon-recover')).toBeHidden();
     await page.getByRole('button', { name: 'Refresh reconciliation', exact: true }).click();
     await expect(page.locator('#recon-summary')).toContainText('historical/as-of');
   } finally {

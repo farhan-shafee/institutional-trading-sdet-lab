@@ -110,7 +110,51 @@ export function reconciliationView(
     if (f.related.rfq_id) records.rfq = await read(`${root()}/rfqs/${f.related.rfq_id}`);
     if (f.related.order_id) records.order = await read(`${root()}/orders/${f.related.order_id}`);
     records.positions = await read(`${root()}/positions`);
-    records.audit_first_page = await read(`${root()}/audit-events?limit=100`);
+    const auditSchema = z
+      .object({
+        events: z
+          .array(
+            z
+              .object({
+                command_seq: z.string().regex(/^\d{1,3}$/),
+                event_index: z.number().int(),
+                payload: z.record(z.string(), z.unknown()),
+              })
+              .passthrough(),
+          )
+          .max(100),
+        as_of_seq: z.string(),
+        next_cursor: z.string().nullable(),
+      })
+      .strict();
+    const events: z.infer<typeof auditSchema>['events'] = [];
+    let cursor: string | null = null,
+      asof: string | undefined;
+    for (let page = 0; page < 11; page++) {
+      const result = auditSchema.parse(
+        await read(
+          `${root()}/audit-events?limit=100${cursor ? '&cursor=' + encodeURIComponent(cursor) : ''}`,
+        ),
+      );
+      if (asof !== undefined && asof !== result.as_of_seq)
+        throw new Error('Audit snapshot changed.');
+      asof = result.as_of_seq;
+      events.push(...result.events);
+      cursor = result.next_cursor;
+      if (cursor === null) break;
+    }
+    if (cursor !== null) throw new Error('Audit retention bound exceeded.');
+    records.audit_as_of_seq = asof;
+    records.audit_events = events.filter((e) =>
+      f.related.command_seq
+        ? e.command_seq === f.related.command_seq
+        : f.related.order_id
+          ? e.payload.order_id === f.related.order_id
+          : f.related.rfq_id
+            ? e.payload.rfq_id === f.related.rfq_id
+            : true,
+    );
+
     node('recon-trace').textContent = JSON.stringify(records, null, 2);
   }
   function render() {
@@ -120,6 +164,7 @@ export function reconciliationView(
       !canMutate() ||
       detail?.run.state === 'RUNNING' ||
       detail?.run.state === 'REQUESTED';
+    node<HTMLButtonElement>('recon-recover').hidden = !canMutate();
     node<HTMLButtonElement>('recon-recover').disabled =
       !sandbox ||
       !selected ||

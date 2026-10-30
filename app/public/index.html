@@ -527,17 +527,17 @@
             <button type="button" id="recon-request">Request reconciliation</button>
             <button type="button" id="recon-recover">Recover interrupted run</button>
             <button type="button" id="recon-refresh">Refresh reconciliation</button>
-            <label>Reconciliation run<select id="recon-selection"></select></label>
+            <label for="recon-selection">Reconciliation run</label>
+            <select id="recon-selection"></select>
             <p id="recon-summary" aria-live="polite"></p>
             <details>
               <summary>Snapshot, source and verification coverage</summary>
               <pre id="recon-provenance"></pre>
             </details>
-            <label
-              >Finding category<select id="recon-category">
-                <option value="">All categories</option>
-              </select></label
-            >
+            <label for="recon-category">Finding category</label>
+            <select id="recon-category">
+              <option value="">All categories</option>
+            </select>
             <label>Affected record identity<input id="recon-record" maxlength="128" /></label>
             <p id="recon-filter-count"></p>
             <div id="recon-findings"></div>

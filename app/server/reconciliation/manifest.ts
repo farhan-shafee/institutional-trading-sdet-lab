@@ -24,7 +24,7 @@ export const verificationSources = {
   },
   comparisons: {
     file: 'reconciliation.sql',
-    hash: 'e052139a803e7a0456f1c88b092f819872bc18f37ac49fda55006d00939a1d0d',
+    hash: '296b390b28639d4857dcaf5796de736f05f91a1eb48c4ad4cd883cad70277b1e',
   },
 } as const;
 const execute = promisify(execFile);
