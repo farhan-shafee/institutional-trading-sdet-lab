@@ -1623,6 +1623,675 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sid}/orders:
+    get:
+      operationId: listFiOrders
+      summary: listFiOrders
+      description: Local optional synthetic workflow. Existing authorized sandbox binding required.
+        Frozen order terms never change. Expected lifecycle version is required on commands.
+        Reuse original Idempotency-Key and body after uncertainty. BUY increases par and
+        decreases execution cash; no cash balance or settlement claim.
+      parameters:
+        - in: path
+          name: sid
+          required: true
+          schema: &a1
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Synthetic persistent workflow result; decimal and cent values are strings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiOrderList'
+        '400':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sid}/orders/{oid}:
+    get:
+      operationId: readFiOrder
+      summary: readFiOrder
+      description: Local optional synthetic workflow. Existing authorized sandbox binding required.
+        Frozen order terms never change. Expected lifecycle version is required on commands.
+        Reuse original Idempotency-Key and body after uncertainty. BUY increases par and
+        decreases execution cash; no cash balance or settlement claim.
+      parameters:
+        - in: path
+          name: sid
+          required: true
+          schema: *a1
+        - in: path
+          name: oid
+          required: true
+          schema: *a1
+      responses:
+        '200':
+          description: Synthetic persistent workflow result; decimal and cent values are strings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiOrderDetail'
+        '400':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sid}/positions:
+    get:
+      operationId: readFiPositions
+      summary: readFiPositions
+      description: Local optional synthetic workflow. Existing authorized sandbox binding required.
+        Frozen order terms never change. Expected lifecycle version is required on commands.
+        Reuse original Idempotency-Key and body after uncertainty. BUY increases par and
+        decreases execution cash; no cash balance or settlement claim.
+      parameters:
+        - in: path
+          name: sid
+          required: true
+          schema: *a1
+      responses:
+        '200':
+          description: Synthetic persistent workflow result; decimal and cent values are strings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiPositions'
+        '400':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sid}/orders/{oid}/acknowledgment:
+    post:
+      operationId: acknowledgeFiOrder
+      summary: acknowledgeFiOrder
+      description: Local optional synthetic workflow. Existing authorized sandbox binding required.
+        Frozen order terms never change. Expected lifecycle version is required on commands.
+        Reuse original Idempotency-Key and body after uncertainty. BUY increases par and
+        decreases execution cash; no cash balance or settlement claim.
+      parameters:
+        - in: path
+          name: sid
+          required: true
+          schema: *a1
+        - in: path
+          name: oid
+          required: true
+          schema: *a1
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+      responses:
+        '200':
+          description: Synthetic persistent workflow result; decimal and cent values are strings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiOrderCommand'
+        '400':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FiVersionCommand'
+  /api/fixed-income/v1/sandboxes/{sid}/orders/{oid}/rejection:
+    post:
+      operationId: rejectFiOrder
+      summary: rejectFiOrder
+      description: Local optional synthetic workflow. Existing authorized sandbox binding required.
+        Frozen order terms never change. Expected lifecycle version is required on commands.
+        Reuse original Idempotency-Key and body after uncertainty. BUY increases par and
+        decreases execution cash; no cash balance or settlement claim.
+      parameters:
+        - in: path
+          name: sid
+          required: true
+          schema: *a1
+        - in: path
+          name: oid
+          required: true
+          schema: *a1
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+      responses:
+        '200':
+          description: Synthetic persistent workflow result; decimal and cent values are strings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiOrderCommand'
+        '400':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FiVersionCommand'
+  /api/fixed-income/v1/sandboxes/{sid}/orders/{oid}/executions:
+    post:
+      operationId: executeFiOrder
+      summary: executeFiOrder
+      description: Local optional synthetic workflow. Existing authorized sandbox binding required.
+        Frozen order terms never change. Expected lifecycle version is required on commands.
+        Reuse original Idempotency-Key and body after uncertainty. BUY increases par and
+        decreases execution cash; no cash balance or settlement claim.
+      parameters:
+        - in: path
+          name: sid
+          required: true
+          schema: *a1
+        - in: path
+          name: oid
+          required: true
+          schema: *a1
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+      responses:
+        '200': &a2
+          description: Synthetic persistent workflow result; decimal and cent values are strings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiOrderCommand'
+        '201': *a2
+        '400':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FiFillCommand'
+  /api/fixed-income/v1/sandboxes/{sid}/orders/{oid}/cancellation-requests:
+    post:
+      operationId: requestFiCancellation
+      summary: requestFiCancellation
+      description: Local optional synthetic workflow. Existing authorized sandbox binding required.
+        Frozen order terms never change. Expected lifecycle version is required on commands.
+        Reuse original Idempotency-Key and body after uncertainty. BUY increases par and
+        decreases execution cash; no cash balance or settlement claim.
+      parameters:
+        - in: path
+          name: sid
+          required: true
+          schema: *a1
+        - in: path
+          name: oid
+          required: true
+          schema: *a1
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+      responses:
+        '201':
+          description: Synthetic persistent workflow result; decimal and cent values are strings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiOrderCommand'
+        '400':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FiCancelCommand'
+  /api/fixed-income/v1/sandboxes/{sid}/orders/{oid}/cancellations/{cid}/acknowledgment:
+    post:
+      operationId: acknowledgeFiCancellation
+      summary: acknowledgeFiCancellation
+      description: Local optional synthetic workflow. Existing authorized sandbox binding required.
+        Frozen order terms never change. Expected lifecycle version is required on commands.
+        Reuse original Idempotency-Key and body after uncertainty. BUY increases par and
+        decreases execution cash; no cash balance or settlement claim.
+      parameters:
+        - in: path
+          name: sid
+          required: true
+          schema: *a1
+        - in: path
+          name: oid
+          required: true
+          schema: *a1
+        - in: path
+          name: cid
+          required: true
+          schema: *a1
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+      responses:
+        '200':
+          description: Synthetic persistent workflow result; decimal and cent values are strings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiOrderCommand'
+        '400':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FiVersionCommand'
+  /api/fixed-income/v1/sandboxes/{sid}/orders/{oid}/cancellations/{cid}/rejection:
+    post:
+      operationId: rejectFiCancellation
+      summary: rejectFiCancellation
+      description: Local optional synthetic workflow. Existing authorized sandbox binding required.
+        Frozen order terms never change. Expected lifecycle version is required on commands.
+        Reuse original Idempotency-Key and body after uncertainty. BUY increases par and
+        decreases execution cash; no cash balance or settlement claim.
+      parameters:
+        - in: path
+          name: sid
+          required: true
+          schema: *a1
+        - in: path
+          name: oid
+          required: true
+          schema: *a1
+        - in: path
+          name: cid
+          required: true
+          schema: *a1
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+      responses:
+        '200':
+          description: Synthetic persistent workflow result; decimal and cent values are strings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FiOrderCommand'
+        '400':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FiVersionCommand'
 components:
   securitySchemes:
     bearerAuth:
@@ -2317,6 +2986,12 @@ components:
                 - RESPOND_DEALER
                 - WITHDRAW_QUOTE
                 - ACCEPT_QUOTE
+                - ACK_ORDER
+                - REJECT_ORDER
+                - EXECUTE_ORDER
+                - REQUEST_CANCEL
+                - ACK_CANCEL
+                - REJECT_CANCEL
             command_seq:
               type: string
               pattern: ^(0|[1-9][0-9]{0,2})$
@@ -2388,6 +3063,15 @@ components:
                   - QUOTE_ACCEPTED
                   - RFQ_ACCEPTED
                   - ORDER_CREATED
+                  - ORDER_ACKNOWLEDGED
+                  - ORDER_REJECTED
+                  - EXECUTION_RECORDED
+                  - ORDER_STATE_CHANGED
+                  - POSITION_UPDATED
+                  - EXECUTION_DUPLICATE
+                  - CANCEL_REQUESTED
+                  - CANCEL_ACKNOWLEDGED
+                  - CANCEL_REJECTED
               aggregate_version:
                 type: string
                 nullable: true
@@ -2438,7 +3122,7 @@ components:
                       order_id:
                         type: string
                         format: uuid
-                      dealer_id: &a1
+                      dealer_id: &a3
                         type: string
                         enum:
                           - ATLAS
@@ -2469,12 +3153,12 @@ components:
         rfq_id:
           type: string
           format: uuid
-        instrument_id: &a3
+        instrument_id: &a5
           type: string
           enum:
             - SYN-UST-2031
             - SYN-CORP-2031
-        side: &a4
+        side: &a6
           type: string
           enum:
             - BUY
@@ -2487,7 +3171,7 @@ components:
           format: date
         invited_dealers:
           type: array
-          items: *a1
+          items: *a3
           minItems: 1
           maxItems: 3
           uniqueItems: true
@@ -2499,10 +3183,10 @@ components:
         - dealer_id
         - response
       properties:
-        expected_version: &a2
+        expected_version: &a4
           type: string
           pattern: ^[1-9][0-9]{0,2}$
-        dealer_id: *a1
+        dealer_id: *a3
         response:
           type: string
           enum:
@@ -2515,7 +3199,7 @@ components:
         - expected_version
         - quote_id
       properties:
-        expected_version: *a2
+        expected_version: *a4
         quote_id:
           type: string
           format: uuid
@@ -2528,7 +3212,7 @@ components:
         - quotes
         - order
       properties:
-        rfq: &a18
+        rfq: &a20
           type: object
           additionalProperties: false
           required:
@@ -2547,20 +3231,20 @@ components:
             id:
               type: string
               format: uuid
-            instrument_revision: &a6
+            instrument_revision: &a8
               type: string
               enum:
                 - phase1-ust-1
                 - phase1-corp-1
-            instrument_id: *a3
-            side: *a4
-            par_amount: &a7
+            instrument_id: *a5
+            side: *a6
+            par_amount: &a9
               type: string
               pattern: ^[0-9]{1,10}\.[0-9]{2}$
             settlement_date:
               type: string
               format: date
-            version: *a2
+            version: *a4
             state:
               type: string
               enum:
@@ -2587,7 +3271,7 @@ components:
               - dealer_id
               - state
             properties:
-              dealer_id: *a1
+              dealer_id: *a3
               state:
                 type: string
                 enum:
@@ -2618,11 +3302,11 @@ components:
               rfq_id:
                 type: string
                 format: uuid
-              dealer_id: *a1
-              bid_clean_price: &a5
+              dealer_id: *a3
+              bid_clean_price: &a7
                 type: string
                 pattern: ^[0-9]{1,5}\.[0-9]{12}$
-              ask_clean_price: *a5
+              ask_clean_price: *a7
               snapshot:
                 type: object
                 additionalProperties: false
@@ -2646,20 +3330,20 @@ components:
                   - expires_at
                   - valuation_model_version
                 properties:
-                  quote_id: &a8
+                  quote_id: &a10
                     type: string
                     format: uuid
-                  rfq_id: &a9
+                  rfq_id: &a11
                     type: string
                     format: uuid
-                  dealer_id: *a1
-                  instrument_id: *a3
-                  instrument_revision: *a6
-                  financial_source: &a10
+                  dealer_id: *a3
+                  instrument_id: *a5
+                  instrument_revision: *a8
+                  financial_source: &a12
                     type: string
                     enum:
                       - 6016fb700840d081fe1fba651c918f0a7e709383
-                  instrument_terms: &a11
+                  instrument_terms: &a13
                     type: object
                     additionalProperties: false
                     required:
@@ -2700,29 +3384,29 @@ components:
                         enum:
                           - ACT_ACT_ICMA
                           - THIRTY_360_US
-                  model_version: &a12
+                  model_version: &a14
                     type: string
                     enum:
                       - synthetic-dealer-grid-v1
-                  currency: &a13
+                  currency: &a15
                     type: string
                     enum:
                       - USD
-                  price_unit: &a14
+                  price_unit: &a16
                     type: string
                     enum:
                       - per 100 par
-                  side: *a4
-                  par_amount: *a7
-                  settlement_date: &a15
+                  side: *a6
+                  par_amount: *a9
+                  settlement_date: &a17
                     type: string
                     format: date
-                  bid_clean_price: *a5
-                  ask_clean_price: *a5
-                  quoted_at: &a16
+                  bid_clean_price: *a7
+                  ask_clean_price: *a7
+                  quoted_at: &a18
                     type: string
                     format: date-time
-                  expires_at: &a17
+                  expires_at: &a19
                     type: string
                     format: date-time
                   valuation_model_version:
@@ -2794,24 +3478,24 @@ components:
                 - clean_price
                 - valuation_model_version
               properties:
-                quote_id: *a8
-                rfq_id: *a9
-                dealer_id: *a1
-                instrument_id: *a3
-                instrument_revision: *a6
-                financial_source: *a10
-                instrument_terms: *a11
-                model_version: *a12
-                currency: *a13
-                price_unit: *a14
-                side: *a4
-                par_amount: *a7
-                settlement_date: *a15
-                bid_clean_price: *a5
-                ask_clean_price: *a5
-                quoted_at: *a16
-                expires_at: *a17
-                clean_price: *a5
+                quote_id: *a10
+                rfq_id: *a11
+                dealer_id: *a3
+                instrument_id: *a5
+                instrument_revision: *a8
+                financial_source: *a12
+                instrument_terms: *a13
+                model_version: *a14
+                currency: *a15
+                price_unit: *a16
+                side: *a6
+                par_amount: *a9
+                settlement_date: *a17
+                bid_clean_price: *a7
+                ask_clean_price: *a7
+                quoted_at: *a18
+                expires_at: *a19
+                clean_price: *a7
                 valuation_model_version:
                   type: string
                   enum:
@@ -2826,4 +3510,487 @@ components:
         rfqs:
           type: array
           maxItems: 50
-          items: *a18
+          items: *a20
+    FiLifecycle:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - version
+        - filled_par
+        - remaining_par
+        - executed_cents
+        - execution_count
+        - pending_cancel_id
+        - decided_at
+        - recorded_at
+      properties:
+        status:
+          type: string
+          enum:
+            - PENDING_ACK
+            - NEW
+            - REJECTED
+            - PARTIALLY_FILLED
+            - FILLED
+            - CANCELED
+        version: &a24
+          type: string
+          pattern: ^[1-9][0-9]{0,2}$
+        filled_par: &a21
+          type: string
+          pattern: ^[0-9]{1,10}\.[0-9]{2}$
+        remaining_par: *a21
+        executed_cents: &a23
+          type: string
+          pattern: ^[0-9]+$
+        execution_count:
+          type: integer
+          minimum: 0
+          maximum: 8
+        pending_cancel_id:
+          type: string
+          format: uuid
+          nullable: true
+        decided_at: &a22
+          type: string
+          format: date-time
+        recorded_at: *a22
+    FiExecution:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - source_event_id
+        - order_id
+        - fill_sequence
+        - par_amount
+        - clean_price
+        - instrument_revision
+        - settlement_date
+        - side
+        - accrual_elapsed
+        - accrual_period
+        - consideration_cents
+        - command_id
+        - command_seq
+        - event_index
+        - decided_at
+        - recorded_at
+      properties:
+        id: *a1
+        source_event_id: *a1
+        order_id: *a1
+        fill_sequence:
+          type: integer
+          minimum: 1
+          maximum: 8
+        par_amount: *a21
+        clean_price:
+          type: string
+          pattern: ^[0-9]{1,5}\.[0-9]{12}$
+        instrument_revision:
+          type: string
+          enum:
+            - phase1-ust-1
+            - phase1-corp-1
+        settlement_date:
+          type: string
+          format: date
+        side:
+          type: string
+          enum:
+            - BUY
+            - SELL
+        accrual_elapsed:
+          type: integer
+          minimum: 0
+          maximum: 184
+        accrual_period:
+          type: integer
+          minimum: 180
+          maximum: 184
+        consideration_cents: *a23
+        command_id: *a1
+        command_seq: *a23
+        event_index:
+          type: integer
+          enum:
+            - 0
+        decided_at: *a22
+        recorded_at: *a22
+    FiCancellation:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - order_id
+        - request_sequence
+        - state
+        - reason
+        - command_id
+        - command_seq
+        - decided_at
+        - outcome_command_id
+        - outcome_command_seq
+      properties:
+        id: *a1
+        order_id: *a1
+        request_sequence:
+          type: integer
+          minimum: 1
+          maximum: 8
+        state:
+          type: string
+          enum:
+            - PENDING
+            - ACKNOWLEDGED
+            - REJECTED
+        reason:
+          type: string
+          nullable: true
+          enum:
+            - CANCELED_REMAINDER
+            - SIMULATED_REJECTION
+            - TOO_LATE
+            - null
+        command_id: *a1
+        command_seq: *a23
+        decided_at: *a22
+        outcome_command_id:
+          type: string
+          format: uuid
+          nullable: true
+        outcome_command_seq:
+          type: string
+          pattern: ^[0-9]+$
+          nullable: true
+    FiOrderCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - order_id
+        - lifecycle
+      properties:
+        order_id: *a1
+        lifecycle:
+          $ref: '#/components/schemas/FiLifecycle'
+        execution:
+          $ref: '#/components/schemas/FiExecution'
+        cancellation:
+          $ref: '#/components/schemas/FiCancellation'
+    FiOrderHistory:
+      type: object
+      additionalProperties: false
+      required:
+        - version
+        - operation
+        - state
+        - command_id
+        - command_seq
+        - decided_at
+      properties:
+        version: *a24
+        operation:
+          type: string
+          enum:
+            - CONTRACT_CREATED
+            - ACK_ORDER
+            - REJECT_ORDER
+            - EXECUTE_ORDER
+            - REQUEST_CANCEL
+            - ACK_CANCEL
+            - REJECT_CANCEL
+        state:
+          $ref: '#/components/schemas/FiLifecycle'
+        command_id:
+          type: string
+          format: uuid
+          nullable: true
+        command_seq:
+          type: string
+          pattern: ^[0-9]+$
+          nullable: true
+        decided_at: *a22
+    FiOrderDetail:
+      type: object
+      additionalProperties: false
+      required:
+        - order
+        - lifecycle
+        - history
+        - executions
+        - cancellations
+      properties:
+        order:
+          type: object
+          additionalProperties: false
+          required:
+            - id
+            - rfq_id
+            - quote_id
+            - status
+            - created_at
+            - contract
+          properties:
+            id:
+              type: string
+              format: uuid
+            rfq_id:
+              type: string
+              format: uuid
+            quote_id:
+              type: string
+              format: uuid
+            status:
+              type: string
+              enum:
+                - PENDING_ACK
+            created_at:
+              type: string
+              format: date-time
+            contract:
+              type: object
+              additionalProperties: false
+              required:
+                - quote_id
+                - rfq_id
+                - dealer_id
+                - instrument_id
+                - instrument_revision
+                - financial_source
+                - instrument_terms
+                - model_version
+                - currency
+                - price_unit
+                - side
+                - par_amount
+                - settlement_date
+                - bid_clean_price
+                - ask_clean_price
+                - quoted_at
+                - expires_at
+                - clean_price
+                - valuation_model_version
+              properties:
+                quote_id:
+                  type: string
+                  format: uuid
+                rfq_id:
+                  type: string
+                  format: uuid
+                dealer_id:
+                  type: string
+                  enum:
+                    - ATLAS
+                    - BIRCH
+                    - CEDAR
+                instrument_id:
+                  type: string
+                  enum:
+                    - SYN-UST-2031
+                    - SYN-CORP-2031
+                instrument_revision:
+                  type: string
+                  enum:
+                    - phase1-ust-1
+                    - phase1-corp-1
+                financial_source:
+                  type: string
+                  enum:
+                    - 6016fb700840d081fe1fba651c918f0a7e709383
+                instrument_terms:
+                  type: object
+                  additionalProperties: false
+                  required:
+                    - currency
+                    - dated_date
+                    - first_coupon_date
+                    - maturity_date
+                    - coupon_rate
+                    - frequency
+                    - day_count
+                  properties:
+                    currency:
+                      type: string
+                      enum:
+                        - USD
+                    dated_date:
+                      type: string
+                      enum:
+                        - 2025-01-15
+                    first_coupon_date:
+                      type: string
+                      enum:
+                        - 2025-07-15
+                    maturity_date:
+                      type: string
+                      enum:
+                        - 2031-01-15
+                    coupon_rate:
+                      type: string
+                      enum:
+                        - '0.04'
+                    frequency:
+                      type: integer
+                      enum:
+                        - 2
+                    day_count:
+                      type: string
+                      enum:
+                        - ACT_ACT_ICMA
+                        - THIRTY_360_US
+                model_version:
+                  type: string
+                  enum:
+                    - synthetic-dealer-grid-v1
+                currency:
+                  type: string
+                  enum:
+                    - USD
+                price_unit:
+                  type: string
+                  enum:
+                    - per 100 par
+                side:
+                  type: string
+                  enum:
+                    - BUY
+                    - SELL
+                par_amount:
+                  type: string
+                  pattern: ^[0-9]{1,10}\.[0-9]{2}$
+                settlement_date:
+                  type: string
+                  format: date
+                bid_clean_price: &a25
+                  type: string
+                  pattern: ^[0-9]{1,5}\.[0-9]{12}$
+                ask_clean_price: *a25
+                quoted_at:
+                  type: string
+                  format: date-time
+                expires_at:
+                  type: string
+                  format: date-time
+                clean_price: *a25
+                valuation_model_version:
+                  type: string
+                  enum:
+                    - phase1-regular-coupon-v1
+        lifecycle:
+          $ref: '#/components/schemas/FiLifecycle'
+        history:
+          type: array
+          maxItems: 26
+          items:
+            $ref: '#/components/schemas/FiOrderHistory'
+        executions:
+          type: array
+          maxItems: 8
+          items:
+            $ref: '#/components/schemas/FiExecution'
+        cancellations:
+          type: array
+          maxItems: 8
+          items:
+            $ref: '#/components/schemas/FiCancellation'
+    FiOrderSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - rfq_id
+        - lifecycle
+      properties:
+        id: *a1
+        rfq_id: *a1
+        lifecycle:
+          $ref: '#/components/schemas/FiLifecycle'
+    FiOrderList:
+      type: object
+      additionalProperties: false
+      required:
+        - orders
+      properties:
+        orders:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/FiOrderSummary'
+    FiPosition:
+      type: object
+      additionalProperties: false
+      required:
+        - instrument_revision
+        - instrument_id
+        - signed_par
+        - signed_cash_cents
+        - execution_count
+        - last_command_seq
+        - updated_at
+      properties:
+        instrument_revision:
+          type: string
+          enum:
+            - phase1-ust-1
+            - phase1-corp-1
+        instrument_id:
+          type: string
+          enum:
+            - SYN-UST-2031
+            - SYN-CORP-2031
+        signed_par:
+          type: string
+          pattern: ^-?[0-9]{1,12}\.[0-9]{2}$
+        signed_cash_cents:
+          type: string
+          pattern: ^-?[0-9]+$
+        execution_count:
+          type: integer
+          minimum: 1
+          maximum: 400
+        last_command_seq: *a23
+        updated_at: *a22
+    FiPositions:
+      type: object
+      additionalProperties: false
+      required:
+        - positions
+      properties:
+        positions:
+          type: array
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/FiPosition'
+    FiVersionCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - expected_version
+      properties:
+        expected_version: *a24
+    FiFillCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - expected_version
+        - execution_id
+        - source_event_id
+        - par_amount
+      properties:
+        expected_version: *a24
+        execution_id: *a1
+        source_event_id: *a1
+        par_amount:
+          type: string
+          pattern: ^[0-9]{1,10}(\.[0-9]{1,2})?$
+    FiCancelCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - expected_version
+        - cancel_id
+      properties:
+        expected_version: *a24
+        cancel_id: *a1
