@@ -1,0 +1,298 @@
+profile: TradeFlow-FIX44-v1
+version: 1
+standard: FIX.4.4
+status: codec-only; no transport, session or domain-command integration
+financial_source: 6016fb700840d081fe1fba651c918f0a7e709383
+instrument_revisions:
+  SYN-UST-2031: { revision: phase1-ust-1, security_type: TNOTE, day_count: ACT_ACT_ICMA }
+  SYN-CORP-2031: { revision: phase1-corp-1, security_type: CORP, day_count: THIRTY_360_US }
+valuation_model: phase1-regular-coupon-v1
+identities:
+  client_comp_id: TRADEFLOW
+  dealer_comp_ids: [ATLAS, BIRCH, CEDAR]
+  cl_ord_id: canonical lower-case UUID; cancellation UUID differs from original order UUID
+  dealer_identifiers: matching dealer prefix plus hyphen and 1..48 upper-case ASCII letters, digits or hyphens
+limits:
+  frame_bytes: 8192
+  fields: 64
+  retained_buffer_bytes: 16384
+  emitted_batch: 16
+  value_bytes: 256
+wire:
+  delimiter: SOH byte 0x01; pipes are display only
+  header_order: ['8', '9', '35', '49', '56', '34', '43', '52', '122']
+  trailer: '10'
+  body_length: byte count from start of 35 through SOH immediately before 10
+  checksum: sum of all bytes preceding 10 modulo256, exactly three digits
+  body_order: decoder accepts any flat body order; encoder uses per-message canonical_order
+  ascii: printable ASCII values only; no binary or encoded fields
+  utc_time: YYYYMMDD-HH:MM:SS or YYYYMMDD-HH:MM:SS.sss; years 1900..2199; leap seconds unsupported
+  dates: YYYYMMDD; valid Gregorian calendar; settlement 20250115 inclusive to 20310115 exclusive
+  quantities: USD face; canonical nonnegative decimal strings with two places; maximum 1000000000.00
+  prices: USD per 100 par; canonical positive decimal strings with twelve places, up to 99999.999999999999
+  zero_avg_px: '0.000000000000'
+messages:
+  D:
+    name: NewOrderSingle
+    direction: CLIENT_TO_DEALER
+    standard_required_flat: ['11', '54', '60', '40']
+    standard_required_components: [Instrument, OrderQtyData]
+    required: ['11', '55', '167', '54', '854', '38', '40', '59', '423', '44', '15', '64', '60']
+    optional: ['75']
+    canonical_order:
+      ['11', '55', '167', '54', '854', '38', '40', '59', '423', '44', '15', '64', '60', '75']
+    forbidden_examples: ['37', '17', '41', '63']
+    conditions: Limit Price(44) required by FIX prose and profile; no dealer OrderID before acknowledgment
+  '8':
+    name: ExecutionReport
+    direction: DEALER_TO_CLIENT
+    standard_required_flat: ['37', '17', '150', '39', '54', '151', '14', '6']
+    standard_required_components: [Instrument]
+    required:
+      [
+        '37',
+        '17',
+        '150',
+        '39',
+        '11',
+        '55',
+        '167',
+        '54',
+        '854',
+        '38',
+        '40',
+        '59',
+        '423',
+        '44',
+        '15',
+        '64',
+        '14',
+        '151',
+        '6',
+        '60',
+      ]
+    optional: ['41', '32', '31', '75', '103', '58']
+    canonical_order:
+      [
+        '37',
+        '17',
+        '150',
+        '39',
+        '11',
+        '41',
+        '55',
+        '167',
+        '54',
+        '854',
+        '38',
+        '40',
+        '59',
+        '423',
+        '44',
+        '15',
+        '64',
+        '14',
+        '151',
+        '6',
+        '32',
+        '31',
+        '60',
+        '75',
+        '103',
+        '58',
+      ]
+    conditions:
+      trade: 150=F requires 31 and positive 32; 31 equals exact 44; LastQty at most CumQty; no 41
+      non_trade: no 31 or 32
+      new: 150=0,39=0,CumQty=0,LeavesQty=OrderQty
+      rejection: 150=8,39=8,CumQty=0,LeavesQty=0; 103 required; no 41
+      pending_cancel: 150=6,39=6; cancel ClOrdID and original 41; CumQty+LeavesQty=OrderQty
+      trade_partial: 150=F,39=1; 0<CumQty<OrderQty; CumQty+LeavesQty=OrderQty
+      trade_full: 150=F,39=2; CumQty=OrderQty,LeavesQty=0
+      trade_while_pending_cancel: 150=F,39=6; 0<CumQty<=OrderQty; CumQty+LeavesQty=OrderQty
+      canceled: 150=4,39=4; cancel ClOrdID and original 41; CumQty<OrderQty,LeavesQty=0
+      avg_px: zero when no executions, otherwise exact contractual clean price; this profile has a single execution price
+      order_reject_reason: 103=6 duplicate order or 99 synthetic other; duplicate order does not prove original rejection
+  F:
+    name: OrderCancelRequest
+    direction: CLIENT_TO_DEALER
+    standard_required_flat: ['41', '11', '54', '60']
+    standard_required_components: [Instrument, OrderQtyData]
+    required: ['11', '41', '37', '55', '167', '54', '60', '38']
+    optional: ['58']
+    canonical_order: ['11', '41', '37', '55', '167', '54', '60', '38', '58']
+    conditions: 38 is original total face, never remaining quantity; request does not cancel order
+  '9':
+    name: OrderCancelReject
+    direction: DEALER_TO_CLIENT
+    standard_required_flat: ['37', '11', '41', '39', '434']
+    standard_required_components: []
+    required: ['37', '11', '41', '39', '434', '102', '60']
+    optional: ['58']
+    canonical_order: ['37', '11', '41', '39', '434', '102', '60', '58']
+    forbidden_examples: ['17', '150', '55', '38', '14', '151', '31', '32']
+    conditions: 434=1 cancel request; 102=0 too late only with 39=2; 102=99 synthetic rejection with 39=0 or 1
+fields:
+  '8': { name: BeginString, rule: FIX.4.4, standard: required header first }
+  '9': { name: BodyLength, rule: canonical positive byte count, standard: required header second }
+  '35': { name: MsgType, values: [D, '8', F, '9'], standard: required header third }
+  '49':
+    { name: SenderCompID, standard: required header, profile: direction-bound fictional identity }
+  '56':
+    { name: TargetCompID, standard: required header, profile: direction-bound fictional identity }
+  '34':
+    {
+      name: MsgSeqNum,
+      standard: required header,
+      profile: '1..2147483647; no sequence state maintained',
+    }
+  '43': { name: PossDupFlag, values: [Y, N], standard: optional header, profile: Y requires 122 }
+  '52':
+    {
+      name: SendingTime,
+      standard: required header,
+      profile: syntactically valid UTC,
+      no clock-freshness claim,
+    }
+  '122':
+    { name: OrigSendingTime, standard: conditional header, profile: iff 43=Y; no later than 52 }
+  '11':
+    {
+      name: ClOrdID,
+      standard: message-dependent,
+      profile: original order UUID except cancel messages/pending-cancel/canceled reports use cancellation UUID,
+    }
+  '41':
+    {
+      name: OrigClOrdID,
+      standard: message-dependent,
+      profile: original order UUID on cancellation messages and pending-cancel/canceled reports only,
+    }
+  '37':
+    {
+      name: OrderID,
+      standard: required on 8 and 9; optional on F; not in D,
+      profile: stable fictional dealer identifier; NONE unknown-order reports unsupported,
+    }
+  '17':
+    {
+      name: ExecID,
+      standard: required on 8; not in 9,
+      profile: dealer report identifier,
+      not automatically an execution,
+    }
+  '55': { name: Symbol, standard: Instrument component, profile: exact fictional instrument ID }
+  '167': { name: SecurityType, standard: optional Instrument field, values: [TNOTE, CORP] }
+  '54':
+    {
+      name: Side,
+      standard: required on D/8/F,
+      values: ['1', '2'],
+      profile: original client BUY=1 SELL=2,
+    }
+  '854':
+    {
+      name: QtyType,
+      standard: optional D/8,
+      values: ['0'],
+      profile: Units expressed as USD face amount,
+    }
+  '38':
+    {
+      name: OrderQty,
+      standard: OrderQtyData or optional 8 field,
+      profile: original total face at least 1.00,
+    }
+  '40': { name: OrdType, standard: required D; optional 8, values: ['2'], profile: Limit }
+  '59': { name: TimeInForce, standard: optional D/8, values: ['1'], profile: GTC }
+  '423': { name: PriceType, standard: optional D/8, values: ['1'], profile: Percentage per 100 par }
+  '44':
+    { name: Price, standard: conditional D; optional 8, profile: original twelve-place clean price }
+  '15': { name: Currency, standard: optional D/8, values: [USD] }
+  '64':
+    {
+      name: SettlDate,
+      standard: optional D/8,
+      profile: frozen contractual date; 63 omitted,
+      no inferred settlement,
+    }
+  '60':
+    {
+      name: TransactTime,
+      standard: required D/F; optional 8/9,
+      profile: original event UTC time; not local DB decision time,
+    }
+  '75':
+    {
+      name: TradeDate,
+      standard: optional D/8,
+      profile: if present equals UTC date of 60; not settlement date,
+    }
+  '150':
+    {
+      name: ExecType,
+      standard: required 8,
+      values: ['0', '8', F, '6', '4'],
+      profile: FIX4.4 trade=F; old FIX4.2 trade values 1/2 unsupported,
+    }
+  '39':
+    {
+      name: OrdStatus,
+      standard: required 8/9,
+      values: ['0', '1', '2', '4', '6', '8'],
+      profile: distinct from event type; see conditional matrix,
+    }
+  '14':
+    { name: CumQty, standard: required 8, profile: executed face to date, at most original total }
+  '151':
+    { name: LeavesQty, standard: required 8, profile: executable remainder; canceled/rejected zero }
+  '32':
+    { name: LastQty, standard: conditional trade 8, profile: positive executed face at most CumQty }
+  '31':
+    {
+      name: LastPx,
+      standard: conditional trade 8,
+      profile: exact twelve-place contractual clean price,
+    }
+  '6':
+    {
+      name: AvgPx,
+      standard: required 8,
+      profile: zero before fills; otherwise common exact execution price; no cost-basis claim,
+    }
+  '103':
+    {
+      name: OrdRejReason,
+      standard: optional 8,
+      values: ['6', '99'],
+      profile: required iff order rejection,
+    }
+  '434':
+    { name: CxlRejResponseTo, standard: required 9, values: ['1'], profile: cancel request only }
+  '102':
+    {
+      name: CxlRejReason,
+      standard: optional 9,
+      values: ['0', '99'],
+      profile: required in this bilateral profile,
+    }
+  '58':
+    {
+      name: Text,
+      standard: optional,
+      values: [SYNTHETIC_REJECTION, SYNTHETIC_CANCEL_REJECT, SYNTHETIC_CANCEL_REQUEST],
+      profile: controlled synthetic reasons only; no free-form payload echo,
+    }
+  '10':
+    {
+      name: CheckSum,
+      standard: required trailer last,
+      profile: exactly three decimal digits and final SOH,
+    }
+unsupported:
+  - all other message types, tags, enum values and order/replacement types
+  - repeating groups, encoded/binary data, non-ASCII, pipe-framed input
+  - unknown-order cancel reports and ambiguous NONE identity
+  - TradeCorrect, TradeCancel, status-based inferred fills
+  - session state, replay/reconnect, logon/logout/heartbeats, sockets
+  - financial command execution, database access, cash/settlement/PnL inference

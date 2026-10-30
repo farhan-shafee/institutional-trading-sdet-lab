@@ -1,0 +1,12 @@
+{
+  "project": "QuickFIX",
+  "revision": "aa1985560bfdaef2edc4d2aa51e119c2ff80b164",
+  "source": "https://github.com/quickfix/quickfix",
+  "dictionary": "spec/FIX44.xml",
+  "dictionary_version": "FIX.4.4 servicepack=0; no extension pack",
+  "dictionary_sha256": "a82655b54363aa9c6d1b2f21f294f1198c0d7125d7b44c26d93d3179f3358425",
+  "license": "The QuickFIX Software License, Version 1.0",
+  "license_sha256": "04719eefe7adf383d7970d7654caec6f7e542e6427f25d068e7177495fc9b379",
+  "acknowledgment": "This product includes software developed by quickfixengine.org (http://www.quickfixengine.org/).",
+  "checker": "Independent Python dictionary-driven checker; not linked to a QuickFIX runtime or session engine."
+}
