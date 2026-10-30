@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { reconciliationView } from './reconciliation.js';
 import { orderView } from './order.js';
 import { sandboxBodySchema } from '../domain/workflow/contracts.js';
 import {
@@ -39,6 +40,12 @@ export function rfqView(
     run,
     () => !busy && getRole() === 'trader' && scope === 'trade' && !journal.has(sandboxId),
   );
+  const reconciliation = reconciliationView(
+    api,
+    mutate,
+    run,
+    () => !busy && getRole() === 'trader' && scope === 'trade' && !journal.has(sandboxId),
+  );
   const root = () => `/api/fixed-income/v1/sandboxes/${sandboxId}/rfqs`;
   const retained = () => (sandboxId ? journal.load(sandboxId) : undefined);
   const reset = () => {
@@ -48,6 +55,7 @@ export function rfqView(
     detail = undefined;
     scope = undefined;
     lifecycle.reset();
+    reconciliation.reset();
     panel.hidden = true;
     panel.open = false;
     form.reset();
@@ -159,6 +167,7 @@ export function rfqView(
     }
     if (list.rfqs.some((r) => r.id === previous)) selector.value = previous!;
     await loadSelected();
+    await reconciliation.load(sandboxId);
   }
   async function submit(saved: Retained) {
     if (saved.sandbox_id !== sandboxId)
@@ -177,7 +186,8 @@ export function rfqView(
         `RFQ command rejected or unresolved (HTTP ${result.response.status}). Refresh state; retry only the retained command for an uncertain result.`,
       );
     }
-    if (saved.path.includes('/orders/')) lifecycle.validate(result.data);
+    if (saved.path.includes('/reconciliation-runs')) reconciliation.validate(result.data);
+    else if (saved.path.includes('/orders/')) lifecycle.validate(result.data);
     else detail = rfqDetailSchema.parse(result.data);
     journal.resolve(saved);
     await refresh();
@@ -212,6 +222,7 @@ export function rfqView(
   }
   function render() {
     lifecycle.render();
+    reconciliation.render();
     node('rfq-state').textContent = detail
       ? `${detail.rfq.id} · ${detail.rfq.state} · version ${detail.rfq.version} · expires ${detail.rfq.expires_at}`
       : 'No RFQ selected.';

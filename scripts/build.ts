@@ -12,6 +12,7 @@ if (relative(repositoryRoot, outputRoot) !== 'dist') {
 await rm(outputRoot, { recursive: true, force: true });
 await mkdir(resolve(outputRoot, 'app/public'), { recursive: true });
 await mkdir(resolve(outputRoot, 'contracts'), { recursive: true });
+await mkdir(resolve(outputRoot, 'verification/sql'), { recursive: true });
 
 await build({
   absWorkingDir: repositoryRoot,
@@ -43,6 +44,10 @@ const copiedFiles = [
   'app/public/style.css',
   'app/public/favicon.svg',
   'contracts/openapi.yaml',
+  'verification/sql/foundation.sql',
+  'verification/sql/rfq.sql',
+  'verification/sql/executions.sql',
+  'verification/sql/reconciliation.sql',
 ];
 for (const file of copiedFiles) {
   await copyFile(resolve(repositoryRoot, file), resolve(outputRoot, file));
