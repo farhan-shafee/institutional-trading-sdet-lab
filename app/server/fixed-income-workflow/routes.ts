@@ -12,8 +12,10 @@ import {
 import { WorkflowDatabase } from '../../persistence/postgres/workflow.js';
 import { WorkflowBindings, type Binding } from './bindings.js';
 import { WorkflowService } from './service.js';
+import { RfqService } from './rfq-service.js';
+import { handleRfq } from './rfq-routes.js';
 
-type Context = {
+export type WorkflowContext = {
   request: IncomingMessage;
   response: ServerResponse;
   url: URL;
@@ -38,9 +40,14 @@ export class WorkflowRoutes {
     this.bindings.clear();
     await this.service?.database.close();
   }
-  async handle(context: Context): Promise<boolean> {
+  async handle(context: WorkflowContext): Promise<boolean> {
     const { request, response, url, token, authenticate, respond } = context;
     const method = request.method ?? 'GET';
+    if (
+      this.service &&
+      (await handleRfq(context, this.bindings, new RfqService(this.service.database)))
+    )
+      return true;
     if (url.pathname === `${root}/workflow/status` && method === 'GET') {
       if (url.search)
         throw new DomainError(400, 'VALIDATION_ERROR', 'Status takes no query parameters.');

@@ -20,7 +20,8 @@ export default defineConfig({
   outputDir: 'test-results',
   use: {
     baseURL: 'http://127.0.0.1:3000',
-    trace: 'on-first-retry',
+    // Authenticated traces record bearer headers/storage. Keep them out of normal CI artifacts.
+    trace: 'off',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },

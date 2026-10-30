@@ -22,7 +22,7 @@ Requires Python3.12+ (`python3` on Unix, `python` on Windows; `PYTHON` can name 
 
 ## Run locally
 
-Phase 2A candidate source adds an **optional local-only persistent sandbox ownership foundation**, default OFF. Existing development and the public deployment need no database. See [persistence, safe replay and local/CI operation](docs/FIXED_INCOME_PERSISTENCE.md). RFQs, quotes, fills, positions and FIX remain outside this milestone. `npm run test:postgres` is an additional required real-PostgreSQL gate; `npm run validate:all` combines legacy validation with two fresh database runs. No production deployment or merge is implied.
+Phase 2B candidate source extends the **optional local-only persistent sandbox foundation**, default OFF, with explicitly invited fictional dealers and atomic quotation acceptance through one PENDING_ACK order. Existing development and the public deployment need no database. See [ownership/recovery](docs/FIXED_INCOME_PERSISTENCE.md) and the [RFQ contracts, exact prices, browser boundary and local/CI gates](docs/FIXED_INCOME_RFQ.md). Acknowledgments, fills, positions, FIX and settlement remain outside this milestone. `npm run test:postgres` and `npm run test:workflow-browser` are required real-PostgreSQL gates. No production deployment or merge is implied.
 
 Use Node.js 24 and npm. From the repository root:
 
@@ -111,7 +111,7 @@ The merged canonical `main` passed [hosted Ubuntu CI, run 37021360984](https://g
 
 **Historical audited baseline:** [hosted Ubuntu CI, run 36959822791](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/36959822791) passed at `f7f2f108576fd5d940f4a9649519d24be9ecb778`: **31 unit checks and 184 Playwright executions**, with zero failed, flaky, skipped, or retried tests. This historical run does not validate later changes.
 
-CI installs the lockfile and Linux browser dependencies, then gates full and production dependency audits, TypeScript, lint, formatting, OpenAPI, workflow structure, units, and the normal suite. `failOnFlakyTests` rejects a test that passes only on retry. HTML reports retain for **14 days**; conditional failure evidence retains for **7 days**. A green run skips the failure upload and does not prove that path. Local failure demos independently produce actual traces, screenshots, videos, and JSON.
+CI installs the lockfile and Linux browser dependencies, then gates full and production dependency audits, TypeScript, lint, formatting, OpenAPI, workflow structure, units, and the normal suite. `failOnFlakyTests` rejects a test that passes only on retry. HTML reports retain for **14 days**; conditional failure evidence retains for **7 days**. Normal authenticated suites disable traces to keep bearer headers and browser auth state out of published artifacts. A green run skips the failure upload and does not prove that path. Local failure demos independently produce actual traces, screenshots, videos, and JSON.
 
 The deployment-readiness changes add 20 unit checks and six browser-free hosted-boundary scenarios: **54 units and 211 Playwright executions**, or **422 with repeat-each=2**. The browser baseline remains **44 UI + 3 integration per engine**. CI also builds the production artifact and verifies a separate production-only installation over loopback. These counts extend the revision-specific historical evidence above; current results belong to their exact Actions run.
 
