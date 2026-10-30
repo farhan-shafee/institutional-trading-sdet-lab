@@ -2,53 +2,12 @@ import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { request } from '@playwright/test';
-import { readConfiguration } from '../../app/server/configuration.js';
-import { connection, owner } from './harness.js';
+import { connection } from './harness.js';
 import { httpLab } from './http.js';
 import { rfqInput, type RfqDetail } from './rfq-fixture.js';
+import { rfqHttp } from './rfq-http-fixture.js';
+import { spawnSync } from 'node:child_process';
 import { OpenApiContracts } from '../contract/openapi-validator.js';
-
-export async function rfqHttp(now?: () => number) {
-  const owned = await owner();
-  const config = readConfiguration({
-    TRADEFLOW_FIXED_INCOME_WORKFLOW: 'postgres',
-    TRADEFLOW_FIXED_INCOME_DATABASE_URL: owned.appUrl!,
-  });
-  const lab = await httpLab(config, undefined, now);
-  const token = await lab.login();
-  const keys = {
-    sandbox_id: randomUUID(),
-    read_capability: randomBytes(32).toString('base64url'),
-    trade_capability: randomBytes(32).toString('base64url'),
-  };
-  const root = `/api/fixed-income/v1/sandboxes/${keys.sandbox_id}`;
-  assert.equal(
-    (await lab.request('/api/fixed-income/v1/sandboxes', token, 'POST', keys, randomUUID())).status,
-    201,
-  );
-  return {
-    lab,
-    token,
-    keys,
-    root,
-    config,
-    async close() {
-      if (lab.server.listening) await lab.close();
-      const admin = await connection('admin'),
-        maint = await connection('maintenance');
-      try {
-        await admin.query(
-          "UPDATE fi.sandboxes SET created_at=clock_timestamp()-interval '40 days',write_expires_at=clock_timestamp()-interval '33 days',retained_until=clock_timestamp()-interval '10 days' WHERE id=$1",
-          [keys.sandbox_id],
-        );
-        await maint.query('SELECT fi_control.purge_expired()');
-      } finally {
-        await maint.end();
-        await admin.end();
-      }
-    },
-  };
-}
 
 await test('RFQ HTTP and independent OpenAPI freeze BUY/SELL contracts and paginate every event within one command', async () => {
   const f = await rfqHttp(),
@@ -90,6 +49,13 @@ await test('RFQ HTTP and independent OpenAPI freeze BUY/SELL contracts and pagin
       assert.equal(accepted.status, 201);
       const acceptedBody = (await accepted.json()) as RfqDetail;
       assert.equal(acceptedBody.order?.status, 'PENDING_ACK');
+      const oracle = spawnSync(
+        process.env.PYTHON ?? (process.platform === 'win32' ? 'python' : 'python3'),
+        ['verification/python/rfq_reference.py'],
+        { input: JSON.stringify(acceptedBody), encoding: 'utf8', timeout: 10000 },
+      );
+      assert.equal(oracle.status, 0, oracle.stderr);
+      assert.match(oracle.stdout, /financial inversion verified/);
       assert.equal(
         acceptedBody.order?.contract.clean_price,
         side === 'BUY' ? '100.050000000123' : '98.950000000123',
@@ -133,6 +99,13 @@ await test('RFQ HTTP and independent OpenAPI freeze BUY/SELL contracts and pagin
       asOf ??= page.as_of_seq;
       assert.equal(page.as_of_seq, asOf);
       observed.push(...page.events);
+      if (observed.length === 1) {
+        // A later committed command must remain outside this cursor's fixed watermark.
+        assert.equal(
+          (await f.lab.request(`${f.root}/rfqs`, f.token, 'POST', rfqInput(), randomUUID())).status,
+          201,
+        );
+      }
       path = page.next_cursor
         ? `${f.root}/audit-events?cursor=${encodeURIComponent(page.next_cursor)}`
         : null;
@@ -140,8 +113,8 @@ await test('RFQ HTTP and independent OpenAPI freeze BUY/SELL contracts and pagin
     const reader = await connection('reconciler');
     try {
       const expected = await reader.query(
-        'SELECT command_seq::text,event_index FROM fi.audit_events WHERE sandbox_id=$1 ORDER BY command_seq,event_index',
-        [f.keys.sandbox_id],
+        'SELECT command_seq::text,event_index FROM fi.audit_events WHERE sandbox_id=$1 AND command_seq<=$2::bigint ORDER BY command_seq,event_index',
+        [f.keys.sandbox_id, asOf],
       );
       assert.deepEqual(
         observed.map((e) => ({ command_seq: e.command_seq, event_index: e.event_index })),

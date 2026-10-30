@@ -5,6 +5,36 @@ import { test } from 'node:test';
 import { connection, scalar } from './harness.js';
 import { rfqInput, sandbox } from './rfq-fixture.js';
 
+await test('all three firm dealer snapshots fit one immutable accepted receipt at maximum par', async () => {
+  const f = await sandbox();
+  try {
+    const input = { ...rfqInput(), par_amount: '1000000000.00' };
+    assert.equal((await f.command('CREATE_RFQ', input)).status, 201);
+    let version = 1,
+      quoteId = '';
+    for (const dealer_id of ['ATLAS', 'BIRCH', 'CEDAR']) {
+      const result = await f.command('RESPOND_DEALER', {
+        rfq_id: input.rfq_id,
+        expected_version: String(version++),
+        dealer_id,
+        response: 'QUOTE',
+      });
+      assert.equal(result.status, 200);
+      quoteId = result.body.quotes[0]!.id;
+    }
+    const accepted = await f.command('ACCEPT_QUOTE', {
+      rfq_id: input.rfq_id,
+      expected_version: '4',
+      quote_id: quoteId,
+    });
+    assert.equal(accepted.status, 201);
+    assert.equal(accepted.body.quotes.length, 3);
+    assert.equal(accepted.body.order?.contract.par_amount, '1000000000.00');
+  } finally {
+    await f.close();
+  }
+});
+
 await test('additive RFQ schema has three frozen fictional dealers and no application writes', async () => {
   const admin = await connection('admin'),
     app = await connection('app');

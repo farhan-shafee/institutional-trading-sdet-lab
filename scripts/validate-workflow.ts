@@ -110,6 +110,7 @@ for (const command of [
   'npm run test:workflow-browser',
   'npm run test:workflow-browser -- --repeat-each=2',
   'npm test -- --repeat-each=2',
+  'npm run validate',
 ]) {
   const matches = persistenceSteps.filter((step) => step.run === command);
   assert(

@@ -237,7 +237,7 @@ BEGIN
       qid:=gen_random_uuid(); expiry:=LEAST(r.expires_at,decided+interval '30 seconds');
       payload:=jsonb_build_object('quote_id',qid::text,'rfq_id',rid::text,'dealer_id',inv.dealer_id,
         'instrument_id',iv.instrument_id,'instrument_revision',iv.id,'financial_source',iv.financial_source,'instrument_terms',iv.terms,
-        'model_version','synthetic-dealer-grid-v1','currency','USD','price_unit','per 100 par','side',r.side,
+        'model_version','synthetic-dealer-grid-v1','valuation_model_version','phase1-regular-coupon-v1','currency','USD','price_unit','per 100 par','side',r.side,
         'par_amount',r.par_amount::text,'settlement_date',r.settlement_date::text,'bid_clean_price',bid,'ask_clean_price',ask,
         'quoted_at',to_char(decided AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
         'expires_at',to_char(expiry AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'));

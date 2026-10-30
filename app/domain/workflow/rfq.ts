@@ -59,6 +59,7 @@ export const quoteSnapshotSchema = z
     financial_source: z.literal('6016fb700840d081fe1fba651c918f0a7e709383'),
     instrument_terms: instrumentTerms,
     model_version: z.literal('synthetic-dealer-grid-v1'),
+    valuation_model_version: z.literal('phase1-regular-coupon-v1'),
     currency: z.literal('USD'),
     price_unit: z.literal('per 100 par'),
     side: z.enum(['BUY', 'SELL']),

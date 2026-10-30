@@ -17,6 +17,7 @@ WITH violations AS (
     OR o.contract->>'instrument_revision' IS DISTINCT FROM iv.id
     OR o.contract->'instrument_terms' IS DISTINCT FROM iv.terms
     OR o.contract->>'financial_source' IS DISTINCT FROM iv.financial_source
+    OR o.contract->>'valuation_model_version' IS DISTINCT FROM 'phase1-regular-coupon-v1'
     OR o.created_at>=q.expires_at OR o.created_at>=r.expires_at
   UNION ALL
   SELECT q.sandbox_id,q.rfq_id,'DEALER_GRID_MISMATCH'

@@ -2644,6 +2644,7 @@ components:
                   - ask_clean_price
                   - quoted_at
                   - expires_at
+                  - valuation_model_version
                 properties:
                   quote_id: &a8
                     type: string
@@ -2724,6 +2725,10 @@ components:
                   expires_at: &a17
                     type: string
                     format: date-time
+                  valuation_model_version:
+                    type: string
+                    enum:
+                      - phase1-regular-coupon-v1
               created_at:
                 type: string
                 format: date-time
@@ -2787,6 +2792,7 @@ components:
                 - quoted_at
                 - expires_at
                 - clean_price
+                - valuation_model_version
               properties:
                 quote_id: *a8
                 rfq_id: *a9
@@ -2806,6 +2812,10 @@ components:
                 quoted_at: *a16
                 expires_at: *a17
                 clean_price: *a5
+                valuation_model_version:
+                  type: string
+                  enum:
+                    - phase1-regular-coupon-v1
           nullable: true
     RfqList:
       type: object

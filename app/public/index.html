@@ -434,6 +434,67 @@
           <p id="fi-error" data-testid="fi-error" role="alert"></p>
           <div id="fi-results" data-testid="fi-results" aria-live="polite"></div>
         </details>
+        <details id="rfq-panel" class="panel fi-panel" hidden>
+          <summary>Dealer RFQ workstation</summary>
+          <p>
+            Synthetic local workflow · invented firm prices · BUY accepts ask; SELL accepts bid.
+            Ends at PENDING_ACK. No acknowledgments, fills or settlement. Capabilities are never
+            entered or retained in this browser.
+          </p>
+          <label>Authorized sandbox UUID<input id="rfq-sandbox" autocomplete="off" /></label>
+          <button type="button" id="rfq-load">Load authorized sandbox</button>
+          <button type="button" id="rfq-refresh" disabled>Refresh RFQs</button>
+          <button type="button" id="rfq-retry" disabled>Retry retained command</button>
+          <p id="rfq-status" data-testid="rfq-status" role="status"></p>
+          <p id="rfq-error" role="alert"></p>
+          <form id="rfq-form" novalidate>
+            <fieldset id="rfq-fields" class="fi-form" disabled>
+              <legend>Explicit synthetic dealer invitation</legend>
+              <label
+                >RFQ instrument<select name="instrument_id">
+                  <option value="SYN-UST-2031">Fictional Treasury-style</option>
+                  <option value="SYN-CORP-2031">Fictional corporate</option>
+                </select></label
+              >
+              <label
+                >RFQ side<select name="side">
+                  <option value="BUY">BUY</option>
+                  <option value="SELL">SELL</option>
+                </select></label
+              >
+              <label
+                >RFQ par amount USD<input name="par_amount" inputmode="decimal" value="1000000"
+              /></label>
+              <label
+                >RFQ settlement date<input name="settlement_date" type="date" value="2026-10-15"
+              /></label>
+              <label
+                ><input type="checkbox" name="invited_dealers" value="ATLAS" checked /> Fictional
+                ATLAS</label
+              >
+              <label
+                ><input type="checkbox" name="invited_dealers" value="BIRCH" checked /> Fictional
+                BIRCH</label
+              >
+              <label
+                ><input type="checkbox" name="invited_dealers" value="CEDAR" checked /> Fictional
+                CEDAR</label
+              >
+              <button type="button" id="rfq-use-analytics">Use analytics inputs</button>
+              <button type="submit">Send RFQ</button>
+            </fieldset>
+          </form>
+          <p>
+            Dealer response buttons drive the deterministic simulator. These are not dealer
+            identities or live quotes. RFQs last 300 seconds; quotes last at most 30 seconds.
+            Refresh to observe server expiry.
+          </p>
+          <label>Selected RFQ<select id="rfq-selection"></select></label>
+          <p id="rfq-state" data-testid="rfq-state"></p>
+          <div id="rfq-invitations" data-testid="rfq-invitations"></div>
+          <div id="rfq-quotes" data-testid="rfq-quotes" aria-live="polite"></div>
+          <p id="rfq-order" data-testid="rfq-order" aria-live="polite"></p>
+        </details>
       </div>
     </main>
     <footer>

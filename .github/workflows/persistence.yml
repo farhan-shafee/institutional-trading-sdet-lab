@@ -48,3 +48,5 @@ jobs:
         run: npm run test:workflow-browser -- --repeat-each=2
       - name: Repeat all legacy API and browser regressions
         run: npm test -- --repeat-each=2
+      - name: Execute the complete existing validation command
+        run: npm run validate
