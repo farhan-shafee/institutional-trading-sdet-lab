@@ -27,6 +27,7 @@ const cursorSchema = z
     id: z.uuid(),
     upper: z.string().regex(/^\d{1,3}$/),
     after: z.string().regex(/^\d{1,3}$/),
+    index: z.number().int().min(-1).max(2),
     limit: z.number().int().min(1).max(100),
     expires: z.number().finite(),
   })
@@ -35,7 +36,20 @@ const eventSchema = z
   .object({
     command_seq: z.string(),
     event_index: z.number().int(),
-    event_type: z.enum(['SANDBOX_CREATED', 'CAPABILITIES_ROTATED', 'COMMAND_REJECTED']),
+    event_type: z.enum([
+      'SANDBOX_CREATED',
+      'CAPABILITIES_ROTATED',
+      'COMMAND_REJECTED',
+      'RFQ_CREATED',
+      'DEALER_RESPONDED',
+      'DEALER_DECLINED',
+      'QUOTE_PUBLISHED',
+      'QUOTE_WITHDRAWN',
+      'RFQ_EXPIRED',
+      'QUOTE_ACCEPTED',
+      'RFQ_ACCEPTED',
+      'ORDER_CREATED',
+    ]),
     aggregate_version: z.string().nullable(),
     actor_id: z.uuid(),
     actor_kind: z.literal('CLIENT'),
@@ -212,9 +226,9 @@ export class WorkflowService {
         `SELECT command_seq::text,event_index,event_type,aggregate_version::text,actor_id,actor_kind,
         to_char(decided_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS decided_at,
         to_char(recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS recorded_at,payload
-        FROM fi.audit_events WHERE sandbox_id=$1 AND command_seq>$2::bigint AND command_seq<=$3::bigint
+        FROM fi.audit_events WHERE sandbox_id=$1 AND (command_seq,event_index)>($2::bigint,$5::integer) AND command_seq<=$3::bigint
         ORDER BY command_seq,event_index LIMIT $4`,
-        [binding.sandboxId, cursor?.after ?? '0', upper, limit + 1],
+        [binding.sandboxId, cursor?.after ?? '0', upper, limit + 1, cursor?.index ?? -1],
       );
       const events = rows.rows.slice(0, limit).map((row) => eventSchema.parse(row));
       const next =
@@ -223,6 +237,7 @@ export class WorkflowService {
               id: binding.sandboxId,
               upper,
               after: events.at(-1)!.command_seq,
+              index: events.at(-1)!.event_index,
               limit,
               expires: Date.now() + 300_000,
             })

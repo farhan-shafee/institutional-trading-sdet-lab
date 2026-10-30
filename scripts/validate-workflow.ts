@@ -106,6 +106,10 @@ for (const command of [
   'npm audit --omit=dev',
   'npm run workflow:validate',
   'npm run test:postgres',
+  'npm run build:ui',
+  'npm run test:workflow-browser',
+  'npm run test:workflow-browser -- --repeat-each=2',
+  'npm test -- --repeat-each=2',
 ]) {
   const matches = persistenceSteps.filter((step) => step.run === command);
   assert(

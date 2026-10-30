@@ -38,3 +38,13 @@ jobs:
         run: npm run test:postgres
       - name: Repeat using a fresh owned PostgreSQL instance
         run: npm run test:postgres
+      - name: Build workstation browser assets
+        run: npm run build:ui
+      - name: Install workflow browsers and system libraries
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Real PostgreSQL RFQ workstation in three browsers
+        run: npm run test:workflow-browser
+      - name: Repeat RFQ workstation without retries
+        run: npm run test:workflow-browser -- --repeat-each=2
+      - name: Repeat all legacy API and browser regressions
+        run: npm test -- --repeat-each=2
