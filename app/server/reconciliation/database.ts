@@ -1,3 +1,4 @@
+import { observeLeasedClient } from '../../persistence/postgres/client-events.js';
 import pg from 'pg';
 import { DomainError } from '../../domain/errors.js';
 import { financialSource, migrationChecksums } from '../../domain/workflow/database-contract.js';
@@ -36,12 +37,14 @@ export class VerificationDatabase {
     if (this.pending >= 4 || this.closing)
       throw new DomainError(503, 'RECONCILER_UNAVAILABLE', 'Reconciliation is unavailable.');
     this.pending++;
+    let observed: ReturnType<typeof observeLeasedClient> | undefined;
     let client: pg.PoolClient | undefined,
       committing = false;
     const deadline = performance.now() + 5000;
     try {
       verify();
       client = await this.pool.connect();
+      observed = observeLeasedClient(client);
       await client.query(readOnly ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN');
       await client.query("SET LOCAL statement_timeout='1500ms'");
       await client.query("SET LOCAL lock_timeout='750ms'");
@@ -71,16 +74,18 @@ export class VerificationDatabase {
       verify();
       if (performance.now() > deadline)
         throw new DomainError(503, 'VERIFICATION_TIMEOUT', 'Reconciliation deadline elapsed.');
+      observed.check();
       committing = true;
       await client.query('COMMIT');
       if (!readOnly) await hooks.afterCommit?.();
-      client.release();
+      observed.check();
+      observed.release();
       client = undefined;
       return result;
     } catch (error) {
       if (client) {
         if (!committing) await client.query('ROLLBACK').catch(() => undefined);
-        client.release(true);
+        observed?.release(true);
       }
       if (error instanceof DomainError) throw error;
       const code =
