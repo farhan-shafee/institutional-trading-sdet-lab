@@ -1,3 +1,4 @@
+import { observeLeasedClient } from './client-events.js';
 import pg from 'pg';
 import { DomainError } from '../../domain/errors.js';
 import { financialSource, migrationChecksums } from '../../domain/workflow/database-contract.js';
@@ -46,10 +47,12 @@ export class WorkflowDatabase {
     try {
       for (let attempt = 0; attempt < 3; attempt++) {
         let db: pg.PoolClient | undefined;
+        let observed: ReturnType<typeof observeLeasedClient> | undefined;
         let commitDispatched = false;
         try {
           verify();
           db = await this.pool.connect();
+          observed = observeLeasedClient(db);
           await db.query(readOnly ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN');
           await db.query("SET LOCAL statement_timeout='1500ms'");
           await db.query("SET LOCAL lock_timeout='750ms'");
@@ -65,16 +68,18 @@ export class WorkflowDatabase {
               'DATABASE_TIMEOUT',
               'The fixed-income transaction deadline elapsed.',
             );
+          observed.check();
           commitDispatched = true;
           await db.query('COMMIT');
           if (!readOnly) await this.hooks.afterCommit?.();
-          db.release();
+          observed.check();
+          observed.release();
           db = undefined;
           return result;
         } catch (error: unknown) {
           if (db) {
             if (!commitDispatched) await db.query('ROLLBACK').catch(() => undefined);
-            db.release(true);
+            observed?.release(true);
           }
           if (error instanceof DomainError) throw error;
           if (
@@ -88,6 +93,18 @@ export class WorkflowDatabase {
               409,
               'IDEMPOTENCY_KEY_REUSED',
               'The key belongs to another fixed-income command.',
+            );
+          if (
+            !commitDispatched &&
+            typeof error === 'object' &&
+            error !== null &&
+            'code' in error &&
+            error.code === 'TF429'
+          )
+            throw new DomainError(
+              429,
+              'PROTECTED_FINANCIAL_CAPACITY',
+              'Capacity is reserved for an owned workflow.',
             );
           const code =
             typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
