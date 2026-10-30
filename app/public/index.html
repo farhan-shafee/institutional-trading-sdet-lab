@@ -518,6 +518,33 @@
             <h4>Lifecycle history</h4>
             <pre id="fi-order-history"></pre>
           </section>
+          <section id="recon-panel" hidden aria-label="Synthetic reconciliation investigation">
+            <h3>Reconciliation and exception investigation</h3>
+            <p>
+              Synthetic records only. Each assessment covers one historical database snapshot.
+              Investigation is read-only; a later clean run never erases earlier findings.
+            </p>
+            <button type="button" id="recon-request">Request reconciliation</button>
+            <button type="button" id="recon-recover">Recover interrupted run</button>
+            <button type="button" id="recon-refresh">Refresh reconciliation</button>
+            <label>Reconciliation run<select id="recon-selection"></select></label>
+            <p id="recon-summary" aria-live="polite"></p>
+            <details>
+              <summary>Snapshot, source and verification coverage</summary>
+              <pre id="recon-provenance"></pre>
+            </details>
+            <label
+              >Finding category<select id="recon-category">
+                <option value="">All categories</option>
+              </select></label
+            >
+            <label>Affected record identity<input id="recon-record" maxlength="128" /></label>
+            <p id="recon-filter-count"></p>
+            <div id="recon-findings"></div>
+            <button type="button" id="recon-more">More findings</button>
+            <h4>Historical evidence and separately observed current records</h4>
+            <pre id="recon-trace"></pre>
+          </section>
         </details>
       </div>
     </main>

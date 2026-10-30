@@ -117,3 +117,26 @@ await test('shared non-secret lifecycle journal retains exact fill identity and 
   f.journal.resolve(retained);
   assert.equal(f.journal.has(sid), false);
 });
+
+await test('reconciliation retains its original non-secret run request and quota decisions are definitive', () => {
+  const f = fixture(),
+    sid = randomUUID(),
+    run = randomUUID();
+  const saved = f.journal.retain({
+    sandbox_id: sid,
+    key: randomUUID(),
+    path: `/api/fixed-income/v1/sandboxes/${sid}/reconciliation-runs`,
+    body: { run_id: run },
+  });
+  assert.deepEqual(f.journal.load(sid), saved);
+  assert.equal(definitiveRfqRejection(429, 'RECONCILIATION_QUOTA'), true);
+  assert.equal(definitiveRfqRejection(429, 'RECONCILIATION_CAPACITY'), true);
+  f.journal.resolve(saved);
+  const recovery = f.journal.retain({
+    sandbox_id: sid,
+    key: randomUUID(),
+    path: `/api/fixed-income/v1/sandboxes/${sid}/reconciliation-runs/${run}/recover`,
+    body: {},
+  });
+  assert.deepEqual(f.journal.load(sid), recovery);
+});

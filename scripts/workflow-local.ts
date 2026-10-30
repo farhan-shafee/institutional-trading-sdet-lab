@@ -57,6 +57,9 @@ try {
           TRADEFLOW_HOST: '127.0.0.1',
           TRADEFLOW_FIXED_INCOME_WORKFLOW: 'postgres',
           TRADEFLOW_FIXED_INCOME_DATABASE_URL: owner.appUrl,
+          ...(owner.reconcilerUrl
+            ? { TRADEFLOW_FIXED_INCOME_RECONCILER_URL: owner.reconcilerUrl }
+            : {}),
         },
       });
       process.once('SIGINT', () => app.kill('SIGINT'));

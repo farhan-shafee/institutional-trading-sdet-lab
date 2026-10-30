@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { requestReconciliationSchema, recoverReconciliationSchema } from './reconciliation.js';
 import { orderVersionSchema, executionCommandSchema, cancelCommandSchema } from './execution.js';
 import { createRfqSchema, dealerResponseSchema, quoteCommandSchema } from './rfq.js';
 
@@ -10,9 +11,11 @@ const retainedSchema = z
     path: z
       .string()
       .regex(
-        /^\/api\/fixed-income\/v1\/sandboxes\/[a-f0-9-]{36}\/(?:rfqs(?:\/[a-f0-9-]{36}\/(?:dealer-responses|withdraw|accept))?|orders\/[a-f0-9-]{36}\/(?:acknowledgment|rejection|executions|cancellation-requests|cancellations\/[a-f0-9-]{36}\/(?:acknowledgment|rejection)))$/,
+        /^\/api\/fixed-income\/v1\/sandboxes\/[a-f0-9-]{36}\/(?:reconciliation-runs(?:\/[a-f0-9-]{36}\/recover)?|rfqs(?:\/[a-f0-9-]{36}\/(?:dealer-responses|withdraw|accept))?|orders\/[a-f0-9-]{36}\/(?:acknowledgment|rejection|executions|cancellation-requests|cancellations\/[a-f0-9-]{36}\/(?:acknowledgment|rejection)))$/,
       ),
     body: z.union([
+      requestReconciliationSchema,
+      recoverReconciliationSchema,
       createRfqSchema,
       dealerResponseSchema,
       quoteCommandSchema,
@@ -22,7 +25,15 @@ const retainedSchema = z
     ]),
   })
   .strict()
-  .refine((v) => v.path.startsWith(`/api/fixed-income/v1/sandboxes/${v.sandbox_id}/`));
+  .refine((v) => v.path.startsWith(`/api/fixed-income/v1/sandboxes/${v.sandbox_id}/`))
+  .refine(
+    (v) =>
+      !v.path.includes('/reconciliation-runs') ||
+      (v.path.endsWith('/recover')
+        ? recoverReconciliationSchema
+        : requestReconciliationSchema
+      ).safeParse(v.body).success,
+  );
 export type RetainedRfqCommand = z.infer<typeof retainedSchema>;
 type JournalStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
@@ -79,6 +90,12 @@ export class RfqCommandJournal {
 export function definitiveRfqRejection(status: number, code: string): boolean {
   return (
     (status === 409 && code !== 'IDEMPOTENCY_KEY_REUSED') ||
-    (status === 429 && ['RFQ_CAPACITY_REACHED', 'SANDBOX_QUOTA_REACHED'].includes(code))
+    (status === 429 &&
+      [
+        'RFQ_CAPACITY_REACHED',
+        'SANDBOX_QUOTA_REACHED',
+        'RECONCILIATION_QUOTA',
+        'RECONCILIATION_CAPACITY',
+      ].includes(code))
   );
 }

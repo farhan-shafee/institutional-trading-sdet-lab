@@ -10,7 +10,9 @@ type BaseConfiguration =
       limits: SessionLimits;
       admission: { requestsPerMinute: number; authPerMinute: number; mutationsPerMinute: number };
     };
-export type ApplicationConfiguration = BaseConfiguration & { workflow?: { databaseUrl: string } };
+export type ApplicationConfiguration = BaseConfiguration & {
+  workflow?: { databaseUrl: string; reconcilerUrl?: string };
+};
 
 export class ConfigurationError extends Error {}
 
@@ -40,6 +42,7 @@ export function readConfiguration(env: NodeJS.ProcessEnv = process.env): Applica
     'TRADEFLOW_HOST',
     'TRADEFLOW_FIXED_INCOME_WORKFLOW',
     'TRADEFLOW_FIXED_INCOME_DATABASE_URL',
+    'TRADEFLOW_FIXED_INCOME_RECONCILER_URL',
     ...Object.keys(limits),
   ]);
   for (const name of Object.keys(env)) {
@@ -60,7 +63,7 @@ export function readConfiguration(env: NodeJS.ProcessEnv = process.env): Applica
   if (workflowMode !== 'off' && workflowMode !== 'postgres') {
     throw new ConfigurationError('Fixed-income workflow must be off or postgres.');
   }
-  let workflow: { databaseUrl: string } | undefined;
+  let workflow: { databaseUrl: string; reconcilerUrl?: string } | undefined;
   if (workflowMode === 'postgres') {
     try {
       const databaseUrl = env.TRADEFLOW_FIXED_INCOME_DATABASE_URL;
@@ -77,7 +80,22 @@ export function readConfiguration(env: NodeJS.ProcessEnv = process.env): Applica
         !databaseUrl
       )
         throw new Error('Invalid workflow target');
-      workflow = { databaseUrl };
+      const reconcilerUrl = env.TRADEFLOW_FIXED_INCOME_RECONCILER_URL;
+      if (reconcilerUrl !== undefined) {
+        const reader = new URL(reconcilerUrl);
+        if (
+          !['postgres:', 'postgresql:'].includes(reader.protocol) ||
+          reader.hostname !== url.hostname ||
+          reader.port !== url.port ||
+          reader.pathname !== url.pathname ||
+          reader.username !== 'tf_reconciler' ||
+          !reader.password ||
+          reader.search ||
+          reader.hash
+        )
+          throw new Error('Invalid reconciliation target');
+      }
+      workflow = { databaseUrl, ...(reconcilerUrl ? { reconcilerUrl } : {}) };
     } catch {
       throw new ConfigurationError(
         'PostgreSQL workflow requires local mode and an owned loopback database using tf_app.',

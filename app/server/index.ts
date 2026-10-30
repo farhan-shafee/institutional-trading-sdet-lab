@@ -1,5 +1,6 @@
 import { fixedIncomeRead } from './fixed-income.js';
 import { WorkflowRoutes } from './fixed-income-workflow/routes.js';
+import type { RunnerHooks } from './reconciliation/runner.js';
 import type { WorkflowDatabase } from '../persistence/postgres/workflow.js';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -135,6 +136,7 @@ export function createApplicationServer(
     configuration?: ApplicationConfiguration;
     now?: () => number;
     workflowDatabase?: WorkflowDatabase;
+    reconciliationHooks?: RunnerHooks;
   } = {},
 ) {
   const configuration = options.configuration ?? readConfiguration({});
@@ -144,6 +146,8 @@ export function createApplicationServer(
     configuration.workflow?.databaseUrl,
     now,
     options.workflowDatabase,
+    configuration.workflow?.reconcilerUrl,
+    options.reconciliationHooks,
   );
   const sessions = new SessionStore({
     ...(hosted ? { limits: configuration.limits } : {}),
@@ -238,6 +242,7 @@ export function createApplicationServer(
 
     if (
       (url.pathname === '/api/fixed-income/v1/workflow/status' ||
+        url.pathname === '/api/fixed-income/v1/reconciliation/status' ||
         url.pathname.startsWith('/api/fixed-income/v1/sandboxes')) &&
       (await workflow.handle({
         request,

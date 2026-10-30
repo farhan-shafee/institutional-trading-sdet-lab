@@ -1,17 +1,20 @@
 import { once } from 'node:events';
 import { createApplicationServer } from '../../app/server/index.js';
 import type { ApplicationConfiguration } from '../../app/server/configuration.js';
+import type { RunnerHooks } from '../../app/server/reconciliation/runner.js';
 import type { WorkflowDatabase } from '../../app/persistence/postgres/workflow.js';
 
 export async function httpLab(
   configuration?: ApplicationConfiguration,
   database?: WorkflowDatabase,
   now?: () => number,
+  reconciliationHooks?: RunnerHooks,
 ) {
   const server = createApplicationServer({
     ...(configuration ? { configuration } : {}),
     ...(database ? { workflowDatabase: database } : {}),
     ...(now ? { now } : {}),
+    ...(reconciliationHooks ? { reconciliationHooks } : {}),
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
