@@ -23,11 +23,13 @@ The server's health check controls readiness before tests execute. Unit checks a
 
 ## Artifact policy
 
-| Artifact           | When                                            | Retention              | Contents                                                                 |
-| ------------------ | ----------------------------------------------- | ---------------------- | ------------------------------------------------------------------------ |
-| Normal HTML report | After normal test execution, including failures | 14 days                | Test results, projects, attachments and trace links                      |
-| Failure evidence   | On job failure, if files exist                  | 7 days                 | Traces on retry, failed screenshots, retained videos, result attachments |
-| Demo reports       | Local explicit demo only                        | Local generated output | Intentional failure evidence excluded from the CI gate                   |
+Normal authenticated suites disable traces to exclude bearer headers and browser auth state. The RFQ browser gate additionally disables screenshots/video and uploads no browser artifacts. Assertions, normal project coverage, diagnostic retry counts and fail-on-flaky behavior are preserved.
+
+| Artifact           | When                                            | Retention              | Contents                                                                         |
+| ------------------ | ----------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------- |
+| Normal HTML report | After normal test execution, including failures | 14 days                | Test results, projects, screenshots and video links                              |
+| Failure evidence   | On job failure, if files exist                  | 7 days                 | Failed screenshots, retained videos, result attachments; no authenticated traces |
+| Demo reports       | Local explicit demo only                        | Local generated output | Intentional failure evidence excluded from the CI gate                           |
 
 The configuration limits routine evidence: trace on first retry, screenshot only on failure, video retained on failure. Artifacts may be absent if installation or an earlier static gate failed before any browser test. GitHub's [artifact documentation](https://docs.github.com/en/actions/tutorials/store-and-share-data) explains upload/download and finite retention.
 

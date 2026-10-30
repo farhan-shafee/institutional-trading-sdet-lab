@@ -35,7 +35,7 @@
     "test:financial": "tsx scripts/verify-financial.ts",
     "test:postgres": "node --import tsx scripts/test-postgres.ts",
     "test:workflow-browser": "node --import tsx scripts/test-workflow-browser.ts",
-    "validate:all": "npm run validate && npm run test:postgres && npm run test:postgres",
+    "validate:all": "npm run validate && npm test -- --repeat-each=2 && npm run test:postgres && npm run test:postgres && npm run build:ui && npm run test:workflow-browser && npm run test:workflow-browser -- --repeat-each=2",
     "db:local": "node --import tsx scripts/workflow-local.ts",
     "sandbox:client": "node --import tsx scripts/sandbox-client.ts"
   },

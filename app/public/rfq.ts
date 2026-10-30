@@ -2,28 +2,16 @@ import { z } from 'zod';
 import { sandboxBodySchema } from '../domain/workflow/contracts.js';
 import {
   createRfqSchema,
-  dealerResponseSchema,
-  quoteCommandSchema,
   rfqDetailSchema,
   rfqListSchema,
   type RfqDetail,
 } from '../domain/workflow/rfq.js';
 
-const journalKey = 'tradeflow.rfq.command.v1';
-const retainedSchema = z
-  .object({
-    sandbox_id: z.uuid(),
-    key: z.uuid(),
-    path: z
-      .string()
-      .regex(
-        /^\/api\/fixed-income\/v1\/sandboxes\/[a-f0-9-]{36}\/rfqs(?:\/[a-f0-9-]{36}\/(?:dealer-responses|withdraw|accept))?$/,
-      ),
-    body: z.union([createRfqSchema, dealerResponseSchema, quoteCommandSchema]),
-  })
-  .strict()
-  .refine((v) => v.path.startsWith(`/api/fixed-income/v1/sandboxes/${v.sandbox_id}/rfqs`));
-type Retained = z.infer<typeof retainedSchema>;
+import {
+  RfqCommandJournal,
+  definitiveRfqRejection,
+  type RetainedRfqCommand as Retained,
+} from '../domain/workflow/rfq-journal.js';
 
 /** No ownership bootstrap or capability storage. Only an already bound session may act. */
 export function rfqView(
@@ -43,11 +31,9 @@ export function rfqView(
     sandboxId: string | undefined,
     detail: RfqDetail | undefined;
   let scope: 'read' | 'trade' | undefined;
+  const journal = new RfqCommandJournal(sessionStorage);
   const root = () => `/api/fixed-income/v1/sandboxes/${sandboxId}/rfqs`;
-  const retained = (): Retained | undefined => {
-    const value = sessionStorage.getItem(journalKey);
-    return value === null ? undefined : retainedSchema.parse(JSON.parse(value));
-  };
+  const retained = () => (sandboxId ? journal.load(sandboxId) : undefined);
   const reset = () => {
     epoch++;
     busy = false;
@@ -173,8 +159,8 @@ export function rfqView(
         .object({ error: z.object({ code: z.string(), message: z.string() }).strict() })
         .strict()
         .parse(result.data);
-      if (result.response.status === 409 && error.error.code !== 'IDEMPOTENCY_KEY_REUSED') {
-        sessionStorage.removeItem(journalKey);
+      if (definitiveRfqRejection(result.response.status, error.error.code)) {
+        journal.resolve(saved);
         await refresh();
       }
       throw new Error(
@@ -182,7 +168,7 @@ export function rfqView(
       );
     }
     const parsed = rfqDetailSchema.parse(result.data);
-    sessionStorage.removeItem(journalKey);
+    journal.resolve(saved);
     detail = parsed;
     await refresh();
     status.textContent =
@@ -194,14 +180,13 @@ export function rfqView(
     if (!sandboxId || getRole() !== 'trader' || scope !== 'trade')
       throw new Error('An authorized trade binding is required.');
     if (retained()) throw new Error('Resolve the retained command before another mutation.');
-    const saved = retainedSchema.parse({
+    const saved = journal.retain({
       sandbox_id: sandboxId,
       path,
       body,
       key: crypto.randomUUID(),
     });
     // Only non-secret command IDs and synthetic economic inputs. Storage failure prevents submission.
-    sessionStorage.setItem(journalKey, JSON.stringify(saved));
     await submit(saved);
   }
   function button(label: string, disabled: boolean, work: () => Promise<void>) {
@@ -209,11 +194,7 @@ export function rfqView(
     b.type = 'button';
     b.textContent = label;
     b.disabled =
-      disabled ||
-      busy ||
-      getRole() !== 'trader' ||
-      scope !== 'trade' ||
-      Boolean(sessionStorage.getItem(journalKey));
+      disabled || busy || getRole() !== 'trader' || scope !== 'trade' || journal.has(sandboxId);
     b.addEventListener('click', () => {
       void run(work);
     });
@@ -274,20 +255,12 @@ export function rfqView(
       ? `Order ${detail.order.id} · PENDING_ACK · ${detail.order.contract.side} · USD par ${detail.order.contract.par_amount} · exact clean price ${detail.order.contract.clean_price} per 100 par · settlement ${detail.order.contract.settlement_date} · ${detail.order.contract.instrument_revision} · ${detail.order.contract.model_version}. No acknowledgment or fill has occurred.`
       : 'No persistent fixed-income order.';
     node<HTMLFieldSetElement>('rfq-fields').disabled =
-      busy ||
-      !sandboxId ||
-      getRole() !== 'trader' ||
-      scope !== 'trade' ||
-      Boolean(sessionStorage.getItem(journalKey));
+      busy || !sandboxId || getRole() !== 'trader' || scope !== 'trade' || journal.has(sandboxId);
     node<HTMLButtonElement>('rfq-load').disabled = busy;
     node<HTMLButtonElement>('rfq-refresh').disabled = busy || !sandboxId;
     selector.disabled = busy;
     node<HTMLButtonElement>('rfq-retry').disabled =
-      busy ||
-      !sandboxId ||
-      !sessionStorage.getItem(journalKey) ||
-      getRole() !== 'trader' ||
-      scope !== 'trade';
+      busy || !sandboxId || !journal.has(sandboxId) || getRole() !== 'trader' || scope !== 'trade';
   }
   node('rfq-load').addEventListener('click', () => {
     void run(async () => {

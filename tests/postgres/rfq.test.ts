@@ -5,6 +5,39 @@ import { test } from 'node:test';
 import { connection, scalar } from './harness.js';
 import { rfqInput, sandbox } from './rfq-fixture.js';
 
+await test('permanent quota rejection cannot shadow an already committed acceptance replay', async () => {
+  const f = await sandbox();
+  try {
+    const input = rfqInput();
+    assert.equal((await f.command('CREATE_RFQ', input)).status, 201);
+    const response = await f.command('RESPOND_DEALER', {
+      rfq_id: input.rfq_id,
+      expected_version: '1',
+      dealer_id: 'ATLAS',
+      response: 'QUOTE',
+    });
+    const payload = {
+        rfq_id: input.rfq_id,
+        expected_version: '2',
+        quote_id: response.body.quotes[0]!.id,
+      },
+      key = randomUUID();
+    const accepted = await f.command('ACCEPT_QUOTE', payload, key);
+    assert.equal(accepted.status, 201);
+    for (let n = 0; n < 508; n++)
+      assert.equal((await f.command('ACCEPT_QUOTE', payload)).status, 409);
+    const quota = await f.command('CREATE_RFQ', rfqInput());
+    assert.equal(quota.status, 429);
+    assert.equal(quota.body.error?.code, 'SANDBOX_QUOTA_REACHED');
+    const replay = await f.command('ACCEPT_QUOTE', payload, key);
+    assert.equal(replay.status, 201);
+    assert.equal(replay.replayed, true);
+    assert.deepEqual(replay.body, accepted.body);
+  } finally {
+    await f.close();
+  }
+});
+
 await test('all three firm dealer snapshots fit one immutable accepted receipt at maximum par', async () => {
   const f = await sandbox();
   try {

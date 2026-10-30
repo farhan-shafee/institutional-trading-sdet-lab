@@ -46,7 +46,29 @@ jobs:
         run: npm run test:workflow-browser
       - name: Repeat RFQ workstation without retries
         run: npm run test:workflow-browser -- --repeat-each=2
-      - name: Repeat all legacy API and browser regressions
-        run: npm test -- --repeat-each=2
+
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Independent Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Install legacy browsers and system libraries
+        run: npx playwright install --with-deps chromium firefox webkit
       - name: Execute the complete existing validation command
         run: npm run validate
+      - name: Repeat all legacy API and browser regressions
+        run: npm test -- --repeat-each=2

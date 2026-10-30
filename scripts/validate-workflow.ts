@@ -96,6 +96,17 @@ const persistence = workflowSchema
           }),
         ),
       }),
+      regression: z.object({
+        'runs-on': z.literal('ubuntu-latest'),
+        'timeout-minutes': z.number().positive(),
+        steps: z.array(
+          z.object({
+            run: z.string().optional(),
+            if: z.string().optional(),
+            'continue-on-error': z.boolean().optional(),
+          }),
+        ),
+      }),
     }),
   })
   .parse(parse(await readFile('.github/workflows/persistence.yml', 'utf8')));
@@ -109,8 +120,6 @@ for (const command of [
   'npm run build:ui',
   'npm run test:workflow-browser',
   'npm run test:workflow-browser -- --repeat-each=2',
-  'npm test -- --repeat-each=2',
-  'npm run validate',
 ]) {
   const matches = persistenceSteps.filter((step) => step.run === command);
   assert(
@@ -120,6 +129,14 @@ for (const command of [
   assert(
     matches.every((step) => step.if === undefined && step['continue-on-error'] !== true),
     'Persistence gates must be unconditional and blocking.',
+  );
+}
+for (const command of ['npm ci', 'npm run validate', 'npm test -- --repeat-each=2']) {
+  const matches = persistence.jobs.regression.steps.filter((step) => step.run === command);
+  assert(matches.length === 1, `Missing independent legacy regression gate: ${command}`);
+  assert(
+    matches.every((step) => step.if === undefined && step['continue-on-error'] !== true),
+    'Regression gates must be unconditional and blocking.',
   );
 }
 console.log(
