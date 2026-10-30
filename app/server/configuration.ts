@@ -1,7 +1,7 @@
 import type { SessionLimits } from '../domain/session-store.js';
 
 type Address = '127.0.0.1' | '0.0.0.0';
-export type ApplicationConfiguration =
+type BaseConfiguration =
   | { mode: 'local'; host: '127.0.0.1'; port: number }
   | {
       mode: 'hosted-demo';
@@ -10,6 +10,7 @@ export type ApplicationConfiguration =
       limits: SessionLimits;
       admission: { requestsPerMinute: number; authPerMinute: number; mutationsPerMinute: number };
     };
+export type ApplicationConfiguration = BaseConfiguration & { workflow?: { databaseUrl: string } };
 
 export class ConfigurationError extends Error {}
 
@@ -34,7 +35,13 @@ function integer(env: NodeJS.ProcessEnv, name: string, fallback: number, min: nu
 
 /** Only this explicit profile enables external binding and its inseparable demo protections. */
 export function readConfiguration(env: NodeJS.ProcessEnv = process.env): ApplicationConfiguration {
-  const names = new Set(['TRADEFLOW_MODE', 'TRADEFLOW_HOST', ...Object.keys(limits)]);
+  const names = new Set([
+    'TRADEFLOW_MODE',
+    'TRADEFLOW_HOST',
+    'TRADEFLOW_FIXED_INCOME_WORKFLOW',
+    'TRADEFLOW_FIXED_INCOME_DATABASE_URL',
+    ...Object.keys(limits),
+  ]);
   for (const name of Object.keys(env)) {
     if (name.startsWith('TRADEFLOW_') && !names.has(name)) {
       throw new ConfigurationError(`Unknown TradeFlow setting: ${name}.`);
@@ -49,13 +56,41 @@ export function readConfiguration(env: NodeJS.ProcessEnv = process.env): Applica
     throw new ConfigurationError('TRADEFLOW_HOST must be 127.0.0.1 or 0.0.0.0.');
   }
   const port = integer(env, 'PORT', 3000, 1, 65535);
+  const workflowMode = env.TRADEFLOW_FIXED_INCOME_WORKFLOW ?? 'off';
+  if (workflowMode !== 'off' && workflowMode !== 'postgres') {
+    throw new ConfigurationError('Fixed-income workflow must be off or postgres.');
+  }
+  let workflow: { databaseUrl: string } | undefined;
+  if (workflowMode === 'postgres') {
+    try {
+      const databaseUrl = env.TRADEFLOW_FIXED_INCOME_DATABASE_URL;
+      const url = new URL(databaseUrl ?? '');
+      if (
+        mode !== 'local' ||
+        host !== '127.0.0.1' ||
+        !['postgres:', 'postgresql:'].includes(url.protocol) ||
+        url.hostname !== '127.0.0.1' ||
+        url.username !== 'tf_app' ||
+        !/^\/tradeflow_(local|ci)_[a-f0-9]{16}$/.test(url.pathname) ||
+        url.search ||
+        url.hash ||
+        !databaseUrl
+      )
+        throw new Error('Invalid workflow target');
+      workflow = { databaseUrl };
+    } catch {
+      throw new ConfigurationError(
+        'PostgreSQL workflow requires local mode and an owned loopback database using tf_app.',
+      );
+    }
+  }
   if (mode === 'local') {
     if (host !== '127.0.0.1' || Object.keys(limits).some((name) => env[name] !== undefined)) {
       throw new ConfigurationError(
         'External binding and resource settings require hosted-demo mode.',
       );
     }
-    return { mode, host, port };
+    return { mode, host, port, ...(workflow ? { workflow } : {}) };
   }
   const limit = (name: keyof typeof limits) => {
     const [fallback, minimum, maximum] = limits[name];
