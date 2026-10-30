@@ -225,7 +225,7 @@ export async function startOwnedPostgres(
           '--label',
           `tradeflow.owner=${nonce}`,
           '--publish',
-          '127.0.0.1::5432',
+          `127.0.0.1:${url.port}:5432`,
           '--mount',
           `source=${owner.volume},target=/var/lib/postgresql/data`,
           '--env',

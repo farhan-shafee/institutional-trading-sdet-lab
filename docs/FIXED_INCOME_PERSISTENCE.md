@@ -94,6 +94,8 @@ Tombstones retain only synthetic UUID and purge timestamp for the lifetime of th
 
 The default owned-instance backend uses digest-pinned `postgres:17.10-bookworm`. It generates private SCRAM credentials, binds only `127.0.0.1`, labels a uniquely named container/volume with ownership proof and never prunes shared Docker resources. Migration requires a private descriptor, an owned loopback name and a database marker matching its nonce. Runtime uses only the dedicated app URL. Passwords are retained before role bootstrap commits.
 
+The allocated loopback host port is explicitly bound for the container lifetime so stop/start preserves the application's database endpoint. Docker's unspecified host-port allocation is not used for a persistent instance.
+
 ```sh
 npm ci
 npm run db:local -- create
