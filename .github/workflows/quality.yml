@@ -50,6 +50,8 @@ jobs:
         run: npm run test:unit
       - name: Independent financial verification
         run: npm run test:financial
+      - name: Independent FIX44 byte oracle and pinned dictionary
+        run: npm run test:fix44
       - name: Build production artifact
         run: npm run build
       - name: Production loopback smoke
