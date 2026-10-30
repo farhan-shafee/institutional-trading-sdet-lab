@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { orderView } from './order.js';
 import { sandboxBodySchema } from '../domain/workflow/contracts.js';
 import {
   createRfqSchema,
@@ -32,6 +33,12 @@ export function rfqView(
     detail: RfqDetail | undefined;
   let scope: 'read' | 'trade' | undefined;
   const journal = new RfqCommandJournal(sessionStorage);
+  const lifecycle = orderView(
+    api,
+    mutate,
+    run,
+    () => !busy && getRole() === 'trader' && scope === 'trade' && !journal.has(sandboxId),
+  );
   const root = () => `/api/fixed-income/v1/sandboxes/${sandboxId}/rfqs`;
   const retained = () => (sandboxId ? journal.load(sandboxId) : undefined);
   const reset = () => {
@@ -40,6 +47,7 @@ export function rfqView(
     sandboxId = undefined;
     detail = undefined;
     scope = undefined;
+    lifecycle.reset();
     panel.hidden = true;
     panel.open = false;
     form.reset();
@@ -114,6 +122,7 @@ export function rfqView(
   async function loadSelected() {
     if (!selector.value || !sandboxId) {
       detail = undefined;
+      await lifecycle.load(sandboxId, undefined);
       render();
       return;
     }
@@ -121,6 +130,7 @@ export function rfqView(
     if (!result.response.ok)
       throw new Error(`RFQ read unavailable (HTTP ${result.response.status}).`);
     detail = rfqDetailSchema.parse(result.data);
+    await lifecycle.load(sandboxId, detail.order?.id);
     render();
   }
   async function refresh() {
@@ -167,9 +177,9 @@ export function rfqView(
         `RFQ command rejected or unresolved (HTTP ${result.response.status}). Refresh state; retry only the retained command for an uncertain result.`,
       );
     }
-    const parsed = rfqDetailSchema.parse(result.data);
+    if (saved.path.includes('/orders/')) lifecycle.validate(result.data);
+    else detail = rfqDetailSchema.parse(result.data);
     journal.resolve(saved);
-    detail = parsed;
     await refresh();
     status.textContent =
       result.response.headers.get('Idempotency-Replayed') === 'true'
@@ -201,6 +211,7 @@ export function rfqView(
     return b;
   }
   function render() {
+    lifecycle.render();
     node('rfq-state').textContent = detail
       ? `${detail.rfq.id} · ${detail.rfq.state} · version ${detail.rfq.version} · expires ${detail.rfq.expires_at}`
       : 'No RFQ selected.';
@@ -252,7 +263,7 @@ export function rfqView(
     }
     const order = node('rfq-order');
     order.textContent = detail?.order
-      ? `Order ${detail.order.id} · PENDING_ACK · ${detail.order.contract.side} · USD par ${detail.order.contract.par_amount} · exact clean price ${detail.order.contract.clean_price} per 100 par · settlement ${detail.order.contract.settlement_date} · ${detail.order.contract.instrument_revision} · ${detail.order.contract.model_version}. No acknowledgment or fill has occurred.`
+      ? `Order ${detail.order.id} · PENDING_ACK · ${detail.order.contract.side} · USD par ${detail.order.contract.par_amount} · exact clean price ${detail.order.contract.clean_price} per 100 par · settlement ${detail.order.contract.settlement_date} · ${detail.order.contract.instrument_revision} · ${detail.order.contract.model_version}. This immutable contract retains its initial status; the lifecycle below reports subsequent events.`
       : 'No persistent fixed-income order.';
     node<HTMLFieldSetElement>('rfq-fields').disabled =
       busy || !sandboxId || getRole() !== 'trader' || scope !== 'trade' || journal.has(sandboxId);

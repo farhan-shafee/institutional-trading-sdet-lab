@@ -348,7 +348,7 @@ await test('logout during an actual filled but uncommitted transaction rolls bac
             'SELECT status FROM fi.order_states WHERE sandbox_id=$1',
             [f.keys.sandbox_id],
           )
-        ).rows[0].status,
+        ).rows[0]!.status,
         'NEW',
       );
     } finally {

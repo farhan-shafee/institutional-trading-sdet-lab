@@ -144,7 +144,7 @@ DECLARE s fi.sandboxes%ROWTYPE; o fi.orders%ROWTYPE; l fi.order_states%ROWTYPE; 
 BEGIN
  IF p_id IS NULL OR p_proof IS NULL OR p_generation IS NULL OR p_action IS NULL OR p IS NULL OR jsonb_typeof(p)<>'object' OR p_hash IS NULL OR p_hash !~ '^[a-f0-9]{64}$' OR p_key IS NULL OR p_key !~ '^[A-Za-z0-9_-]{8,128}$' OR p_actor IS NULL THEN RETURN fi_control.failure(400,'VALIDATION_ERROR'); END IF;
  allowed:=CASE WHEN p_action IN ('ACK_ORDER','REJECT_ORDER') THEN ARRAY['order_id','expected_version'] WHEN p_action='EXECUTE_ORDER' THEN ARRAY['order_id','expected_version','execution_id','source_event_id','par_amount'] WHEN p_action IN ('REQUEST_CANCEL','ACK_CANCEL','REJECT_CANCEL') THEN ARRAY['order_id','expected_version','cancel_id'] END;
- IF allowed IS NULL OR (SELECT count(*) FROM jsonb_object_keys(p))<>cardinality(allowed) OR NOT(p ?& allowed) OR EXISTS(SELECT 1 FROM jsonb_each(p) WHERE value='null'::jsonb) OR p->>'expected_version' !~ '^[1-9][0-9]{0,2}$' THEN RETURN fi_control.failure(400,'VALIDATION_ERROR'); END IF;
+ IF allowed IS NULL OR (SELECT count(*) FROM jsonb_object_keys(p))<>cardinality(allowed) OR NOT(p ?& allowed) OR EXISTS(SELECT 1 FROM jsonb_each(p) WHERE jsonb_typeof(value)<>'string') OR p->>'expected_version' !~ '^[1-9][0-9]{0,2}$' THEN RETURN fi_control.failure(400,'VALIDATION_ERROR'); END IF;
  oid:=(p->>'order_id')::uuid;
  IF p_action='EXECUTE_ORDER' THEN
  eid:=(p->>'execution_id')::uuid; source:=(p->>'source_event_id')::uuid;

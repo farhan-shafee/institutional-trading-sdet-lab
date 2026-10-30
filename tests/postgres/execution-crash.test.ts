@@ -65,7 +65,7 @@ for (const committed of [false, true])
             'SELECT execution_count FROM fi.positions WHERE sandbox_id=$1',
             [s.id],
           )
-        ).rows[0].execution_count,
+        ).rows[0]!.execution_count,
         1,
       );
     } finally {
@@ -124,7 +124,7 @@ for (const committed of [false, true])
           () => undefined,
           async (client) => {
             pid = (await client.query<Record<string, unknown>>('SELECT pg_backend_pid() AS pid'))
-              .rows[0].pid as number;
+              .rows[0]!.pid as number;
             return client.query<Record<string, unknown>>(
               'SELECT fi_control.order_command($1,$2,$3,$4,$5,$6,$7,$8)',
               args,

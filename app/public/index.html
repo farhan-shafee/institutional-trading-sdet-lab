@@ -497,6 +497,27 @@
           <div id="rfq-invitations" data-testid="rfq-invitations"></div>
           <div id="rfq-quotes" data-testid="rfq-quotes" aria-live="polite"></div>
           <p id="rfq-order" data-testid="rfq-order" aria-live="polite"></p>
+          <section id="fi-order-panel" hidden aria-label="Synthetic order lifecycle">
+            <h3>Order lifecycle and committed executions</h3>
+            <p>
+              Authenticated synthetic events only. Positions and signed cash derive from committed
+              executions. Cash is not an available balance; no clearing, settlement or P&amp;L is
+              modeled.
+            </p>
+            <p id="fi-order-lifecycle" data-testid="fi-order-lifecycle" aria-live="polite"></p>
+            <label
+              >Execution par USD<input id="fi-execution-par" inputmode="decimal" value="50.00"
+            /></label>
+            <div id="fi-order-controls"></div>
+            <h4>Cancellation requests</h4>
+            <pre id="fi-order-cancellations" data-testid="fi-order-cancellations"></pre>
+            <h4>Immutable execution history</h4>
+            <pre id="fi-order-executions" data-testid="fi-order-executions"></pre>
+            <h4>Execution-derived positions</h4>
+            <pre id="fi-execution-positions" data-testid="fi-execution-positions"></pre>
+            <h4>Lifecycle history</h4>
+            <pre id="fi-order-history"></pre>
+          </section>
         </details>
       </div>
     </main>

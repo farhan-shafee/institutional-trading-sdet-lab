@@ -34,7 +34,7 @@ await test('actual least-privileged connections force RLS and cannot write finan
         "SELECT has_table_privilege(current_user,$1,'INSERT,UPDATE,DELETE,TRUNCATE') AS allowed",
         ['fi.' + table],
       );
-      assert.equal(p.rows[0].allowed, false);
+      assert.equal(p.rows[0]!.allowed, false);
       await assert.rejects(
         s.app.query<Record<string, unknown>>(`DELETE FROM fi.${table} WHERE sandbox_id=$1`, [s.id]),
         {
@@ -53,7 +53,7 @@ await test('actual least-privileged connections force RLS and cannot write finan
             "SELECT has_function_privilege(current_user,$1,'EXECUTE') AS allowed",
             [helper],
           )
-        ).rows[0].allowed,
+        ).rows[0]!.allowed,
         false,
       );
     await assert.rejects(
@@ -157,7 +157,7 @@ await test('queued execution observes committed capability rotation and denies s
     );
     assert.equal(result.rows[0]?.result.status, 200);
     const pid = (await s.app.query<Record<string, unknown>>('SELECT pg_backend_pid() AS pid'))
-      .rows[0].pid as number;
+      .rows[0]!.pid as number;
     const waiting = s.fill('2', '40.00');
     const deadline = performance.now() + 3000;
     while (
@@ -215,7 +215,7 @@ await test('command quota reserves capacity before financial mutation and commit
           'SELECT command_count FROM fi.sandboxes WHERE id=$1',
           [s.id],
         )
-      ).rows[0].command_count,
+      ).rows[0]!.command_count,
       512,
     );
     assert.equal((await s.fill('3', '60.00')).status, 429);
@@ -255,6 +255,97 @@ await test('independent SQL recognizes rejected and acknowledged cancellation hi
     );
   } finally {
     await reader.end();
+    await s.close();
+  }
+});
+await test('eight cancellation requests stay bounded and write expiry preserves reads, original receipts and authorized full-graph cleanup', async () => {
+  const s = await executionSandbox();
+  const admin = await connection('admin');
+  try {
+    const key = randomUUID(),
+      ack = { expected_version: '1' };
+    assert.equal((await s.command('ACK_ORDER', ack, key)).status, 200);
+    let version = 2;
+    for (let n = 0; n < 8; n++) {
+      const id = randomUUID();
+      assert.equal(
+        (await s.command('REQUEST_CANCEL', { expected_version: String(version++), cancel_id: id }))
+          .status,
+        201,
+      );
+      assert.equal(
+        (await s.command('REJECT_CANCEL', { expected_version: String(version++), cancel_id: id }))
+          .status,
+        200,
+      );
+    }
+    assert.equal(
+      (
+        await s.command('REQUEST_CANCEL', {
+          expected_version: String(version),
+          cancel_id: randomUUID(),
+        })
+      ).body.error?.code,
+      'CANCEL_REQUEST_LIMIT',
+    );
+    await s.fill(String(version), '100.00');
+    await admin.query(
+      "UPDATE fi.sandboxes SET created_at=clock_timestamp()-interval '8 days',write_expires_at=clock_timestamp()-interval '1 day',retained_until=clock_timestamp()+interval '22 days' WHERE id=$1",
+      [s.id],
+    );
+    assert.equal(
+      (await s.command('ACK_ORDER', { expected_version: String(version + 1) })).body.error?.code,
+      'SANDBOX_EXPIRED',
+    );
+    assert.equal((await s.command('ACK_ORDER', ack, key)).replayed, true);
+    const read = await s.app.query<{ result: { status: number } }>(
+      'SELECT fi_control.read_orders($1,$2,$3,$4,$5) AS result',
+      [s.id, s.proof, 'trade', '1', s.order],
+    );
+    assert.equal(read.rows[0]?.result.status, 200);
+  } finally {
+    await s.close();
+    for (const table of [...tables, 'orders', 'commands', 'audit_events'])
+      assert.equal(
+        (await admin.query(`SELECT * FROM fi.${table} WHERE sandbox_id=$1`, [s.id])).rowCount,
+        0,
+      );
+    await admin.end();
+  }
+});
+await test('database command rejects JSON number financial input and exact SQL HALF_EVEN matches rational ties', async () => {
+  const s = await executionSandbox();
+  const admin = await connection('admin');
+  try {
+    await s.command('ACK_ORDER', { expected_version: '1' });
+    assert.equal(
+      (
+        await s.command('EXECUTE_ORDER', {
+          expected_version: '2',
+          execution_id: randomUUID(),
+          source_event_id: randomUUID(),
+          par_amount: 40,
+        })
+      ).status,
+      400,
+    );
+    for (const [n, d, expected] of [
+      ['201', '2', '100'],
+      ['203', '2', '102'],
+      ['100499999', '1000000', '100'],
+      ['100500001', '1000000', '101'],
+    ])
+      assert.equal(
+        (
+          await admin.query<{ cents: string }>(
+            'SELECT fi_control.half_even($1,$2)::text AS cents',
+            [n, d],
+          )
+        ).rows[0]?.cents,
+        expected,
+      );
+  } finally {
+    await admin.end();
     await s.close();
   }
 });

@@ -3011,6 +3011,7 @@ components:
                 - $ref: '#/components/schemas/SandboxResponse'
                 - $ref: '#/components/schemas/ErrorResponse'
                 - $ref: '#/components/schemas/RfqDetail'
+                - $ref: '#/components/schemas/FiOrderCommand'
             created_at:
               type: string
               format: date-time

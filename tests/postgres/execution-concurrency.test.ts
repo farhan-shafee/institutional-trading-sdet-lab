@@ -108,7 +108,7 @@ for (const full of [false, true])
         );
         assert.ok([200, 201].includes(first.status));
         const pid = (await b.query<Record<string, unknown>>('SELECT pg_backend_pid() AS pid'))
-          .rows[0].pid as number;
+          .rows[0]!.pid as number;
         const second = s.command(
           firstFill ? 'ACK_CANCEL' : 'EXECUTE_ORDER',
           { expected_version: '4', ...(firstFill ? { cancel_id: cancel } : fill) },

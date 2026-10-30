@@ -22,7 +22,7 @@ Requires Python3.12+ (`python3` on Unix, `python` on Windows; `PYTHON` can name 
 
 ## Run locally
 
-Phase 2B candidate source extends the **optional local-only persistent sandbox foundation**, default OFF, with explicitly invited fictional dealers and atomic quotation acceptance through one PENDING_ACK order. Existing development and the public deployment need no database. See [ownership/recovery](docs/FIXED_INCOME_PERSISTENCE.md) and the [RFQ contracts, exact prices, browser boundary and local/CI gates](docs/FIXED_INCOME_RFQ.md). Acknowledgments, fills, positions, FIX and settlement remain outside this milestone. `npm run test:postgres` and `npm run test:workflow-browser` are required real-PostgreSQL gates. No production deployment or merge is implied.
+Phase 2B candidate source extends the **optional local-only persistent sandbox foundation**, default OFF, with explicitly invited fictional dealers and atomic quotation acceptance through one PENDING_ACK order. Existing development and the public deployment need no database. See [ownership/recovery](docs/FIXED_INCOME_PERSISTENCE.md) and the [RFQ contracts, exact prices, browser boundary and local/CI gates](docs/FIXED_INCOME_RFQ.md). Phase 2C candidate source adds a separate controlled order lifecycle, immutable executions, pending cancellation requests/outcomes and execution-derived signed positions/cash. See [execution contracts and financial verification](docs/FIXED_INCOME_EXECUTIONS.md). FIX and settlement remain outside this milestone. `npm run test:postgres` and `npm run test:workflow-browser` are required real-PostgreSQL gates. No production deployment or merge is implied.
 
 Use Node.js 24 and npm. From the repository root:
 

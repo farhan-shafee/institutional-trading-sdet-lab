@@ -41,6 +41,7 @@ await test('immutable contract survives acknowledgment, partial executions, and 
         [s.id],
       )
     ).rows[0];
+    assert.ok(p);
     assert.equal(p.signed_par, '100.00');
     assert.equal(p.signed_cash_cents, (-BigInt(b.body.lifecycle.executed_cents)).toString());
     assert.equal(p.execution_count, 2);
@@ -222,6 +223,7 @@ await test('offsetting BUY and SELL executions retain zero-net par and both exec
         [s.id],
       )
     ).rows[0];
+    assert.ok(p);
     assert.equal(p.signed_par, '0.00');
     assert.equal(p.execution_count, 2);
     assert.equal(p.signed_cash_cents, '-10');
