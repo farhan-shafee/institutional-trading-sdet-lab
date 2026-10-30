@@ -85,7 +85,7 @@ test('lost committed fill response retains original event/key across reload and 
     await page.getByLabel('Execution par USD', { exact: true }).fill('40.00');
     await page.getByRole('button', { name: 'Simulate execution', exact: true }).click();
     await expect(
-      page.getByRole('button', { name: 'Retry retained RFQ command', exact: true }),
+      page.getByRole('button', { name: 'Retry retained command', exact: true }),
     ).toBeEnabled();
     const before = await page.evaluate(() =>
       Object.entries(sessionStorage).filter(([key]) => key.startsWith('tradeflow.rfq.command.v1.')),
@@ -96,9 +96,9 @@ test('lost committed fill response retains original event/key across reload and 
     await page.getByLabel('Authorized sandbox UUID').fill(f.id);
     await page.getByRole('button', { name: 'Load authorized sandbox' }).click();
     await expect(
-      page.getByRole('button', { name: 'Retry retained RFQ command', exact: true }),
+      page.getByRole('button', { name: 'Retry retained command', exact: true }),
     ).toBeEnabled();
-    await page.getByRole('button', { name: 'Retry retained RFQ command', exact: true }).click();
+    await page.getByRole('button', { name: 'Retry retained command', exact: true }).click();
     await expect(page.getByTestId('rfq-status')).toHaveText('Original command replayed.');
     await expect(page.getByTestId('fi-order-lifecycle')).toContainText('execution count 1');
     await expect(page.getByTestId('fi-execution-positions')).toContainText('signed par 40.00');
