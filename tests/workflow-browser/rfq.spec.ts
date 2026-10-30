@@ -40,7 +40,7 @@ for (const side of ['BUY', 'SELL']) {
       await expect(page.getByTestId('rfq-status')).toHaveText('Authorized sandbox loaded.');
       await page.getByLabel('RFQ side', { exact: true }).selectOption(side);
       await page.getByLabel('RFQ par amount USD').fill('1000000.25');
-      await page.getByLabel('RFQ settlement date').fill('2028-02-29');
+      await page.getByLabel('RFQ settlement (unadjusted)').fill('2028-02-29');
       await page.getByRole('button', { name: 'Send RFQ' }).click();
       await expect(page.getByTestId('rfq-state')).toContainText('OPEN');
       await page.getByRole('button', { name: 'Request ATLAS quote', exact: true }).click();

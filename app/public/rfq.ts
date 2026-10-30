@@ -319,8 +319,9 @@ export function rfqView(
   });
   form.addEventListener('submit', (event) => {
     event.preventDefault();
+    // Capture successful controls before run() disables the fieldset during submission.
+    const fields = new FormData(form);
     void run(async () => {
-      const fields = new FormData(form);
       const input = createRfqSchema.parse({
         rfq_id: crypto.randomUUID(),
         instrument_id: fields.get('instrument_id'),

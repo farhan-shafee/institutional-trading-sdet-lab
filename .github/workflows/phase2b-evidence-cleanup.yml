@@ -1,0 +1,48 @@
+name: Phase 2B scoped diagnostic cleanup
+
+on:
+  push:
+    branches: [feature/fi-dealer-rfq-acceptance]
+    paths: [.github/workflows/phase2b-evidence-cleanup.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  remove-authenticated-traces:
+    if: github.repository == 'farhan-shafee/institutional-trading-sdet-lab' && github.ref == 'refs/heads/feature/fi-dealer-rfq-acceptance'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Remove only four Phase 2B diagnostic artifacts without downloading them
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node <<'JS'
+          const assert = require('node:assert/strict');
+          const { execFileSync } = require('node:child_process');
+          const repo = 'farhan-shafee/institutional-trading-sdet-lab';
+          const expectedHead = 'b14193cae702a252c951acace952b73399de5a57';
+          const targets = [[12985806533,41072052403],[12985367039,41072052403],[12986470455,41072041643],[12986470448,41072041643]];
+          function api(args) { return execFileSync('gh',['api',...args],{encoding:'utf8',stdio:['ignore','pipe','pipe']}); }
+          function absent(error) { return String(error.stderr ?? '').includes('HTTP 404'); }
+          for (const [id,run] of targets) {
+            const endpoint = `repos/${repo}/actions/artifacts/${id}`;
+            let artifact;
+            try { artifact = JSON.parse(api([endpoint])); }
+            catch (error) { if (absent(error)) { console.log(`Artifact ${id} already absent.`); continue; } throw new Error('Scoped artifact metadata request failed; details omitted.'); }
+            assert.equal(artifact.id,id);
+            assert.equal(artifact.workflow_run.id,run);
+            assert.equal(artifact.workflow_run.head_sha,expectedHead);
+            assert.equal(artifact.workflow_run.head_branch,'feature/fi-dealer-rfq-acceptance');
+            assert.ok(['playwright-report-1','failure-evidence-1'].includes(artifact.name));
+            try { api(['--method','DELETE',endpoint,'--silent']); }
+            catch { throw new Error('Scoped artifact deletion failed; details omitted.'); }
+            let removed = false;
+            try { api([endpoint]); } catch(error) { if (absent(error)) removed = true; else throw new Error('Scoped artifact absence verification failed.'); }
+            assert.equal(removed,true);
+            console.log(`Removed and verified absent Phase 2B diagnostic artifact ${id}.`);
+          }
+          JS

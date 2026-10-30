@@ -26,7 +26,10 @@ test('an accepted response lost to the browser is replayable from retained non-s
     ).toBeEnabled();
     expect(
       await page.evaluate(() => {
-        const raw = sessionStorage.getItem('tradeflow.rfq.command.v1') ?? '';
+        const raw = Object.keys(sessionStorage)
+          .filter((k) => k.startsWith('tradeflow.rfq.command.v1'))
+          .map((k) => sessionStorage.getItem(k) ?? '')
+          .join('');
         return /capability|Bearer|token|password/i.test(raw);
       }),
     ).toBe(false);
@@ -39,7 +42,11 @@ test('an accepted response lost to the browser is replayable from retained non-s
     await page.getByRole('button', { name: 'Retry retained command', exact: true }).click();
     await expect(page.getByTestId('rfq-status')).toHaveText('Original command replayed.');
     expect(
-      await page.evaluate(() => sessionStorage.getItem('tradeflow.rfq.command.v1') === null),
+      await page.evaluate(
+        () =>
+          Object.keys(sessionStorage).filter((k) => k.startsWith('tradeflow.rfq.command.v1'))
+            .length === 0,
+      ),
     ).toBe(true);
     const reader = await connection('reconciler');
     try {

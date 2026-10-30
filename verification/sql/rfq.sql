@@ -32,7 +32,24 @@ WITH violations AS (
     ('SYN-CORP-2031','CEDAR','98.930000000123','99.070000000123')) AS expected(instrument,dealer,bid,ask)
     ON expected.instrument=iv.instrument_id AND expected.dealer=q.dealer_id
   WHERE q.bid_clean_price<>expected.bid OR q.ask_clean_price<>expected.ask
-    OR q.snapshot->>'model_version'<>'synthetic-dealer-grid-v1'
+    OR q.snapshot->>'model_version' IS DISTINCT FROM 'synthetic-dealer-grid-v1'
+    OR q.snapshot->>'valuation_model_version' IS DISTINCT FROM 'phase1-regular-coupon-v1'
+    OR q.snapshot->>'bid_clean_price' IS DISTINCT FROM q.bid_clean_price
+    OR q.snapshot->>'ask_clean_price' IS DISTINCT FROM q.ask_clean_price
+    OR q.snapshot->>'instrument_id' IS DISTINCT FROM iv.instrument_id
+    OR q.snapshot->>'instrument_revision' IS DISTINCT FROM iv.id
+    OR q.snapshot->>'financial_source' IS DISTINCT FROM iv.financial_source
+    OR q.snapshot->'instrument_terms' IS DISTINCT FROM iv.terms
+    OR q.snapshot->>'side' IS DISTINCT FROM r.side
+    OR q.snapshot->>'par_amount' IS DISTINCT FROM r.par_amount::text
+    OR q.snapshot->>'settlement_date' IS DISTINCT FROM r.settlement_date::text
+    OR q.snapshot->>'quote_id' IS DISTINCT FROM q.id::text
+    OR q.snapshot->>'rfq_id' IS DISTINCT FROM r.id::text
+    OR q.snapshot->>'dealer_id' IS DISTINCT FROM q.dealer_id
+    OR q.snapshot->>'currency' IS DISTINCT FROM 'USD'
+    OR q.snapshot->>'price_unit' IS DISTINCT FROM 'per 100 par'
+    OR q.snapshot->>'quoted_at' IS DISTINCT FROM to_char(q.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+    OR q.snapshot->>'expires_at' IS DISTINCT FROM to_char(q.expires_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
   UNION ALL
   SELECT c.sandbox_id,(c.response_body->'rfq'->>'id')::uuid,'ACCEPTANCE_AUDIT_MISMATCH'
   FROM fi.commands c LEFT JOIN fi.audit_events e ON (e.sandbox_id,e.command_id)=(c.sandbox_id,c.id)

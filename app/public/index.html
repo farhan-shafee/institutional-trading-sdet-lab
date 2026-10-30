@@ -457,7 +457,7 @@
                 </select></label
               >
               <label
-                >RFQ side<select name="side">
+                >RFQ side<select name="side" aria-label="RFQ side">
                   <option value="BUY">BUY</option>
                   <option value="SELL">SELL</option>
                 </select></label
@@ -466,7 +466,10 @@
                 >RFQ par amount USD<input name="par_amount" inputmode="decimal" value="1000000"
               /></label>
               <label
-                >RFQ settlement date<input name="settlement_date" type="date" value="2026-10-15"
+                >RFQ settlement (unadjusted)<input
+                  name="settlement_date"
+                  type="date"
+                  value="2026-10-15"
               /></label>
               <label
                 ><input type="checkbox" name="invited_dealers" value="ATLAS" checked /> Fictional
