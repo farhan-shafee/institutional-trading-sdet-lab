@@ -52,7 +52,7 @@ void test('real roles force RLS, reject cross-sandbox proof and deny private ker
     );
     assert.equal(roles.rows[0]!.v, true);
     const tables = await db.query<{ n: number }>(
-      "SELECT count(*)::int n FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fi' AND c.relname LIKE 'fix_%' AND c.relkind='r' AND c.relrowsecurity AND c.relforcerowsecurity",
+      "SELECT count(*)::int n FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fi' AND c.relname IN ('fix_channels','fix_bindings','fix_lanes','fix_messages','fix_sequence_slots','fix_attempts','fix_outbox','fix_dealer_correlations','fix_cancel_correlations','fix_work','fix_prepared','fix_outcomes','fix_commands','fix_events') AND c.relkind='r' AND c.relrowsecurity AND c.relforcerowsecurity",
     );
     assert.equal(tables.rows[0]!.n, 14);
   } finally {

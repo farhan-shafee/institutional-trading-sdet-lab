@@ -35,7 +35,7 @@ export async function readOwner(path: string): Promise<DatabaseOwner> {
   return owner;
 }
 
-export async function bootstrap(path: string, throughVersion?: 2 | 3 | 4 | 5): Promise<void> {
+export async function bootstrap(path: string, throughVersion?: 2 | 3 | 4 | 5 | 6): Promise<void> {
   const owner = await readOwner(path);
   const url = localDatabaseUrl(owner.adminUrl);
   const admin = new pg.Client({ connectionString: owner.adminUrl });
@@ -88,7 +88,7 @@ export async function bootstrap(path: string, throughVersion?: 2 | 3 | 4 | 5): P
 export async function migrate(
   owner: DatabaseOwner,
   source?: string,
-  throughVersion?: 2 | 3 | 4 | 5,
+  throughVersion?: 2 | 3 | 4 | 5 | 6,
 ): Promise<void> {
   const directory = new URL('../db/migrations/', import.meta.url);
   const names = (await readdir(directory))

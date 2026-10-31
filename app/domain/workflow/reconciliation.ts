@@ -81,6 +81,13 @@ export const metadataSchema = z.discriminatedUnion('engine_version', [
       .array(z.object({ version: z.number().int(), checksum: hash }).strict())
       .length(6),
   }),
+  legacyMetadataSchema.extend({
+    engine_version: z.literal('reconciliation-v3'),
+    schema_revision: z.literal(7),
+    schema_checksums: z
+      .array(z.object({ version: z.number().int(), checksum: hash }).strict())
+      .length(7),
+  }),
 ]);
 export const snapshotSchema = z
   .object({
