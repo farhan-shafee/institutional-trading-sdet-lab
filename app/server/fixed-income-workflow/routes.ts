@@ -13,6 +13,8 @@ import { WorkflowDatabase } from '../../persistence/postgres/workflow.js';
 import { WorkflowBindings, type Binding } from './bindings.js';
 import { WorkflowService } from './service.js';
 import { RfqService } from './rfq-service.js';
+import { OrderService } from './order-service.js';
+import { handleOrder } from './order-routes.js';
 import { handleRfq } from './rfq-routes.js';
 
 export type WorkflowContext = {
@@ -43,6 +45,11 @@ export class WorkflowRoutes {
   async handle(context: WorkflowContext): Promise<boolean> {
     const { request, response, url, token, authenticate, respond } = context;
     const method = request.method ?? 'GET';
+    if (
+      this.service &&
+      (await handleOrder(context, this.bindings, new OrderService(this.service.database)))
+    )
+      return true;
     if (
       this.service &&
       (await handleRfq(context, this.bindings, new RfqService(this.service.database)))

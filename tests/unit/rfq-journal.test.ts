@@ -95,3 +95,25 @@ await test('legacy journal adoption retains the original bytes in its sandbox be
   assert.equal(f.values.get(`tradeflow.rfq.command.v1.${a.sandbox_id}`), raw);
   assert.equal(f.values.has('tradeflow.rfq.command.v1'), false);
 });
+await test('shared non-secret lifecycle journal retains exact fill identity and blocks competing RFQ work', () => {
+  const f = fixture(),
+    sid = randomUUID();
+  const fill = {
+    sandbox_id: sid,
+    key: randomUUID(),
+    path: `/api/fixed-income/v1/sandboxes/${sid}/orders/${randomUUID()}/executions`,
+    body: {
+      expected_version: '2',
+      execution_id: randomUUID(),
+      source_event_id: randomUUID(),
+      par_amount: '50.00',
+    },
+  };
+  const retained = f.journal.retain(fill);
+  assert.deepEqual(f.journal.load(sid), retained);
+  assert.throws(() => f.journal.retain(f.command(sid)), /retained/);
+  assert.equal(definitiveRfqRejection(503, 'OUTCOME_UNKNOWN'), false);
+  assert.deepEqual(f.journal.load(sid), retained);
+  f.journal.resolve(retained);
+  assert.equal(f.journal.has(sid), false);
+});
