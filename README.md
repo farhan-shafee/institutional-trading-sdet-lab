@@ -8,6 +8,18 @@ A small trading workstation built to make quality engineering inspectable: **Pla
 
 Every user, credential, order, position, and quote is synthetic. There are no brokerage connections, live feeds, real trades, employer systems, proprietary code, or customer data. Familiar instrument symbols do not make invented prices market data.
 
+## Phase 1 fixed-income analytics (candidate source)
+
+An additive, read-only analytics panel calculates fictional USD regular-coupon bonds: schedules, Actual/Actual ICMA versus US30/360 accrued interest, clean/dirty price, inverse yield, duration, convexity and dollar DV01. See the [complete financial contract](docs/FIXED_INCOME_CONVENTIONS.md). This source addition does not change the pinned public deployment or implement RFQ, FIX, fills, persistence, curves or settlement.
+
+Open **Fixed-income analytics** after signing in; supply a yield **or** a clean price. Both synthetic roles may calculate. Existing four-tab keyboard navigation and session-owned equity books are retained.
+
+```sh
+npm run test:financial
+```
+
+Requires Python3.12+ (`python3` on Unix, `python` on Windows; `PYTHON` can name another interpreter). The standard-library [independent oracle](verification/python/README.md) checks literal goldens and actual HTTP output from an owned ephemeral loopback server. The Python oracle does not inspect/import TypeScript financial code. The gate is also part of `validate` and CI.
+
 ## Run locally
 
 Use Node.js 24 and npm. From the repository root:
