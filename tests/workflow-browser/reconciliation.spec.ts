@@ -661,10 +661,11 @@ test('out-of-order finding pages never publish a complete assessment', async ({ 
 test('a committed reconciliation request cannot override a newer selected run', async ({
   page,
 }) => {
-  const f = await fixture(page);
+  const f = await fixture(page),
+    admin = await connection('admin');
   let release = () => {};
   try {
-    await requestRun(page);
+    await createExecutionAndFindings(page, f.keys.sandbox_id, admin);
     await requestRun(page);
     const selection = page.getByLabel('Reconciliation run', { exact: true });
     await expect(selection.locator('option')).toHaveCount(2);
@@ -689,6 +690,11 @@ test('a committed reconciliation request cannot override a newer selected run', 
     await arrived;
     await selection.selectOption(old);
     await expect(page.locator('#recon-provenance')).toContainText(old!);
+    await page.locator('#recon-findings button').first().click();
+    await expect(page.locator('#recon-trace')).toContainText('"ordinal": 1');
+    const trace = await page.locator('#recon-trace').textContent();
+    const provenance = await page.locator('#recon-provenance').textContent();
+    const findingCount = await page.locator('#recon-findings button').count();
     const delayed = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' && response.url().endsWith('/reconciliation-runs'),
@@ -697,7 +703,9 @@ test('a committed reconciliation request cannot override a newer selected run', 
     await delayed;
     await expect(selection.locator('option')).toHaveCount(3);
     await expect(selection).toHaveValue(old!);
-    await expect(page.locator('#recon-provenance')).toContainText(old!);
+    await expect(page.locator('#recon-provenance')).toHaveText(provenance!);
+    await expect(page.locator('#recon-trace')).toHaveText(trace!);
+    await expect(page.locator('#recon-findings button')).toHaveCount(findingCount);
     await expect(
       page.getByRole('button', { name: 'Retry retained command', exact: true }),
     ).toBeDisabled();
@@ -708,6 +716,155 @@ test('a committed reconciliation request cannot override a newer selected run', 
     ).toHaveLength(0);
   } finally {
     release();
+    await admin.end();
+    await f.close();
+  }
+});
+test('a committed request completing during a newer refresh cannot strand its selected run', async ({
+  page,
+}) => {
+  const f = await fixture(page);
+  let releaseCommand = () => {},
+    releaseRefresh = () => {};
+  try {
+    await requestRun(page);
+    await requestRun(page);
+    const selection = page.getByLabel('Reconciliation run', { exact: true });
+    await expect(selection.locator('option')).toHaveCount(2);
+    const selected = await selection.inputValue();
+    let commandReached!: () => void, refreshReached!: () => void;
+    const commandArrived = new Promise<void>((resolve) => {
+      commandReached = resolve;
+    });
+    const refreshArrived = new Promise<void>((resolve) => {
+      refreshReached = resolve;
+    });
+    const commandBlocked = new Promise<void>((resolve) => {
+      releaseCommand = resolve;
+    });
+    const refreshBlocked = new Promise<void>((resolve) => {
+      releaseRefresh = resolve;
+    });
+    await page.route('**/reconciliation-runs', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      const response = await route.fetch();
+      expect(response.status()).toBe(201);
+      commandReached();
+      await commandBlocked;
+      await route.fulfill({ response });
+    });
+    await allowLateResponse(page, '/reconciliation-runs?limit=20');
+    let first = true;
+    await page.route(
+      (url) => url.pathname.endsWith('/reconciliation-runs') && url.searchParams.has('limit'),
+      async (route) => {
+        if (!first) return route.continue();
+        first = false;
+        const response = await route.fetch();
+        refreshReached();
+        await refreshBlocked;
+        await route.fulfill({ response });
+      },
+    );
+    await page.getByRole('button', { name: 'Request reconciliation', exact: true }).click();
+    await commandArrived;
+    await page.getByRole('button', { name: 'Refresh reconciliation', exact: true }).click();
+    await refreshArrived;
+    const commandResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' && response.url().endsWith('/reconciliation-runs'),
+    );
+    releaseCommand();
+    await commandResponse;
+    await expect(selection.locator('option')).toHaveCount(3);
+    const refreshResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith('/reconciliation-runs') &&
+        new URL(response.url()).searchParams.has('limit'),
+    );
+    releaseRefresh();
+    await refreshResponse;
+    await page.waitForLoadState('networkidle');
+    await expect(selection).toHaveValue(selected);
+    await expect(page.locator('#recon-summary')).toContainText('Verification complete');
+    await expect(page.locator('#recon-provenance')).toContainText(selected);
+    await expect(
+      page.getByRole('button', { name: 'Retry retained command', exact: true }),
+    ).toBeDisabled();
+  } finally {
+    releaseCommand();
+    releaseRefresh();
+    await f.close();
+  }
+});
+test('the first committed run still loads after a finding filter changes in flight', async ({
+  page,
+}) => {
+  const f = await fixture(page);
+  let release = () => {};
+  try {
+    let reached!: () => void;
+    const arrived = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/reconciliation-runs', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      const response = await route.fetch();
+      expect(response.status()).toBe(201);
+      reached();
+      await blocked;
+      await route.fulfill({ response });
+    });
+    await page.getByRole('button', { name: 'Request reconciliation', exact: true }).click();
+    await arrived;
+    await page.getByLabel('Affected record identity').fill('synthetic');
+    const delayed = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' && response.url().endsWith('/reconciliation-runs'),
+    );
+    release();
+    await delayed;
+    await expect(
+      page.getByLabel('Reconciliation run', { exact: true }).locator('option'),
+    ).toHaveCount(1);
+    await expect(page.locator('#recon-summary')).toContainText('Verification complete');
+    await expect(page.getByLabel('Affected record identity')).toHaveValue('synthetic');
+    await expect(
+      page.getByRole('button', { name: 'Retry retained command', exact: true }),
+    ).toBeDisabled();
+  } finally {
+    release();
+    await f.close();
+  }
+});
+test('a definitive first reconciliation rejection remains visible after its journal resolves', async ({
+  page,
+}) => {
+  const f = await fixture(page);
+  try {
+    await page.route('**/reconciliation-runs', (route) =>
+      route.request().method() === 'POST'
+        ? route.fulfill({
+            status: 409,
+            json: { error: { code: 'SANDBOX_WRITE_EXPIRED', message: 'Writes expired.' } },
+          })
+        : route.continue(),
+    );
+    await page.getByRole('button', { name: 'Request reconciliation', exact: true }).click();
+    await expect(page.locator('#recon-error')).toContainText('HTTP 409');
+    await expect(page.locator('#rfq-error')).toHaveText('');
+    await expect(
+      page.getByRole('button', { name: 'Retry retained command', exact: true }),
+    ).toBeDisabled();
+    expect(
+      await page.evaluate(() =>
+        Object.keys(sessionStorage).filter((key) => key.startsWith('tradeflow.rfq.command.v1.')),
+      ),
+    ).toHaveLength(0);
+  } finally {
     await f.close();
   }
 });
@@ -753,20 +910,27 @@ test('reconciliation command errors preserve the RFQ error', async ({ page }) =>
     await page.getByRole('button', { name: 'Send RFQ', exact: true }).click();
     await expect(page.locator('#rfq-error')).not.toHaveText('');
     const rfqError = await page.locator('#rfq-error').textContent();
-    await page.route('**/reconciliation-runs', (route) =>
-      route.request().method() === 'POST'
-        ? route.fulfill({
-            status: 503,
-            json: { error: { code: 'OUTCOME_UNKNOWN', message: 'Outcome unknown.' } },
-          })
-        : route.continue(),
-    );
+    const keys: (string | null)[] = [];
+    await page.route('**/reconciliation-runs', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      keys.push(await route.request().headerValue('Idempotency-Key'));
+      await route.fulfill({
+        status: 503,
+        json: { error: { code: 'OUTCOME_UNKNOWN', message: 'Outcome unknown.' } },
+      });
+    });
     await page.getByRole('button', { name: 'Request reconciliation', exact: true }).click();
     await expect(page.locator('#recon-error')).toContainText('HTTP 503');
     await expect(page.locator('#rfq-error')).toHaveText(rfqError!);
     await expect(
       page.getByRole('button', { name: 'Retry retained command', exact: true }),
     ).toBeEnabled();
+    await page.getByRole('button', { name: 'Retry retained command', exact: true }).click();
+    await expect.poll(() => keys.length).toBe(2);
+    expect(keys[0]).not.toBeNull();
+    expect(keys[1]).toBe(keys[0]);
+    await expect(page.locator('#recon-error')).toContainText('HTTP 503');
+    await expect(page.locator('#rfq-error')).toHaveText(rfqError!);
   } finally {
     await f.close();
   }
