@@ -68,7 +68,7 @@ jobs:
           path: playwright-report/
           retention-days: 14
           if-no-files-found: ignore
-      - name: Failure evidence (trace, screenshot, video, JSON)
+      - name: Failure evidence (screenshot, video, JSON; authenticated traces disabled)
         if: ${{ failure() }}
         uses: actions/upload-artifact@v7
         with:

@@ -11,7 +11,11 @@ await test('owned database contains the additive foundation and append-only ledg
       await scalar(db, "SELECT to_regclass('fi.audit_events')::text"),
       'fi.audit_events',
     );
-    assert.equal(await scalar(db, 'SELECT max(version) FROM fi_control.schema_migrations'), 2);
+    // Preserve the original foundation assertion while additive later versions are installed.
+    assert.equal(
+      await scalar(db, 'SELECT max(version) FROM fi_control.schema_migrations WHERE version<=2'),
+      2,
+    );
   } finally {
     await db.end();
   }

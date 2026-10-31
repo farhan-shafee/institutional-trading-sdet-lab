@@ -34,7 +34,8 @@
     "validate": "npm audit && npm audit --omit=dev && npm run typecheck && npm run lint && npm run format:check && npm run contract:validate && npm run workflow:validate && npm run test:unit && npm run test:financial && npm run build && npm run smoke:production && npm test",
     "test:financial": "tsx scripts/verify-financial.ts",
     "test:postgres": "node --import tsx scripts/test-postgres.ts",
-    "validate:all": "npm run validate && npm run test:postgres && npm run test:postgres",
+    "test:workflow-browser": "node --import tsx scripts/test-workflow-browser.ts",
+    "validate:all": "npm run validate && npm test -- --repeat-each=2 && npm run test:postgres && npm run test:postgres && npm run build:ui && npm run test:workflow-browser && npm run test:workflow-browser -- --repeat-each=2",
     "db:local": "node --import tsx scripts/workflow-local.ts",
     "sandbox:client": "node --import tsx scripts/sandbox-client.ts"
   },

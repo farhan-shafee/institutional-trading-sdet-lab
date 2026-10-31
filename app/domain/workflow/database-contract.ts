@@ -8,4 +8,5 @@ export const migrationChecksums: ReadonlyArray<{ version: number; checksum: stri
     version: 2,
     checksum: 'ab835535496e2772a82f5c1910dc025141c543e7480c001c0d3a793a59e1c117',
   },
+  { version: 3, checksum: '0e27140069d5394d942493c693b1ca5b723d45781a145c2dedc3dd10b4eddaa5' },
 ];

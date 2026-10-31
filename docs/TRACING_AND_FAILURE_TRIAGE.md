@@ -1,8 +1,8 @@
 # Tracing and failure triage
 
-A failure needs enough evidence to explain what the application and test actually did. The normal configuration uses `trace: 'on-first-retry'`, `screenshot: 'only-on-failure'`, and `video: 'retain-on-failure'`. Local retries are zero; therefore a first local failure does not automatically include a trace. CI's diagnostic retry does. Intentional demos use tracing from the start.
+A failure needs enough evidence to explain what the application and test actually did. Normal authenticated suites now use `trace: 'off'`, `screenshot: 'only-on-failure'`, and `video: 'retain-on-failure'`. Traces can record bearer headers and browser authentication state, so they are excluded from published normal-suite artifacts. Local retries remain zero; CI's existing diagnostic retry still cannot make a flaky test pass the gate. New RFQ browser suites disable traces, screenshots and video entirely. Intentional local demos retain their existing separate tracing behavior and are not executed or uploaded by the Phase 2B gates.
 
-Capturing every successful browser run multiplies artifact volume across engines, workers, and repeats. The normal policy keeps routine storage smaller while retaining failure screenshots/videos. For a local reproduction, explicitly request a trace:
+Capturing every successful browser run multiplies artifact volume across engines, workers, and repeats. The normal policy keeps routine storage smaller while retaining failure screenshots/videos. The existing local trace reproduction command is separate from the authenticated CI artifact policy:
 
 ```sh
 npm run test:ui -- --project=chromium --trace on
