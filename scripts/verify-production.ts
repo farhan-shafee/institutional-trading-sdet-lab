@@ -36,8 +36,25 @@ try {
   };
   assert.deepEqual(
     Object.keys(installed.packages).sort(),
-    ['node_modules/decimal.js', 'node_modules/zod'],
-    'Runtime must contain only reviewed decimal.js and zod, not development tooling.',
+    [
+      'decimal.js',
+      'pg',
+      'pg-cloudflare',
+      'pg-connection-string',
+      'pg-int8',
+      'pg-pool',
+      'pg-protocol',
+      'pg-types',
+      'pgpass',
+      'postgres-array',
+      'postgres-bytea',
+      'postgres-date',
+      'postgres-interval',
+      'split2',
+      'xtend',
+      'zod',
+    ].map((name) => `node_modules/${name}`),
+    'Runtime must contain only the reviewed financial, PostgreSQL and validation dependency closure, not development tooling.',
   );
   await run(
     [

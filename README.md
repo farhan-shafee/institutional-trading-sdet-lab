@@ -22,6 +22,8 @@ Requires Python3.12+ (`python3` on Unix, `python` on Windows; `PYTHON` can name 
 
 ## Run locally
 
+Phase 2A candidate source adds an **optional local-only persistent sandbox ownership foundation**, default OFF. Existing development and the public deployment need no database. See [persistence, safe replay and local/CI operation](docs/FIXED_INCOME_PERSISTENCE.md). RFQs, quotes, fills, positions and FIX remain outside this milestone. `npm run test:postgres` is an additional required real-PostgreSQL gate; `npm run validate:all` combines legacy validation with two fresh database runs. No production deployment or merge is implied.
+
 Use Node.js 24 and npm. From the repository root:
 
 ```sh

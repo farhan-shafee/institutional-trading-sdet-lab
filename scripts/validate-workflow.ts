@@ -80,3 +80,43 @@ for (const step of uploads) {
 console.log(
   'Workflow YAML parses; quality gates and finite artifact retention verified. GitHub-hosted execution remains a separate check.',
 );
+
+const persistence = workflowSchema
+  .omit({ jobs: true })
+  .extend({
+    jobs: z.object({
+      postgres: z.object({
+        'runs-on': z.literal('ubuntu-latest'),
+        'timeout-minutes': z.number().positive(),
+        steps: z.array(
+          z.object({
+            run: z.string().optional(),
+            'continue-on-error': z.boolean().optional(),
+            if: z.string().optional(),
+          }),
+        ),
+      }),
+    }),
+  })
+  .parse(parse(await readFile('.github/workflows/persistence.yml', 'utf8')));
+const persistenceSteps = persistence.jobs.postgres.steps;
+for (const command of [
+  'npm ci',
+  'npm audit',
+  'npm audit --omit=dev',
+  'npm run workflow:validate',
+  'npm run test:postgres',
+]) {
+  const matches = persistenceSteps.filter((step) => step.run === command);
+  assert(
+    matches.length >= (command === 'npm run test:postgres' ? 2 : 1),
+    `Missing persistence gate: ${command}`,
+  );
+  assert(
+    matches.every((step) => step.if === undefined && step['continue-on-error'] !== true),
+    'Persistence gates must be unconditional and blocking.',
+  );
+}
+console.log(
+  'Persistence workflow requires two fresh real-PostgreSQL executions; hosted results remain a separate check.',
+);

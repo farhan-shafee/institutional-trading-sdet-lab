@@ -398,6 +398,628 @@ paths:
           $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/fixed-income/v1/workflow/status:
+    get:
+      tags:
+        - FixedIncomeWorkflow
+      operationId: getWorkflowStatus
+      summary: getWorkflowStatus
+      description: Optional local-only feature, default off. Existing login and bearer
+        token required. Workflow bindings are separate from ephemeral equity books.
+        Reports availability without requiring PostgreSQL when disabled. No query parameters.
+      responses:
+        '200':
+          description: Confirmed response. Monetary trading workflows are outside Phase
+            2A.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowStatus'
+        '400':
+          description: Invalid strict request, date/UUID/key/capability encoding, or
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Existing synthetic session missing or revoked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role, capability scope or current binding does not authorize
+            the operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Disabled workflow, unknown/foreign/purged sandbox or missing
+            command; no ownership disclosure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflicting key, generation, state, expiry or cursor; original
+            receipt is retained.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Workflow admission or sandbox quota exhausted; no new effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Database/schema/capacity unavailable or OUTCOME_UNKNOWN. Retain
+            the original journal and idempotency key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected safe internal failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes:
+    post:
+      tags:
+        - FixedIncomeWorkflow
+      operationId: createSandbox
+      summary: createSandbox
+      description: 'Optional local-only feature, default off. Existing login and bearer
+        token required. Workflow bindings are separate from ephemeral equity books.
+        Trader only. Client must securely retain distinct read/trade capabilities, UUID
+        and idempotency key before submission. One transaction creates ownership, capacity,
+        receipt and audit. Same authorized key/request replays 201 with Idempotency-Replayed:
+        true and original Location. Changed key fingerprint returns 409. Purged UUIDs
+        cannot be recreated. No query parameters.'
+      responses:
+        '201':
+          description: Confirmed response. Monetary trading workflows are outside Phase
+            2A.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SandboxResponse'
+        '400':
+          description: Invalid strict request, date/UUID/key/capability encoding, or
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Existing synthetic session missing or revoked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role, capability scope or current binding does not authorize
+            the operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Disabled workflow, unknown/foreign/purged sandbox or missing
+            command; no ownership disclosure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflicting key, generation, state, expiry or cursor; original
+            receipt is retained.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Workflow admission or sandbox quota exhausted; no new effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Database/schema/capacity unavailable or OUTCOME_UNKNOWN. Retain
+            the original journal and idempotency key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected safe internal failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: JSON body exceeds 16384 bytes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: Use application/json.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+          description: Scoped to sandbox across operations; same canonical request replays
+            the original response. Never regenerate after an uncertain outcome.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SandboxCreate'
+  /api/fixed-income/v1/sandboxes/recover:
+    post:
+      tags:
+        - FixedIncomeWorkflow
+      operationId: recoverSandbox
+      summary: recoverSandbox
+      description: Optional local-only feature, default off. Existing login and bearer
+        token required. Workflow bindings are separate from ephemeral equity books.
+        Explicit recovery binding; no equity-book recovery or durable business mutation.
+        Viewer may recover read scope only. Fixed binding lifetime 30 minutes, never
+        extended by requests. No query parameters.
+      responses:
+        '200':
+          description: Confirmed response. Monetary trading workflows are outside Phase
+            2A.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SandboxResponse'
+        '400':
+          description: Invalid strict request, date/UUID/key/capability encoding, or
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Existing synthetic session missing or revoked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role, capability scope or current binding does not authorize
+            the operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Disabled workflow, unknown/foreign/purged sandbox or missing
+            command; no ownership disclosure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflicting key, generation, state, expiry or cursor; original
+            receipt is retained.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Workflow admission or sandbox quota exhausted; no new effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Database/schema/capacity unavailable or OUTCOME_UNKNOWN. Retain
+            the original journal and idempotency key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected safe internal failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: JSON body exceeds 16384 bytes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: Use application/json.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SandboxRecover'
+  /api/fixed-income/v1/sandboxes/{sid}:
+    get:
+      tags:
+        - FixedIncomeWorkflow
+      operationId: getSandbox
+      summary: getSandbox
+      description: Optional local-only feature, default off. Existing login and bearer
+        token required. Workflow bindings are separate from ephemeral equity books.
+        Requires matching binding and current capability generation. Read-only recovery
+        continues after day seven until day thirty. No query parameters.
+      responses:
+        '200':
+          description: Confirmed response. Monetary trading workflows are outside Phase
+            2A.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SandboxResponse'
+        '400':
+          description: Invalid strict request, date/UUID/key/capability encoding, or
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Existing synthetic session missing or revoked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role, capability scope or current binding does not authorize
+            the operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Disabled workflow, unknown/foreign/purged sandbox or missing
+            command; no ownership disclosure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflicting key, generation, state, expiry or cursor; original
+            receipt is retained.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Workflow admission or sandbox quota exhausted; no new effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Database/schema/capacity unavailable or OUTCOME_UNKNOWN. Retain
+            the original journal and idempotency key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected safe internal failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+        - name: sid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+  /api/fixed-income/v1/sandboxes/{sid}/recovery-keys/rotate:
+    post:
+      tags:
+        - FixedIncomeWorkflow
+      operationId: rotateSandboxCapabilities
+      summary: rotateSandboxCapabilities
+      description: Optional local-only feature, default off. Existing login and bearer
+        token required. Workflow bindings are separate from ephemeral equity books.
+        Trader and trade binding required. Retain old/new capabilities and original
+        request before sending. Rotation increments generation and invalidates bindings.
+        After success, recover using the retained NEW trade capability before any replay.
+        Receipt lookup precedes expected-generation/expiry checks after current authorization.
+        Reusing a key with another request returns 409. No query parameters.
+      responses:
+        '200':
+          description: Confirmed response. Monetary trading workflows are outside Phase
+            2A.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SandboxResponse'
+        '400':
+          description: Invalid strict request, date/UUID/key/capability encoding, or
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Existing synthetic session missing or revoked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role, capability scope or current binding does not authorize
+            the operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Disabled workflow, unknown/foreign/purged sandbox or missing
+            command; no ownership disclosure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflicting key, generation, state, expiry or cursor; original
+            receipt is retained.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Workflow admission or sandbox quota exhausted; no new effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Database/schema/capacity unavailable or OUTCOME_UNKNOWN. Retain
+            the original journal and idempotency key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected safe internal failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: JSON body exceeds 16384 bytes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: Use application/json.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+        - name: sid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+          description: Scoped to sandbox across operations; same canonical request replays
+            the original response. Never regenerate after an uncertain outcome.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SandboxRotate'
+  /api/fixed-income/v1/sandboxes/{sid}/commands/{key}:
+    get:
+      tags:
+        - FixedIncomeWorkflow
+      operationId: getWorkflowCommand
+      summary: getWorkflowCommand
+      description: Optional local-only feature, default off. Existing login and bearer
+        token required. Workflow bindings are separate from ephemeral equity books.
+        Read original immutable receipt after explicit recovery. An absent receipt is
+        not proof that an in-flight original command has completed. Resolve using the
+        unchanged key. No query parameters.
+      responses:
+        '200':
+          description: Confirmed response. Monetary trading workflows are outside Phase
+            2A.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowCommand'
+        '400':
+          description: Invalid strict request, date/UUID/key/capability encoding, or
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Existing synthetic session missing or revoked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role, capability scope or current binding does not authorize
+            the operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Disabled workflow, unknown/foreign/purged sandbox or missing
+            command; no ownership disclosure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflicting key, generation, state, expiry or cursor; original
+            receipt is retained.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Workflow admission or sandbox quota exhausted; no new effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Database/schema/capacity unavailable or OUTCOME_UNKNOWN. Retain
+            the original journal and idempotency key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected safe internal failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+        - name: sid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+  /api/fixed-income/v1/sandboxes/{sid}/audit-events:
+    get:
+      tags:
+        - FixedIncomeWorkflow
+      operationId: getWorkflowAudit
+      summary: getWorkflowAudit
+      description: Optional local-only feature, default off. Existing login and bearer
+        token required. Workflow bindings are separate from ephemeral equity books.
+        Immutable events paginated beneath a pinned commit-sequence watermark. Cursor
+        is sandbox/limit scoped, signed by this process, and expires after five minutes;
+        restart invalidates it. Unknown/repeated query fields return 400.
+      responses:
+        '200':
+          description: Confirmed response. Monetary trading workflows are outside Phase
+            2A.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowAudit'
+        '400':
+          description: Invalid strict request, date/UUID/key/capability encoding, or
+            query.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Existing synthetic session missing or revoked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Role, capability scope or current binding does not authorize
+            the operation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Disabled workflow, unknown/foreign/purged sandbox or missing
+            command; no ownership disclosure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflicting key, generation, state, expiry or cursor; original
+            receipt is retained.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Workflow admission or sandbox quota exhausted; no new effect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Database/schema/capacity unavailable or OUTCOME_UNKNOWN. Retain
+            the original journal and idempotency key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected safe internal failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+        - name: sid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: string
+            pattern: ^(?:[1-9]|[1-9][0-9]|100)$
+          description: Default 50; use the same limit with a cursor.
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            maxLength: 1024
+
 components:
   securitySchemes:
     bearerAuth:
@@ -809,3 +1431,274 @@ components:
         synthetic:
           type: boolean
           enum: [true]
+    WorkflowStatus:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required:
+            - enabled
+            - state
+          properties:
+            enabled:
+              type: boolean
+              enum:
+                - false
+            state:
+              type: string
+              enum:
+                - disabled
+        - type: object
+          additionalProperties: false
+          required:
+            - enabled
+            - state
+          properties:
+            enabled:
+              type: boolean
+              enum:
+                - true
+            state:
+              type: string
+              enum:
+                - ready
+                - unavailable
+    SandboxCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - sandbox_id
+        - read_capability
+        - trade_capability
+      properties:
+        sandbox_id:
+          type: string
+          format: uuid
+        read_capability:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$
+          writeOnly: true
+          description: Client-generated 32 random bytes, canonical unpadded base64url.
+            Retain privately before sending; never place in a URL or diagnostic artifact.
+        trade_capability:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$
+          writeOnly: true
+          description: Client-generated 32 random bytes, canonical unpadded base64url.
+            Retain privately before sending; never place in a URL or diagnostic artifact.
+    SandboxRecover:
+      type: object
+      additionalProperties: false
+      required:
+        - sandbox_id
+        - capability
+        - scope
+      properties:
+        sandbox_id:
+          type: string
+          format: uuid
+        capability:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$
+          writeOnly: true
+          description: Client-generated 32 random bytes, canonical unpadded base64url.
+            Retain privately before sending; never place in a URL or diagnostic artifact.
+        scope:
+          type: string
+          enum:
+            - read
+            - trade
+    SandboxRotate:
+      type: object
+      additionalProperties: false
+      required:
+        - expected_generation
+        - read_capability
+        - trade_capability
+      properties:
+        expected_generation:
+          type: string
+          pattern: ^[1-9][0-9]{0,8}$
+        read_capability:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$
+          writeOnly: true
+          description: Client-generated 32 random bytes, canonical unpadded base64url.
+            Retain privately before sending; never place in a URL or diagnostic artifact.
+        trade_capability:
+          type: string
+          pattern: ^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$
+          writeOnly: true
+          description: Client-generated 32 random bytes, canonical unpadded base64url.
+            Retain privately before sending; never place in a URL or diagnostic artifact.
+    SandboxResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - sandbox
+        - scope
+      properties:
+        sandbox:
+          type: object
+          additionalProperties: false
+          required:
+            - id
+            - created_at
+            - write_expires_at
+            - retained_until
+            - generation
+            - commit_seq
+            - read_only
+          properties:
+            id:
+              type: string
+              format: uuid
+            created_at:
+              type: string
+              format: date-time
+            write_expires_at:
+              type: string
+              format: date-time
+            retained_until:
+              type: string
+              format: date-time
+            generation:
+              type: string
+              pattern: ^(?:[1-9][0-9]{0,8}|1000000000)$
+            commit_seq:
+              type: string
+              pattern: ^(0|[1-9][0-9]{0,2})$
+            read_only:
+              type: boolean
+        scope:
+          type: string
+          enum:
+            - read
+            - trade
+    WorkflowCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - command
+      properties:
+        command:
+          type: object
+          additionalProperties: false
+          required:
+            - idempotency_key
+            - operation
+            - command_seq
+            - http_status
+            - result_kind
+            - response_body
+            - created_at
+          properties:
+            idempotency_key:
+              type: string
+              pattern: ^[A-Za-z0-9_-]{8,128}$
+            operation:
+              type: string
+              enum:
+                - CREATE_SANDBOX
+                - ROTATE_CAPABILITIES
+            command_seq:
+              type: string
+              pattern: ^(0|[1-9][0-9]{0,2})$
+            http_status:
+              type: integer
+              enum:
+                - 200
+                - 201
+                - 409
+            result_kind:
+              type: string
+              enum:
+                - APPLIED
+                - REJECTED
+            response_body:
+              oneOf:
+                - $ref: '#/components/schemas/SandboxResponse'
+                - $ref: '#/components/schemas/ErrorResponse'
+            created_at:
+              type: string
+              format: date-time
+    WorkflowAudit:
+      type: object
+      additionalProperties: false
+      required:
+        - events
+        - as_of_seq
+        - next_cursor
+      properties:
+        events:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - command_seq
+              - event_index
+              - event_type
+              - aggregate_version
+              - actor_id
+              - actor_kind
+              - decided_at
+              - recorded_at
+              - payload
+            properties:
+              command_seq:
+                type: string
+                pattern: ^(0|[1-9][0-9]{0,2})$
+              event_index:
+                type: integer
+                enum:
+                  - 0
+              event_type:
+                type: string
+                enum:
+                  - SANDBOX_CREATED
+                  - CAPABILITIES_ROTATED
+                  - COMMAND_REJECTED
+              aggregate_version:
+                type: string
+                nullable: true
+                pattern: ^[1-9][0-9]*$
+              actor_id:
+                type: string
+                format: uuid
+              actor_kind:
+                type: string
+                enum:
+                  - CLIENT
+              decided_at:
+                type: string
+                format: date-time
+              recorded_at:
+                type: string
+                format: date-time
+              payload:
+                oneOf:
+                  - type: object
+                    additionalProperties: false
+                    required:
+                      - generation
+                    properties:
+                      generation:
+                        type: string
+                        pattern: ^[1-9][0-9]*$
+                  - type: object
+                    additionalProperties: false
+                    required:
+                      - code
+                    properties:
+                      code:
+                        type: string
+                        minLength: 1
+                        maxLength: 64
+        as_of_seq:
+          type: string
+          pattern: ^(0|[1-9][0-9]{0,2})$
+        next_cursor:
+          type: string
+          nullable: true
+          maxLength: 1024
