@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { orderVersionSchema, executionCommandSchema, cancelCommandSchema } from './execution.js';
 import { createRfqSchema, dealerResponseSchema, quoteCommandSchema } from './rfq.js';
 
 const legacyKey = 'tradeflow.rfq.command.v1';
@@ -9,12 +10,19 @@ const retainedSchema = z
     path: z
       .string()
       .regex(
-        /^\/api\/fixed-income\/v1\/sandboxes\/[a-f0-9-]{36}\/rfqs(?:\/[a-f0-9-]{36}\/(?:dealer-responses|withdraw|accept))?$/,
+        /^\/api\/fixed-income\/v1\/sandboxes\/[a-f0-9-]{36}\/(?:rfqs(?:\/[a-f0-9-]{36}\/(?:dealer-responses|withdraw|accept))?|orders\/[a-f0-9-]{36}\/(?:acknowledgment|rejection|executions|cancellation-requests|cancellations\/[a-f0-9-]{36}\/(?:acknowledgment|rejection)))$/,
       ),
-    body: z.union([createRfqSchema, dealerResponseSchema, quoteCommandSchema]),
+    body: z.union([
+      createRfqSchema,
+      dealerResponseSchema,
+      quoteCommandSchema,
+      orderVersionSchema,
+      executionCommandSchema,
+      cancelCommandSchema,
+    ]),
   })
   .strict()
-  .refine((v) => v.path.startsWith(`/api/fixed-income/v1/sandboxes/${v.sandbox_id}/rfqs`));
+  .refine((v) => v.path.startsWith(`/api/fixed-income/v1/sandboxes/${v.sandbox_id}/`));
 export type RetainedRfqCommand = z.infer<typeof retainedSchema>;
 type JournalStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
