@@ -214,11 +214,10 @@ export function rfqView(
         .parse(result.data);
       if (definitiveRfqRejection(result.response.status, error.error.code)) {
         journal.resolve(saved);
-        if (reconciliationCommand) reconciliation.load(sandboxId, true);
-        else await refresh();
+        if (!reconciliationCommand) await refresh();
       }
       throw new Error(
-        `RFQ command rejected or unresolved (HTTP ${result.response.status}). Refresh state; retry only the retained command for an uncertain result.`,
+        `${reconciliationCommand ? 'Reconciliation' : 'RFQ'} command rejected or unresolved (HTTP ${result.response.status}). Refresh state; retry only the retained command for an uncertain result.`,
       );
     }
     if (reconciliationCommand) {

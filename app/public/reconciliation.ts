@@ -196,6 +196,9 @@ export function reconciliationView(
     }
     node('recon-panel').hidden = !sandboxId;
     if (!sandboxId) return;
+    // A replacement list must also own detail retrieval if no validated selection
+    // exists yet, or it supersedes the list belonging to a full refresh.
+    if (readState === 'loading' || !selected) preservePresentation = false;
     if (!preservePresentation) {
       invalidateMain();
       readState = 'loading';
