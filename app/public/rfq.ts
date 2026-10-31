@@ -43,8 +43,9 @@ export function rfqView(
   const reconciliation = reconciliationView(
     api,
     mutate,
-    run,
+    (work, stillCurrent) => run(work, node('recon-error'), stillCurrent),
     () => !busy && getRole() === 'trader' && scope === 'trade' && !journal.has(sandboxId),
+    () => ({ sandbox: sandboxId, token: getToken(), epoch }),
   );
   const root = () => `/api/fixed-income/v1/sandboxes/${sandboxId}/rfqs`;
   const retained = () => (sandboxId ? journal.load(sandboxId) : undefined);
@@ -87,9 +88,18 @@ export function rfqView(
       if (owner === getToken() && version === epoch) panel.hidden = true;
     }
   }
-  async function api(path: string, method = 'GET', body?: unknown, key?: string) {
+  async function api(
+    path: string,
+    method = 'GET',
+    body?: unknown,
+    key?: string,
+    stillCurrent?: () => boolean,
+    signal?: AbortSignal,
+    authorizationCurrent = stillCurrent,
+  ) {
     const owner = getToken(),
-      version = epoch;
+      version = epoch,
+      ownerSandbox = sandboxId;
     if (!owner) throw new Error('Sign in first.');
     const response = await fetch(path, {
       method,
@@ -99,27 +109,39 @@ export function rfqView(
         ...(key ? { 'Idempotency-Key': key } : {}),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(signal ? { signal } : {}),
     });
     const data: unknown = await response.json();
-    if (owner !== getToken() || version !== epoch) throw new Error('RFQ session changed.');
+    if (
+      owner !== getToken() ||
+      version !== epoch ||
+      ownerSandbox !== sandboxId ||
+      (stillCurrent && !stillCurrent())
+    )
+      throw new Error('RFQ session changed.');
     if (response.status === 401) {
-      expired();
+      if (!authorizationCurrent || authorizationCurrent()) expired();
       throw new Error('Session expired.');
     }
     return { response, data };
   }
-  async function run(work: () => Promise<void>) {
+  async function run(
+    work: () => Promise<void>,
+    errorTarget = message,
+    stillCurrent?: () => boolean,
+  ) {
     if (busy) return;
     const owner = getToken(),
       version = epoch;
     busy = true;
-    message.textContent = '';
+    if (!stillCurrent || stillCurrent()) errorTarget.textContent = '';
     render();
     try {
       await work();
     } catch (error) {
-      if (owner === getToken() && version === epoch)
-        message.textContent = error instanceof Error ? error.message : 'RFQ operation unavailable.';
+      if (owner === getToken() && version === epoch && (!stillCurrent || stillCurrent()))
+        errorTarget.textContent =
+          error instanceof Error ? error.message : 'Workflow operation unavailable.';
     } finally {
       if (owner === getToken() && version === epoch) {
         busy = false;
@@ -167,12 +189,24 @@ export function rfqView(
     }
     if (list.rfqs.some((r) => r.id === previous)) selector.value = previous!;
     await loadSelected();
-    await reconciliation.load(sandboxId);
+    reconciliation.load(sandboxId);
   }
   async function submit(saved: Retained) {
     if (saved.sandbox_id !== sandboxId)
       throw new Error('Load the sandbox belonging to the retained command.');
-    const result = await api(saved.path, 'POST', saved.body, saved.key);
+    const stillSelected = reconciliation.captureSelection();
+    const reconciliationCommand = saved.path.includes('/reconciliation-runs');
+    // A stale success still resolves its original journal entry; only authorization side
+    // effects and presentation depend on the investigation that originated the command.
+    const result = await api(
+      saved.path,
+      'POST',
+      saved.body,
+      saved.key,
+      undefined,
+      undefined,
+      reconciliationCommand ? stillSelected : undefined,
+    );
     if (!result.response.ok) {
       const error = z
         .object({ error: z.object({ code: z.string(), message: z.string() }).strict() })
@@ -180,17 +214,23 @@ export function rfqView(
         .parse(result.data);
       if (definitiveRfqRejection(result.response.status, error.error.code)) {
         journal.resolve(saved);
-        await refresh();
+        if (!reconciliationCommand) await refresh();
       }
       throw new Error(
-        `RFQ command rejected or unresolved (HTTP ${result.response.status}). Refresh state; retry only the retained command for an uncertain result.`,
+        `${reconciliationCommand ? 'Reconciliation' : 'RFQ'} command rejected or unresolved (HTTP ${result.response.status}). Refresh state; retry only the retained command for an uncertain result.`,
       );
     }
-    if (saved.path.includes('/reconciliation-runs')) reconciliation.validate(result.data);
-    else if (saved.path.includes('/orders/')) lifecycle.validate(result.data);
-    else detail = rfqDetailSchema.parse(result.data);
-    journal.resolve(saved);
-    await refresh();
+    if (reconciliationCommand) {
+      const applyPresentation = stillSelected();
+      reconciliation.validate(result.data, () => applyPresentation);
+      journal.resolve(saved);
+      reconciliation.load(sandboxId, !applyPresentation);
+    } else {
+      if (saved.path.includes('/orders/')) lifecycle.validate(result.data);
+      else detail = rfqDetailSchema.parse(result.data);
+      journal.resolve(saved);
+      await refresh();
+    }
     status.textContent =
       result.response.headers.get('Idempotency-Replayed') === 'true'
         ? 'Original command replayed.'
@@ -287,6 +327,7 @@ export function rfqView(
   node('rfq-load').addEventListener('click', () => {
     void run(async () => {
       const next = z.uuid().parse(node<HTMLInputElement>('rfq-sandbox').value).toLowerCase();
+      reconciliation.reset();
       sandboxId = next;
       detail = undefined;
       await refresh();
@@ -300,10 +341,14 @@ export function rfqView(
     void run(loadSelected);
   });
   node('rfq-retry').addEventListener('click', () => {
-    void run(async () => {
-      const saved = retained();
-      if (saved) await submit(saved);
-    });
+    const saved = retained();
+    if (!saved) return;
+    const reconciliationCommand = saved.path.includes('/reconciliation-runs');
+    void run(
+      () => submit(saved),
+      reconciliationCommand ? node('recon-error') : message,
+      reconciliationCommand ? reconciliation.captureSelection() : undefined,
+    );
   });
   node('rfq-use-analytics').addEventListener('click', () => {
     const source = node<HTMLFormElement>('fi-form');
