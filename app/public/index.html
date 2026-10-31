@@ -405,6 +405,35 @@
             <ol id="activity-list" class="activity-list" aria-label="Session activity"></ol>
           </section>
         </section>
+        <details id="fixed-income-panel" class="panel fi-panel">
+          <summary>Fixed-income analytics</summary>
+          <p>
+            Fictional bonds · USD · no live prices, orders or settlement. Enter a yield OR a clean
+            price. Rates are decimal fractions (0.04 = 4%). Dates are unadjusted; settlement-day
+            coupons are excluded. Supported settlement: 2025-01-15 through 2031-01-14.
+          </p>
+          <form id="fi-form" class="fi-form" novalidate>
+            <label
+              >Instrument<select name="instrument_id">
+                <option value="SYN-UST-2031">Fictional Treasury-style · Actual/Actual ICMA</option>
+                <option value="SYN-CORP-2031">Fictional corporate · US 30/360</option>
+              </select></label
+            >
+            <label
+              >Settlement date<input name="settlement_date" type="date" value="2026-10-15"
+            /></label>
+            <label
+              >Par amount USD<input name="par_amount" inputmode="decimal" value="1000000"
+            /></label>
+            <label
+              >Annual yield (decimal fraction)<input name="yield" inputmode="decimal" value="0.04"
+            /></label>
+            <label>Clean price per 100 par<input name="clean_price" inputmode="decimal" /></label>
+            <button id="fi-submit" type="submit" class="primary">Calculate analytics</button>
+          </form>
+          <p id="fi-error" data-testid="fi-error" role="alert"></p>
+          <div id="fi-results" data-testid="fi-results" aria-live="polite"></div>
+        </details>
       </div>
     </main>
     <footer>

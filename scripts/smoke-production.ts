@@ -241,6 +241,19 @@ try {
 
   const trader = await login(main, 'qa.user');
   const viewer = await login(main, 'qa.viewer');
+  const financial = await request(
+    main,
+    '/api/fixed-income/v1/analytics?instrument_id=SYN-UST-2031&settlement_date=2025-07-16&par_amount=46&clean_price=100',
+    { headers: authorization(viewer.token) },
+  );
+  assert.equal(financial.status, 200);
+  const financialBody = (await json(financial)) as { consideration_usd: string };
+  assert.equal(
+    financialBody.consideration_usd,
+    '46.00',
+    'Native production artifact retains exact half-even financial cash.',
+  );
+
   assert.deepEqual(trader.user, { username: 'qa.user', role: 'trader' });
   assert.deepEqual(viewer.user, { username: 'qa.viewer', role: 'viewer' });
   const seeded = await request(main, '/api/orders', { headers: authorization(trader.token) });

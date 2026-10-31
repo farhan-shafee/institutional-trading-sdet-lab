@@ -15,3 +15,6 @@ playwright/.auth/
 Thumbs.db
 coverage/
 .local/
+
+__pycache__/
+*.pyc
