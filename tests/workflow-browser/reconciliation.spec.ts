@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { reconciliationHttp } from '../postgres/reconciliation-http-fixture.js';
 import { capabilityDigest } from '../../app/server/fixed-income-workflow/service.js';
 import { rfqInput, digest } from '../postgres/rfq-fixture.js';
@@ -45,6 +45,1014 @@ async function requestRun(page: Page) {
   await page.getByRole('button', { name: 'Request reconciliation', exact: true }).click();
   await expect(page.locator('#recon-summary')).toContainText('Verification complete');
 }
+// Model a response that wins the race with cancellation: the identity fence must still reject it.
+async function allowLateResponse(page: Page, fragment: string) {
+  await page.evaluate((match) => {
+    const original = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes(match) && init?.method !== 'POST') {
+        const options = { ...init };
+        delete options.signal;
+        return original(input, options);
+      }
+      return original(input, init);
+    };
+  }, fragment);
+}
+async function createExecutionAndFindings(
+  page: Page,
+  sandbox: string,
+  admin: Awaited<ReturnType<typeof connection>>,
+) {
+  await page.getByLabel('RFQ par amount USD').fill('100.00');
+  await page.getByLabel('RFQ settlement (unadjusted)').fill('2028-01-15');
+  await page.getByRole('button', { name: 'Send RFQ', exact: true }).click();
+  await page.getByRole('button', { name: 'Request ATLAS quote', exact: true }).click();
+  await page.getByRole('button', { name: 'Accept ATLAS quote', exact: true }).click();
+  await page.getByRole('button', { name: 'Simulate order acknowledgment', exact: true }).click();
+  await page.getByLabel('Execution par USD', { exact: true }).fill('100.00');
+  await page.getByRole('button', { name: 'Simulate execution', exact: true }).click();
+  await expect(page.getByTestId('fi-order-lifecycle')).toContainText('FILLED');
+  await admin.query('BEGIN');
+  await admin.query("SET LOCAL session_replication_role='replica'");
+  await admin.query(
+    'UPDATE fi.positions SET signed_cash_cents=signed_cash_cents+1,execution_count=execution_count+1 WHERE sandbox_id=$1',
+    [sandbox],
+  );
+  await admin.query(
+    'UPDATE fi.order_states SET filled_par=99,remaining_par=1 WHERE sandbox_id=$1',
+    [sandbox],
+  );
+  await admin.query('COMMIT');
+  await requestRun(page);
+}
+test('a delayed historical run cannot replace the newer selected run', async ({ page }) => {
+  const f = await fixture(page);
+  let release = () => {};
+  try {
+    await requestRun(page);
+    await requestRun(page);
+    const selection = page.getByLabel('Reconciliation run', { exact: true });
+    await expect(selection.locator('option')).toHaveCount(2);
+    const ids = await selection
+      .locator('option')
+      .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    const old = ids[0]!,
+      current = ids[1]!;
+    await expect(page.locator('#recon-provenance')).toContainText(current);
+    let reached!: () => void;
+    const arrived = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let currentSeen = false;
+    await allowLateResponse(page, `/reconciliation-runs/${old}`);
+    await page.route(`**/reconciliation-runs/${current}`, async (route) => {
+      const response = await route.fetch();
+      currentSeen = true;
+      await route.fulfill({ response });
+    });
+    await page.route(`**/reconciliation-runs/${old}`, async (route) => {
+      const response = await route.fetch();
+      reached();
+      await blocked;
+      await route.fulfill({ response });
+    });
+    await selection.selectOption(old);
+    await arrived;
+    await selection.selectOption(current);
+    await expect.poll(() => currentSeen).toBe(true);
+    await expect(page.locator('#recon-provenance')).toContainText(current);
+    const delayed = page.waitForResponse((response) =>
+      response.url().endsWith(`/reconciliation-runs/${old}`),
+    );
+    release();
+    await delayed;
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('#recon-provenance')).toContainText(current);
+    await expect(page.locator('#recon-provenance')).not.toContainText(old);
+  } finally {
+    release();
+    await f.close();
+  }
+});
+test('a newer finding trace remains visible when an earlier trace completes late', async ({
+  page,
+}) => {
+  const f = await fixture(page),
+    admin = await connection('admin');
+  let release = () => {};
+  try {
+    await createExecutionAndFindings(page, f.keys.sandbox_id, admin);
+    const buttons = page.locator('#recon-findings button');
+    await expect.poll(() => buttons.count()).toBeGreaterThanOrEqual(2);
+    let reached!: () => void;
+    const arrived = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let first = true;
+    await allowLateResponse(page, `/sandboxes/${f.keys.sandbox_id}/positions`);
+    await page.route(`**/sandboxes/${f.keys.sandbox_id}/positions`, async (route) => {
+      if (!first) return route.continue();
+      first = false;
+      const response = await route.fetch();
+      reached();
+      await blocked;
+      await route.fulfill({ response });
+    });
+    await buttons.nth(0).click();
+    await arrived;
+    await buttons.nth(1).click();
+    await expect(page.locator('#recon-trace')).toContainText('"ordinal": 2');
+    const delayed = page.waitForResponse((response) =>
+      response.url().endsWith(`/sandboxes/${f.keys.sandbox_id}/positions`),
+    );
+    release();
+    await delayed;
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('#recon-trace')).toContainText('"ordinal": 2');
+    await expect(page.locator('#recon-trace')).not.toContainText('"ordinal": 1');
+  } finally {
+    release();
+    await admin.end();
+    await f.close();
+  }
+});
+test('a delayed findings page cannot contaminate a newly selected clean run', async ({ page }) => {
+  const f = await fixture(page),
+    admin = await connection('admin');
+  let release = () => {};
+  try {
+    await createExecutionAndFindings(page, f.keys.sandbox_id, admin);
+    const selection = page.getByLabel('Reconciliation run', { exact: true });
+    const old = await selection.inputValue();
+    await admin.query('BEGIN');
+    await admin.query("SET LOCAL session_replication_role='replica'");
+    await admin.query(
+      'UPDATE fi.positions SET signed_cash_cents=signed_cash_cents-1,execution_count=execution_count-1 WHERE sandbox_id=$1',
+      [f.keys.sandbox_id],
+    );
+    await admin.query(
+      'UPDATE fi.order_states SET filled_par=100,remaining_par=0 WHERE sandbox_id=$1',
+      [f.keys.sandbox_id],
+    );
+    await admin.query('COMMIT');
+    await requestRun(page);
+    await expect(selection.locator('option')).toHaveCount(2);
+    await expect.poll(() => selection.inputValue()).not.toBe(old);
+    const current = await selection.inputValue();
+    let reached!: () => void;
+    const arrived = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await allowLateResponse(page, `/reconciliation-runs/${old}/findings`);
+    await page.route(
+      (url) => url.pathname.endsWith(`/reconciliation-runs/${old}/findings`),
+      async (route) => {
+        const response = await route.fetch();
+        if (new URL(route.request().url()).searchParams.get('after') === '0') {
+          const data = (await response.json()) as {
+            findings: { ordinal: number }[];
+            next_after: number | null;
+          };
+          expect(data.findings.length).toBeGreaterThan(1);
+          await route.fulfill({
+            response,
+            json: {
+              ...data,
+              findings: data.findings.slice(0, 1),
+              next_after: data.findings[0]!.ordinal,
+            },
+          });
+        } else {
+          reached();
+          await blocked;
+          await route.fulfill({ response });
+        }
+      },
+    );
+    await selection.selectOption(old);
+    await arrived;
+    await selection.selectOption(current);
+    const delayed = page.waitForResponse(
+      (response) =>
+        response.url().includes(`/reconciliation-runs/${old}/findings`) &&
+        new URL(response.url()).searchParams.get('after') === '1',
+    );
+    release();
+    await delayed;
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('#recon-summary')).toContainText('COMPLETED_CLEAN');
+    await expect(page.locator('#recon-provenance')).toContainText(current);
+    await expect(page.locator('#recon-provenance')).not.toContainText(old);
+    await expect(page.locator('#recon-findings button')).toHaveCount(0);
+  } finally {
+    release();
+    await admin.end();
+    await f.close();
+  }
+});
+test('loading another authorized sandbox invalidates a pending reconciliation read', async ({
+  page,
+}) => {
+  const f = await fixture(page),
+    admin = await connection('admin'),
+    maintenance = await connection('maintenance');
+  const second = {
+    sandbox_id: randomUUID(),
+    read_capability: randomBytes(32).toString('base64url'),
+    trade_capability: randomBytes(32).toString('base64url'),
+  };
+  let release = () => {};
+  try {
+    await requestRun(page);
+    const old = await page.getByLabel('Reconciliation run', { exact: true }).inputValue();
+    let reached!: () => void;
+    const arrived = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await allowLateResponse(page, `/reconciliation-runs/${old}`);
+    await page.route(`**/reconciliation-runs/${old}`, async (route) => {
+      const response = await route.fetch();
+      reached();
+      await blocked;
+      await route.fulfill({ response });
+    });
+    await page.getByRole('button', { name: 'Refresh reconciliation', exact: true }).click();
+    await arrived;
+    // Creating another sandbox replaces this token's single workflow binding. Rebind only
+    // after the old authorized response has been captured behind the barrier.
+    expect(
+      (await f.lab.request('/api/fixed-income/v1/sandboxes', f.token, 'POST', second, randomUUID()))
+        .status,
+    ).toBe(201);
+    await page.getByLabel('Authorized sandbox UUID').fill(second.sandbox_id);
+    const button = page.getByRole('button', { name: 'Load authorized sandbox', exact: true });
+    await expect(button).toBeEnabled();
+    await button.click();
+    await expect(page.locator('#recon-summary')).toContainText('No retained reconciliation runs');
+    const delayed = page.waitForResponse((response) =>
+      response.url().endsWith(`/reconciliation-runs/${old}`),
+    );
+    release();
+    await delayed;
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('#recon-provenance')).not.toContainText(old);
+    await expect(page.locator('#recon-summary')).toContainText('No retained reconciliation runs');
+  } finally {
+    release();
+    await admin.query(
+      "UPDATE fi.sandboxes SET created_at=clock_timestamp()-interval '40 days',write_expires_at=clock_timestamp()-interval '33 days',retained_until=clock_timestamp()-interval '10 days' WHERE id=$1",
+      [second.sandbox_id],
+    );
+    await maintenance.query('SELECT fi_control.purge_expired()');
+    await maintenance.end();
+    await admin.end();
+    await f.close();
+  }
+});
+test('logout discards a reconciliation response already in flight', async ({ page }) => {
+  const f = await fixture(page);
+  let release = () => {};
+  try {
+    await requestRun(page);
+    const run = await page.getByLabel('Reconciliation run', { exact: true }).inputValue();
+    let reached!: () => void;
+    const arrived = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await allowLateResponse(page, `/reconciliation-runs/${run}`);
+    await page.route(`**/reconciliation-runs/${run}`, async (route) => {
+      const response = await route.fetch();
+      reached();
+      await blocked;
+      await route.fulfill({ response });
+    });
+    await page.getByRole('button', { name: 'Refresh reconciliation', exact: true }).click();
+    await arrived;
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await expect(page.locator('#recon-panel')).toBeHidden();
+    const delayed = page.waitForResponse((response) =>
+      response.url().endsWith(`/reconciliation-runs/${run}`),
+    );
+    release();
+    await delayed;
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('#recon-summary')).toHaveText('');
+    await expect(page.locator('#recon-provenance')).toHaveText('');
+    await expect(page.locator('#recon-trace')).toHaveText('');
+  } finally {
+    release();
+    await f.close();
+  }
+});
+test('a delayed refresh cannot restore an older run selection', async ({ page }) => {
+  const f = await fixture(page);
+  let release = () => {};
+  try {
+    await requestRun(page);
+    await requestRun(page);
+    const selection = page.getByLabel('Reconciliation run', { exact: true });
+    await expect(selection.locator('option')).toHaveCount(2);
+    const ids = await selection
+      .locator('option')
+      .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    const old = ids[0]!,
+      current = ids[1]!;
+    await selection.selectOption(old);
+    await expect(page.locator('#recon-provenance')).toContainText(old);
+    let reached!: () => void;
+    const arrived = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await allowLateResponse(page, '/reconciliation-runs?limit=20');
+    await page.route(
+      (url) => url.pathname.endsWith('/reconciliation-runs') && url.searchParams.has('limit'),
+      async (route) => {
+        const response = await route.fetch();
+        const data = (await response.json()) as { runs: { id: string }[] };
+        reached();
+        await blocked;
+        await route.fulfill({
+          response,
+          json: {
+            ...data,
+            runs: data.runs.filter((run) => run.id === old),
+            as_of: 1,
+            latest_completed_run_id: old,
+          },
+        });
+      },
+    );
+    await page.getByRole('button', { name: 'Refresh reconciliation', exact: true }).click();
+    await arrived;
+    await selection.selectOption(current);
+    const delayed = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith('/reconciliation-runs') &&
+        new URL(response.url()).searchParams.has('limit'),
+    );
+    release();
+    await delayed;
+    await page.waitForLoadState('networkidle');
+    await expect(selection).toHaveValue(current);
+    await expect(page.locator('#recon-provenance')).toContainText(current);
+    await expect(page.locator('#recon-provenance')).not.toContainText(old);
+  } finally {
+    release();
+    await f.close();
+  }
+});
+test('recovery cannot target a clean run using another run’s pending state', async ({ page }) => {
+  const f = await fixture(page);
+  let release = () => {};
+  try {
+    await requestRun(page);
+    await requestRun(page);
+    const selection = page.getByLabel('Reconciliation run', { exact: true });
+    await expect(selection.locator('option')).toHaveCount(2);
+    const ids = await selection
+      .locator('option')
+      .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    const old = ids[0]!,
+      current = ids[1]!;
+    let reached!: () => void;
+    const arrived = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let first = true;
+    await allowLateResponse(page, `/reconciliation-runs/${old}`);
+    await page.route(`**/reconciliation-runs/${old}`, async (route) => {
+      const response = await route.fetch();
+      const data = (await response.json()) as { run: Record<string, unknown> };
+      if (first) {
+        first = false;
+        reached();
+        await blocked;
+      }
+      await route.fulfill({
+        response,
+        json: { ...data, run: { ...data.run, state: 'RUNNING', complete: false } },
+      });
+    });
+    await selection.selectOption(old);
+    await arrived;
+    await selection.selectOption(current);
+    const delayed = page.waitForResponse((response) =>
+      response.url().endsWith(`/reconciliation-runs/${old}`),
+    );
+    release();
+    await delayed;
+    await page.waitForLoadState('networkidle');
+    const recover = page.getByRole('button', { name: 'Recover interrupted run', exact: true });
+    await expect(selection).toHaveValue(current);
+    await expect(page.locator('#recon-provenance')).toContainText(current);
+    await expect(recover).toBeDisabled();
+    await selection.selectOption(old);
+    await expect(page.locator('#recon-provenance')).toContainText(old);
+    await expect(recover).toBeEnabled();
+    const submitted = page.waitForRequest(
+      (request) =>
+        request.method() === 'POST' &&
+        request.url().endsWith(`/reconciliation-runs/${old}/recover`),
+    );
+    await recover.click();
+    expect(new URL((await submitted).url()).pathname).toBe(
+      `${f.root}/reconciliation-runs/${old}/recover`,
+    );
+  } finally {
+    release();
+    await f.close();
+  }
+});
+test('a stale unauthorized read cannot sign out a newer run selection', async ({ page }) => {
+  const f = await fixture(page);
+  let release = () => {};
+  try {
+    await requestRun(page);
+    await requestRun(page);
+    const selection = page.getByLabel('Reconciliation run', { exact: true });
+    await expect(selection.locator('option')).toHaveCount(2);
+    const ids = await selection
+      .locator('option')
+      .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    const old = ids[0]!,
+      current = ids[1]!;
+    await expect(page.locator('#recon-provenance')).toContainText(current);
+    let reached!: () => void;
+    const arrived = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let currentSeen = false;
+    await allowLateResponse(page, `/reconciliation-runs/${old}`);
+    await page.route(`**/reconciliation-runs/${current}`, async (route) => {
+      const response = await route.fetch();
+      currentSeen = true;
+      await route.fulfill({ response });
+    });
+    await page.route(`**/reconciliation-runs/${old}`, async (route) => {
+      reached();
+      await blocked;
+      await route.fulfill({
+        status: 401,
+        json: { error: { code: 'UNAUTHORIZED', message: 'Session expired.' } },
+      });
+    });
+    await selection.selectOption(old);
+    await arrived;
+    await selection.selectOption(current);
+    await expect.poll(() => currentSeen).toBe(true);
+    await expect(page.locator('#recon-provenance')).toContainText(current);
+    const delayed = page.waitForResponse((response) =>
+      response.url().endsWith(`/reconciliation-runs/${old}`),
+    );
+    release();
+    await delayed;
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible();
+    await expect(page.locator('#recon-panel')).toBeVisible();
+    await expect(page.locator('#recon-provenance')).toContainText(current);
+    await expect(page.locator('#rfq-error')).toHaveText('');
+  } finally {
+    release();
+    await f.close();
+  }
+});
+test('a run transition between detail and findings cannot publish a mixed snapshot', async ({
+  page,
+}) => {
+  const f = await fixture(page);
+  try {
+    await requestRun(page);
+    const run = await page.getByLabel('Reconciliation run', { exact: true }).inputValue();
+    await page.route(`**/reconciliation-runs/${run}`, async (route) => {
+      const response = await route.fetch();
+      const data = (await response.json()) as { run: Record<string, unknown> };
+      await route.fulfill({
+        response,
+        json: {
+          ...data,
+          run: {
+            ...data.run,
+            state: 'RUNNING',
+            complete: false,
+            finding_count: 0,
+            total_findings: 0,
+          },
+        },
+      });
+    });
+    await page.route(
+      (url) => url.pathname.endsWith(`/reconciliation-runs/${run}/findings`),
+      async (route) => {
+        const response = await route.fetch();
+        const data = (await response.json()) as Record<string, unknown>;
+        await route.fulfill({
+          response,
+          json: {
+            ...data,
+            as_of: 1,
+            next_after: null,
+            findings: [
+              {
+                ordinal: 1,
+                category: 'POSITION',
+                code: 'POSITION_TOTALS',
+                record_kind: 'POSITION',
+                record_id: 'synthetic-position',
+                related: {},
+                expected: {},
+                observed: {},
+              },
+            ],
+          },
+        });
+      },
+    );
+    await page.getByRole('button', { name: 'Refresh reconciliation', exact: true }).click();
+    await expect(page.locator('#recon-error')).toContainText('finding');
+    await expect(page.locator('#recon-summary')).not.toContainText('RUNNING');
+    await expect(page.locator('#recon-findings button')).toHaveCount(0);
+  } finally {
+    await f.close();
+  }
+});
+test('out-of-order finding pages never publish a complete assessment', async ({ page }) => {
+  const f = await fixture(page);
+  try {
+    await requestRun(page);
+    const run = await page.getByLabel('Reconciliation run', { exact: true }).inputValue();
+    await page.route(`**/reconciliation-runs/${run}`, async (route) => {
+      const response = await route.fetch();
+      const data = (await response.json()) as { run: Record<string, unknown> };
+      await route.fulfill({
+        response,
+        json: {
+          ...data,
+          run: {
+            ...data.run,
+            state: 'COMPLETED_WITH_FINDINGS',
+            finding_count: 2,
+            total_findings: 2,
+          },
+        },
+      });
+    });
+    await page.route(
+      (url) => url.pathname.endsWith(`/reconciliation-runs/${run}/findings`),
+      async (route) => {
+        const response = await route.fetch();
+        const data = (await response.json()) as Record<string, unknown>;
+        const finding = {
+          category: 'POSITION',
+          code: 'POSITION_TOTALS',
+          record_kind: 'POSITION',
+          record_id: 'synthetic-position',
+          related: {},
+          expected: {},
+          observed: {},
+        };
+        await route.fulfill({
+          response,
+          json: {
+            ...data,
+            as_of: 2,
+            next_after: null,
+            findings: [
+              { ...finding, ordinal: 2 },
+              { ...finding, ordinal: 1 },
+            ],
+          },
+        });
+      },
+    );
+    await page.getByRole('button', { name: 'Refresh reconciliation', exact: true }).click();
+    await expect(page.locator('#recon-error')).toContainText('finding');
+    await expect(page.locator('#recon-summary')).not.toContainText('Verification complete');
+    await expect(page.locator('#recon-findings button')).toHaveCount(0);
+  } finally {
+    await f.close();
+  }
+});
+test('a committed reconciliation request cannot override a newer selected run', async ({
+  page,
+}) => {
+  const f = await fixture(page),
+    admin = await connection('admin');
+  let release = () => {};
+  try {
+    await createExecutionAndFindings(page, f.keys.sandbox_id, admin);
+    await requestRun(page);
+    const selection = page.getByLabel('Reconciliation run', { exact: true });
+    await expect(selection.locator('option')).toHaveCount(2);
+    const old = await selection.locator('option').first().getAttribute('value');
+    expect(old).not.toBeNull();
+    let reached!: () => void;
+    const arrived = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/reconciliation-runs', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      const response = await route.fetch();
+      expect(response.status()).toBe(201);
+      reached();
+      await blocked;
+      await route.fulfill({ response });
+    });
+    await page.getByRole('button', { name: 'Request reconciliation', exact: true }).click();
+    await arrived;
+    await selection.selectOption(old);
+    await expect(page.locator('#recon-provenance')).toContainText(old!);
+    await page.locator('#recon-findings button').first().click();
+    await expect(page.locator('#recon-trace')).toContainText('"ordinal": 1');
+    const trace = await page.locator('#recon-trace').textContent();
+    const provenance = await page.locator('#recon-provenance').textContent();
+    const findingCount = await page.locator('#recon-findings button').count();
+    const delayed = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' && response.url().endsWith('/reconciliation-runs'),
+    );
+    release();
+    await delayed;
+    await expect(selection.locator('option')).toHaveCount(3);
+    await expect(selection).toHaveValue(old!);
+    await expect(page.locator('#recon-provenance')).toHaveText(provenance!);
+    await expect(page.locator('#recon-trace')).toHaveText(trace!);
+    await expect(page.locator('#recon-findings button')).toHaveCount(findingCount);
+    await expect(
+      page.getByRole('button', { name: 'Retry retained command', exact: true }),
+    ).toBeDisabled();
+    expect(
+      await page.evaluate(() =>
+        Object.keys(sessionStorage).filter((key) => key.startsWith('tradeflow.rfq.command.v1.')),
+      ),
+    ).toHaveLength(0);
+  } finally {
+    release();
+    await admin.end();
+    await f.close();
+  }
+});
+test('a committed request completing during a newer refresh cannot strand its selected run', async ({
+  page,
+}) => {
+  const f = await fixture(page);
+  let releaseCommand = () => {},
+    releaseRefresh = () => {};
+  try {
+    await requestRun(page);
+    await requestRun(page);
+    const selection = page.getByLabel('Reconciliation run', { exact: true });
+    await expect(selection.locator('option')).toHaveCount(2);
+    const selected = await selection.inputValue();
+    let commandReached!: () => void, refreshReached!: () => void;
+    const commandArrived = new Promise<void>((resolve) => {
+      commandReached = resolve;
+    });
+    const refreshArrived = new Promise<void>((resolve) => {
+      refreshReached = resolve;
+    });
+    const commandBlocked = new Promise<void>((resolve) => {
+      releaseCommand = resolve;
+    });
+    const refreshBlocked = new Promise<void>((resolve) => {
+      releaseRefresh = resolve;
+    });
+    await page.route('**/reconciliation-runs', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      const response = await route.fetch();
+      expect(response.status()).toBe(201);
+      commandReached();
+      await commandBlocked;
+      await route.fulfill({ response });
+    });
+    await allowLateResponse(page, '/reconciliation-runs?limit=20');
+    let first = true;
+    await page.route(
+      (url) => url.pathname.endsWith('/reconciliation-runs') && url.searchParams.has('limit'),
+      async (route) => {
+        if (!first) return route.continue();
+        first = false;
+        const response = await route.fetch();
+        refreshReached();
+        await refreshBlocked;
+        await route.fulfill({ response });
+      },
+    );
+    await page.getByRole('button', { name: 'Request reconciliation', exact: true }).click();
+    await commandArrived;
+    await page.getByRole('button', { name: 'Refresh reconciliation', exact: true }).click();
+    await refreshArrived;
+    const commandResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' && response.url().endsWith('/reconciliation-runs'),
+    );
+    releaseCommand();
+    await commandResponse;
+    await expect(selection.locator('option')).toHaveCount(3);
+    const refreshResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname.endsWith('/reconciliation-runs') &&
+        new URL(response.url()).searchParams.has('limit'),
+    );
+    releaseRefresh();
+    await refreshResponse;
+    await page.waitForLoadState('networkidle');
+    await expect(selection).toHaveValue(selected);
+    await expect(page.locator('#recon-summary')).toContainText('Verification complete');
+    await expect(page.locator('#recon-provenance')).toContainText(selected);
+    await expect(
+      page.getByRole('button', { name: 'Retry retained command', exact: true }),
+    ).toBeDisabled();
+  } finally {
+    releaseCommand();
+    releaseRefresh();
+    await f.close();
+  }
+});
+test('the first committed run still loads after a finding filter changes in flight', async ({
+  page,
+}) => {
+  const f = await fixture(page);
+  let release = () => {};
+  try {
+    let reached!: () => void;
+    const arrived = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/reconciliation-runs', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      const response = await route.fetch();
+      expect(response.status()).toBe(201);
+      reached();
+      await blocked;
+      await route.fulfill({ response });
+    });
+    await page.getByRole('button', { name: 'Request reconciliation', exact: true }).click();
+    await arrived;
+    await page.getByLabel('Affected record identity').fill('synthetic');
+    const delayed = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' && response.url().endsWith('/reconciliation-runs'),
+    );
+    release();
+    await delayed;
+    await expect(
+      page.getByLabel('Reconciliation run', { exact: true }).locator('option'),
+    ).toHaveCount(1);
+    await expect(page.locator('#recon-summary')).toContainText('Verification complete');
+    await expect(page.getByLabel('Affected record identity')).toHaveValue('synthetic');
+    await expect(
+      page.getByRole('button', { name: 'Retry retained command', exact: true }),
+    ).toBeDisabled();
+  } finally {
+    release();
+    await f.close();
+  }
+});
+test('a definitive first reconciliation rejection remains visible after its journal resolves', async ({
+  page,
+}) => {
+  const f = await fixture(page);
+  try {
+    await page.route('**/reconciliation-runs', (route) =>
+      route.request().method() === 'POST'
+        ? route.fulfill({
+            status: 409,
+            json: { error: { code: 'SANDBOX_WRITE_EXPIRED', message: 'Writes expired.' } },
+          })
+        : route.continue(),
+    );
+    await page.getByRole('button', { name: 'Request reconciliation', exact: true }).click();
+    await expect(page.locator('#recon-error')).toContainText('HTTP 409');
+    await expect(page.locator('#rfq-error')).toHaveText('');
+    await expect(
+      page.getByRole('button', { name: 'Retry retained command', exact: true }),
+    ).toBeDisabled();
+    expect(
+      await page.evaluate(() =>
+        Object.keys(sessionStorage).filter((key) => key.startsWith('tradeflow.rfq.command.v1.')),
+      ),
+    ).toHaveLength(0);
+  } finally {
+    await f.close();
+  }
+});
+test('reconciliation errors clear on selection without erasing RFQ errors', async ({ page }) => {
+  const f = await fixture(page);
+  try {
+    await requestRun(page);
+    await requestRun(page);
+    const selection = page.getByLabel('Reconciliation run', { exact: true });
+    await expect(selection.locator('option')).toHaveCount(2);
+    const ids = await selection
+      .locator('option')
+      .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    const old = ids[0]!,
+      current = ids[1]!;
+    await expect(page.locator('#recon-provenance')).toContainText(current);
+    await page.getByLabel('RFQ par amount USD').fill('0');
+    await page.getByRole('button', { name: 'Send RFQ', exact: true }).click();
+    await expect(page.locator('#rfq-error')).not.toHaveText('');
+    const rfqError = await page.locator('#rfq-error').textContent();
+    await page.route(`**/reconciliation-runs/${old}`, (route) =>
+      route.fulfill({
+        status: 503,
+        json: { error: { code: 'UNAVAILABLE', message: 'Unavailable.' } },
+      }),
+    );
+    await selection.selectOption(old);
+    await expect(page.locator('#recon-error')).toContainText('HTTP 503');
+    await expect(page.locator('#rfq-error')).toHaveText(rfqError!);
+    await selection.selectOption(current);
+    await expect(page.locator('#recon-provenance')).toContainText(current);
+    await expect(page.locator('#recon-error')).toHaveText('');
+    await expect(page.locator('#rfq-error')).toHaveText(rfqError!);
+  } finally {
+    await f.close();
+  }
+});
+test('reconciliation command errors preserve the RFQ error', async ({ page }) => {
+  const f = await fixture(page);
+  try {
+    await requestRun(page);
+    await page.getByLabel('RFQ par amount USD').fill('0');
+    await page.getByRole('button', { name: 'Send RFQ', exact: true }).click();
+    await expect(page.locator('#rfq-error')).not.toHaveText('');
+    const rfqError = await page.locator('#rfq-error').textContent();
+    const keys: (string | null)[] = [];
+    await page.route('**/reconciliation-runs', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      keys.push(await route.request().headerValue('Idempotency-Key'));
+      await route.fulfill({
+        status: 503,
+        json: { error: { code: 'OUTCOME_UNKNOWN', message: 'Outcome unknown.' } },
+      });
+    });
+    await page.getByRole('button', { name: 'Request reconciliation', exact: true }).click();
+    await expect(page.locator('#recon-error')).toContainText('HTTP 503');
+    await expect(page.locator('#rfq-error')).toHaveText(rfqError!);
+    await expect(
+      page.getByRole('button', { name: 'Retry retained command', exact: true }),
+    ).toBeEnabled();
+    await page.getByRole('button', { name: 'Retry retained command', exact: true }).click();
+    await expect.poll(() => keys.length).toBe(2);
+    expect(keys[0]).not.toBeNull();
+    expect(keys[1]).toBe(keys[0]);
+    await expect(page.locator('#recon-error')).toContainText('HTTP 503');
+    await expect(page.locator('#rfq-error')).toHaveText(rfqError!);
+  } finally {
+    await f.close();
+  }
+});
+test('a stale unauthorized reconciliation command cannot sign out a newer selection', async ({
+  page,
+}) => {
+  const f = await fixture(page);
+  let release = () => {};
+  try {
+    await requestRun(page);
+    await requestRun(page);
+    const selection = page.getByLabel('Reconciliation run', { exact: true });
+    await expect(selection.locator('option')).toHaveCount(2);
+    const old = (await selection.locator('option').first().getAttribute('value'))!;
+    let reached!: () => void;
+    const arrived = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/reconciliation-runs', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      reached();
+      await blocked;
+      await route.fulfill({
+        status: 401,
+        json: { error: { code: 'UNAUTHORIZED', message: 'Session expired.' } },
+      });
+    });
+    await page.getByRole('button', { name: 'Request reconciliation', exact: true }).click();
+    await arrived;
+    await selection.selectOption(old);
+    await expect(page.locator('#recon-provenance')).toContainText(old);
+    const delayed = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' && response.url().endsWith('/reconciliation-runs'),
+    );
+    release();
+    await delayed;
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible();
+    await expect(selection).toHaveValue(old);
+    await expect(page.locator('#recon-provenance')).toContainText(old);
+    await expect(page.locator('#recon-error')).toHaveText('');
+    await expect(page.locator('#rfq-error')).toHaveText('');
+    await expect(
+      page.getByRole('button', { name: 'Retry retained command', exact: true }),
+    ).toBeEnabled();
+  } finally {
+    release();
+    await f.close();
+  }
+});
+test('changing a finding filter clears the previous trace error', async ({ page }) => {
+  const f = await fixture(page),
+    admin = await connection('admin');
+  try {
+    await createExecutionAndFindings(page, f.keys.sandbox_id, admin);
+    await expect.poll(() => page.locator('#recon-findings button').count()).toBeGreaterThan(0);
+    await page.route(`**/sandboxes/${f.keys.sandbox_id}/positions`, (route) =>
+      route.fulfill({
+        status: 503,
+        json: { error: { code: 'UNAVAILABLE', message: 'Unavailable.' } },
+      }),
+    );
+    await page.locator('#recon-findings button').first().click();
+    await expect(page.locator('#recon-error')).toContainText('HTTP 503');
+    await page.getByLabel('Finding category').selectOption('POSITION');
+    await expect(page.locator('#recon-error')).toHaveText('');
+    await expect(page.locator('#recon-summary')).toContainText('COMPLETED_WITH_FINDINGS');
+  } finally {
+    await admin.end();
+    await f.close();
+  }
+});
+test('changing runs aborts the superseded reconciliation request', async ({ page }) => {
+  const f = await fixture(page);
+  let release = () => {};
+  try {
+    await requestRun(page);
+    await requestRun(page);
+    const selection = page.getByLabel('Reconciliation run', { exact: true });
+    await expect(selection.locator('option')).toHaveCount(2);
+    const ids = await selection
+      .locator('option')
+      .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    const old = ids[0]!,
+      current = ids[1]!;
+    await expect(page.locator('#recon-provenance')).toContainText(current);
+    let reached!: () => void;
+    const arrived = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(`**/reconciliation-runs/${old}`, async (route) => {
+      const response = await route.fetch();
+      reached();
+      await blocked;
+      try {
+        await route.fulfill({ response });
+      } catch {
+        expect(route.request().failure()).not.toBeNull();
+      }
+    });
+    const aborted = page.waitForEvent('requestfailed', (request) =>
+      request.url().endsWith(`/reconciliation-runs/${old}`),
+    );
+    await selection.selectOption(old);
+    await arrived;
+    await selection.selectOption(current);
+    expect((await aborted).failure()).not.toBeNull();
+    release();
+    await expect(page.locator('#recon-provenance')).toContainText(current);
+  } finally {
+    release();
+    await f.close();
+  }
+});
 test('clean durable assessment exposes historical watermark and immutable source/coverage evidence', async ({
   page,
 }) => {

@@ -53,7 +53,7 @@ void test('007 upgrades populated006 retaining metadata/prepared keys/outcomes a
         'SELECT version,checksum FROM fi_control.schema_migrations ORDER BY version',
       )
     ).rows;
-    await migrate(cfg);
+    await migrate(cfg, undefined, 7);
     assert.deepEqual(await hashes(), before);
     assert.deepEqual(
       (
@@ -72,7 +72,7 @@ void test('007 upgrades populated006 retaining metadata/prepared keys/outcomes a
       kernel,
     );
     assert.equal((await s.apply(prepared.work)).status, 200);
-    await migrate(cfg);
+    await migrate(cfg, undefined, 7);
     assert.equal((await admin.query('SELECT * FROM fi_control.schema_migrations')).rowCount, 7);
   } finally {
     await s?.close();

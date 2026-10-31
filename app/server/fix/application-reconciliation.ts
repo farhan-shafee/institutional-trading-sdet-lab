@@ -6,12 +6,12 @@ import { DomainError } from '../../domain/errors.js';
 import type { Binding } from '../fixed-income-workflow/bindings.js';
 import type { VerificationDatabase } from '../reconciliation/database.js';
 import { verificationQueries, verificationSources } from '../reconciliation/manifest.js';
-const SQL_HASH = '57a321744df05f3814e976a947dab52c44828161a3398abd65e81bac34613602';
+const SQL_HASH = '53716b85c42a23b7640894f57436c46a9a6e35ddfc5e47f2d64412d81fe6c931';
 const watermark = z.string().regex(/^[0-9]{1,4}$/);
 const resultSchema = z
   .object({
-    profile: z.literal('fix-application-v1'),
-    physical_schema_revision: z.literal(7),
+    profile: z.literal('fix-application-v2'),
+    physical_schema_revision: z.literal(8),
     snapshot_id: z.string().max(4096),
     snapshot_at: z.date(),
     financial_watermark: watermark,
@@ -42,7 +42,7 @@ export async function verifyFixApplication(
   if (!enabled)
     throw new DomainError(503, 'FIX_APPLICATION_DISABLED', 'FIX application is disabled.');
   const sql = await readFile(
-    new URL('../../../verification/sql/fix_application.sql', import.meta.url),
+    new URL('../../../verification/sql/fix_application_v2.sql', import.meta.url),
     'utf8',
   );
   if (createHash('sha256').update(sql).digest('hex') !== SQL_HASH)

@@ -49,11 +49,11 @@ export async function verificationManifest(): Promise<VerificationMetadata> {
     git(['status', '--porcelain', '--untracked-files=all']),
   ]);
   return metadataSchema.parse({
-    engine_version: 'reconciliation-v3',
+    engine_version: 'reconciliation-v4',
     source_revision: revision,
     source_tree: tree,
     source_state: status ? 'DIRTY' : 'CLEAN',
-    schema_revision: 7,
+    schema_revision: 8,
     financial_source: financialSource,
     valuation_model: 'phase1-regular-coupon-v1',
     quotation_model: 'synthetic-dealer-grid-v1',
