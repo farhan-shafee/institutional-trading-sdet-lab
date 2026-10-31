@@ -45,6 +45,49 @@ async function requestRun(page: Page) {
   await page.getByRole('button', { name: 'Request reconciliation', exact: true }).click();
   await expect(page.locator('#recon-summary')).toContainText('Verification complete');
 }
+test('a delayed historical run cannot replace the newer selected run', async ({ page }) => {
+  const f = await fixture(page);
+  let release = () => {};
+  try {
+    await requestRun(page);
+    await requestRun(page);
+    const selection = page.getByLabel('Reconciliation run', { exact: true });
+    await expect(selection.locator('option')).toHaveCount(2);
+    const ids = await selection
+      .locator('option')
+      .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    const old = ids[0]!,
+      current = ids[1]!;
+    let reached!: () => void;
+    const arrived = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(`**/reconciliation-runs/${old}`, async (route) => {
+      const response = await route.fetch();
+      reached();
+      await blocked;
+      await route.fulfill({ response });
+    });
+    await selection.selectOption(old);
+    await arrived;
+    await expect(
+      page.getByRole('button', { name: 'Load authorized sandbox', exact: true }),
+    ).toBeDisabled();
+    await selection.selectOption(current);
+    release();
+    await expect(
+      page.getByRole('button', { name: 'Load authorized sandbox', exact: true }),
+    ).toBeEnabled();
+    await expect(page.locator('#recon-provenance')).toContainText(current);
+    await expect(page.locator('#recon-provenance')).not.toContainText(old);
+  } finally {
+    release();
+    await f.close();
+  }
+});
 test('clean durable assessment exposes historical watermark and immutable source/coverage evidence', async ({
   page,
 }) => {
