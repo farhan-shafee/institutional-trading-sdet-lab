@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { executionSandbox } from './execution-fixture.js';
 import { connection } from './harness.js';
-export async function fixture() {
-  const s = await executionSandbox();
+export async function fixture(...args: Parameters<typeof executionSandbox>) {
+  const s = await executionSandbox(...args);
   await s.app.query("SELECT set_config('tradeflow.sandbox_id',$1,false)", [s.id]);
   const channel = randomUUID();
   async function command(
