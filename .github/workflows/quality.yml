@@ -58,6 +58,8 @@ jobs:
         run: npx playwright install --with-deps chromium firefox webkit
       - name: API, contract and cross-browser tests
         run: npm test
+      - name: Repeated API, contract and cross-browser tests
+        run: npm test -- --repeat-each=2 --retries=0
       - name: HTML report
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
