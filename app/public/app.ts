@@ -1,4 +1,5 @@
 import { fixedIncomeView } from './fixed-income.js';
+import { rfqView } from './rfq.js';
 import { z } from 'zod';
 import {
   createOrderSchema,
@@ -122,9 +123,18 @@ const fixedIncome = fixedIncomeView(
     showError(new Error('Session expired. Sign in again.'));
   },
 );
+const rfqs = rfqView(
+  () => token,
+  () => user?.role,
+  () => {
+    showLogin();
+    showError(new Error('Session expired. Sign in again.'));
+  },
+);
 
 function resetSessionData(): void {
   fixedIncome.reset();
+  rfqs.reset();
   selectedOrder = undefined;
   completeOrders = undefined;
   sessionPositions = undefined;
@@ -477,6 +487,7 @@ async function openWorkspace(): Promise<void> {
   element('viewer-note').hidden = user?.role !== 'viewer';
   showView('orders');
   await Promise.all([refreshOrders(), loadPositions()]);
+  void rfqs.initialize();
 }
 
 async function signIn(): Promise<void> {

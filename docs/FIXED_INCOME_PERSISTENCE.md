@@ -1,5 +1,7 @@
 # Phase 2A persistence and ownership foundation
 
+Phase 2B extends this foundation with [dealer RFQs and atomic quote acceptance](FIXED_INCOME_RFQ.md). The sections below retain the Phase 2A ownership contract; its command-only audit cursor has been extended to the unique command/event pair, and retention cleanup now includes the new owned records. The feature remains default OFF and local/CI-only.
+
 This candidate adds persistent synthetic bond **sandbox ownership**, not bond trading. RFQs, dealer quotations, orders, executions, positions, FIX and settlement remain unimplemented. The existing equity lab and Phase 1 analytics retain their current behavior. Nothing in this milestone deploys to Railway or changes Cloudflare.
 
 ## Enablement and isolation
