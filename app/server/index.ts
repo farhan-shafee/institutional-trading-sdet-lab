@@ -1,4 +1,6 @@
 import { fixedIncomeRead } from './fixed-income.js';
+import { WorkflowRoutes } from './fixed-income-workflow/routes.js';
+import type { WorkflowDatabase } from '../persistence/postgres/workflow.js';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
@@ -132,11 +134,17 @@ export function createApplicationServer(
   options: {
     configuration?: ApplicationConfiguration;
     now?: () => number;
+    workflowDatabase?: WorkflowDatabase;
   } = {},
 ) {
   const configuration = options.configuration ?? readConfiguration({});
   const now = options.now ?? (() => performance.now());
   const hosted = configuration.mode === 'hosted-demo';
+  const workflow = new WorkflowRoutes(
+    configuration.workflow?.databaseUrl,
+    now,
+    options.workflowDatabase,
+  );
   const sessions = new SessionStore({
     ...(hosted ? { limits: configuration.limits } : {}),
     now,
@@ -228,12 +236,34 @@ export function createApplicationServer(
       }
     }
 
+    if (
+      (url.pathname === '/api/fixed-income/v1/workflow/status' ||
+        url.pathname.startsWith('/api/fixed-income/v1/sandboxes')) &&
+      (await workflow.handle({
+        request,
+        response,
+        url,
+        token: token!,
+        authenticate: () => sessions.authenticate(token).user,
+        readJson: () => readJson(request),
+        admitLegacyMutation: () => {
+          mutations?.take();
+          sessions.admitMutation(token);
+        },
+        respond: (status, body) => json(response, status, body),
+      }))
+    )
+      return;
+
     if (url.pathname === '/api/session' && method === 'GET') {
       json(response, 200, { user: session.user });
       return;
     }
     if (url.pathname === '/api/session' && method === 'DELETE') {
-      if (token) sessions.delete(token);
+      if (token) {
+        sessions.delete(token);
+        workflow.bindings.forget(token);
+      }
       response.writeHead(204);
       response.end();
       return;
@@ -342,6 +372,7 @@ export function createApplicationServer(
   server.once('close', () => {
     clearInterval(expirySweep);
     sessions.clear();
+    void workflow.close().catch(() => console.error('TradeFlow workflow cleanup unavailable.'));
   });
   return server;
 }

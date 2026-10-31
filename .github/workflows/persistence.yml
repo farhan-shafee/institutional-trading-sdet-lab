@@ -1,0 +1,40 @@
+name: TradeFlow persistence foundation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: persistence-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Audit full dependency graph
+        run: npm audit
+      - name: Audit runtime dependency graph
+        run: npm audit --omit=dev
+      - name: Validate SQL and runtime contract
+        run: npm run workflow:validate
+      - name: Real PostgreSQL foundation, contracts, concurrency and recovery
+        run: npm run test:postgres
+      - name: Repeat using a fresh owned PostgreSQL instance
+        run: npm run test:postgres
