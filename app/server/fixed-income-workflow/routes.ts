@@ -15,6 +15,9 @@ import { WorkflowService } from './service.js';
 import { RfqService } from './rfq-service.js';
 import { OrderService } from './order-service.js';
 import { handleOrder } from './order-routes.js';
+import { ReconciliationService } from '../reconciliation/service.js';
+import { handleReconciliation } from '../reconciliation/routes.js';
+import type { RunnerHooks } from '../reconciliation/runner.js';
 import { handleRfq } from './rfq-routes.js';
 
 export type WorkflowContext = {
@@ -32,19 +35,34 @@ const root = '/api/fixed-income/v1';
 export class WorkflowRoutes {
   readonly bindings: WorkflowBindings;
   readonly service: WorkflowService | undefined;
-  constructor(databaseUrl?: string, now?: () => number, database?: WorkflowDatabase) {
+  readonly reconciliation: ReconciliationService | undefined;
+  constructor(
+    databaseUrl?: string,
+    now?: () => number,
+    database?: WorkflowDatabase,
+    reconcilerUrl?: string,
+    hooks?: RunnerHooks,
+  ) {
     this.bindings = new WorkflowBindings(now);
     this.service = databaseUrl
       ? new WorkflowService(database ?? new WorkflowDatabase(databaseUrl))
       : undefined;
+    this.reconciliation = this.service
+      ? new ReconciliationService(this.service.database, reconcilerUrl, hooks)
+      : undefined;
   }
   async close(): Promise<void> {
     this.bindings.clear();
-    await this.service?.database.close();
+    await Promise.all([this.service?.database.close(), this.reconciliation?.close()]);
   }
   async handle(context: WorkflowContext): Promise<boolean> {
     const { request, response, url, token, authenticate, respond } = context;
     const method = request.method ?? 'GET';
+    if (
+      this.reconciliation &&
+      (await handleReconciliation(context, this.bindings, this.reconciliation))
+    )
+      return true;
     if (
       this.service &&
       (await handleOrder(context, this.bindings, new OrderService(this.service.database)))

@@ -77,6 +77,18 @@ export class WorkflowDatabase {
             db.release(true);
           }
           if (error instanceof DomainError) throw error;
+          if (
+            !commitDispatched &&
+            typeof error === 'object' &&
+            error !== null &&
+            'code' in error &&
+            error.code === 'TF409'
+          )
+            throw new DomainError(
+              409,
+              'IDEMPOTENCY_KEY_REUSED',
+              'The key belongs to another fixed-income command.',
+            );
           const code =
             typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
           if (
