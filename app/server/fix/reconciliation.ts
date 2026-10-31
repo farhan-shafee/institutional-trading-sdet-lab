@@ -7,8 +7,8 @@ import type { VerificationDatabase } from '../reconciliation/database.js';
 const watermark = z.string().regex(/^[0-9]{1,4}$/);
 const reportSchema = z
   .object({
-    profile: z.literal('fix-foundation-v1'),
-    physical_schema_revision: z.literal(6),
+    profile: z.literal('fix-foundation-v2'),
+    physical_schema_revision: z.literal(8),
     snapshot_id: z
       .string()
       .regex(/^[0-9]+:[0-9]+:[0-9,]*$/)
@@ -44,12 +44,12 @@ export async function verifyFixFoundation(
   if (!enabled)
     throw new DomainError(503, 'FIX_FOUNDATION_DISABLED', 'FIX foundation is disabled.');
   const sql = await readFile(
-    new URL('../../../verification/sql/fix_foundation.sql', import.meta.url),
+    new URL('../../../verification/sql/fix_foundation_v2.sql', import.meta.url),
     'utf8',
   );
   if (
     createHash('sha256').update(sql).digest('hex') !==
-    'a8c065af56022372b10d28fdc142e0f6c6f5da3a9d4ee1627ec02eac6c910bde'
+    'd1da1d8fccf8860ce0cf363c98aeac5b1afbfcd95868daf5ce5241d6e7359722'
   )
     throw new DomainError(503, 'VERIFICATION_SOURCE_CHANGED', 'Protocol verifier source changed.');
   return database.transaction(true, verify, async (db) => {
