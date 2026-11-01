@@ -84,6 +84,33 @@ issues AS (
  ELSE true END,false)
  UNION ALL SELECT 'RAW_BYTES',a.id::text FROM fi.fix_attempts a WHERE a.sandbox_id=$1 AND (a.raw_hash<>encode(sha256(a.raw_bytes),'hex') OR NOT EXISTS(SELECT 1 FROM fi.fix_messages m WHERE m.sandbox_id=a.sandbox_id AND m.id=a.message_id))
  UNION ALL SELECT 'SEMANTIC_HASH',m.id::text FROM fi.fix_messages m WHERE m.sandbox_id=$1 AND m.semantic_hash<>encode(sha256(convert_to((m.fields-ARRAY['8','9','10','34','43','52','122'])::text,'UTF8')),'hex')
+ -- Reverse existence starts from retained messages, not only surviving wire rows.
+ UNION ALL SELECT 'MISSING_PHYSICAL_EVIDENCE',m.id::text FROM fi.fix_messages m WHERE m.sandbox_id=$1 AND NOT EXISTS(
+ SELECT 1 FROM fi.fix_attempts a WHERE a.sandbox_id=m.sandbox_id AND a.message_id=m.id)
+ UNION ALL SELECT 'MESSAGE_SEQUENCE',m.id::text FROM fi.fix_messages m WHERE m.sandbox_id=$1 AND NOT EXISTS(
+ SELECT 1 FROM fi.fix_bindings b
+ JOIN fi.fix_channels ch ON(ch.sandbox_id,ch.id,ch.dealer_id)=(b.sandbox_id,b.channel_id,b.dealer_id)
+ JOIN fi.fix_sequence_slots x ON x.sandbox_id=b.sandbox_id AND x.channel_id=b.channel_id AND x.message_id=m.id AND x.epoch=ch.epoch AND x.direction=m.direction
+ WHERE b.sandbox_id=m.sandbox_id AND b.order_id=m.order_id AND b.dealer_id=m.dealer_id AND ch.epoch=1)
+ -- A receipt must retain its specific attempt, including when another attempt survives.
+ UNION ALL SELECT 'RECORD_EVIDENCE',c.id::text FROM fi.fix_commands c WHERE c.sandbox_id=$1 AND c.operation='RECORD' AND NOT EXISTS(
+ SELECT 1 FROM wire_evidence a
+ JOIN fi.fix_messages m ON(m.sandbox_id,m.id)=(a.sandbox_id,a.message_id)
+ JOIN fi.fix_bindings b ON(b.sandbox_id,b.order_id,b.dealer_id)=(m.sandbox_id,m.order_id,m.dealer_id)
+ JOIN fi.fix_channels ch ON(ch.sandbox_id,ch.id,ch.dealer_id)=(b.sandbox_id,b.channel_id,b.dealer_id)
+ JOIN fi.fix_sequence_slots x ON x.sandbox_id=m.sandbox_id AND x.channel_id=b.channel_id AND x.message_id=m.id AND x.epoch=ch.epoch AND x.direction=m.direction AND x.message_seq::text=a.decoded->>'34'
+ WHERE a.sandbox_id=c.sandbox_id AND ch.epoch=1 AND c.http_status=201 AND jsonb_typeof(c.response_body)='object'
+ AND c.response_body->'attempt_id'=to_jsonb(a.id::text)
+ AND c.response_body->'message_id'=to_jsonb(m.id::text)
+ AND c.response_body->'order_id'=to_jsonb(m.order_id::text)
+ AND c.response_body->'raw_hash'=to_jsonb(a.raw_hash)
+ AND c.response_body->'semantic_hash'=to_jsonb(m.semantic_hash)
+ AND a.raw_hash=encode(sha256(a.raw_bytes),'hex')
+ AND m.semantic_hash=encode(sha256(convert_to((a.decoded-ARRAY['8','9','10','34','43','52','122'])::text,'UTF8')),'hex')
+ AND a.decoded->>'35'=m.message_type
+ AND m.direction=CASE WHEN a.decoded->>'35' IN ('D','F') THEN 'OUT' ELSE 'IN' END
+ AND a.state=CASE m.direction WHEN 'IN' THEN 'RECEIVED' ELSE 'STAGED' END
+ AND c.request_hash=encode(sha256(convert_to(jsonb_build_object('version',1,'sandbox',c.sandbox_id,'operation','RECORD','payload',jsonb_build_object('order_id',m.order_id::text,'attempt_id',a.id::text,'raw_hex',encode(a.raw_bytes,'hex')))::text,'UTF8')),'hex'))
  UNION ALL SELECT 'MISSING_OUTBOX',m.id::text FROM fi.fix_messages m WHERE m.sandbox_id=$1 AND m.direction='OUT' AND NOT EXISTS(SELECT 1 FROM fi.fix_outbox o WHERE o.sandbox_id=m.sandbox_id AND o.message_id=m.id AND o.order_id=m.order_id)
  UNION ALL SELECT 'OUTBOX_REFERENCE',o.message_id::text FROM fi.fix_outbox o WHERE o.sandbox_id=$1 AND (o.delivery_state IS DISTINCT FROM 'NOT_IMPLEMENTED' OR NOT EXISTS(SELECT 1 FROM fi.fix_messages m WHERE m.sandbox_id=o.sandbox_id AND m.id=o.message_id AND m.order_id=o.order_id AND m.direction='OUT'))
  UNION ALL SELECT 'LANE_SEQUENCE',w.id::text FROM fi.fix_work w WHERE w.sandbox_id=$1 AND w.lane_seq<>(SELECT count(*) FROM fi.fix_work x WHERE x.sandbox_id=w.sandbox_id AND x.order_id=w.order_id AND x.lane_seq<=w.lane_seq)
@@ -102,7 +129,7 @@ issues AS (
  UNION ALL SELECT 'WORK_OPERATION',w.id::text FROM fi.fix_work w JOIN fi.fix_messages m ON(m.sandbox_id,m.id)=(w.sandbox_id,w.message_id) WHERE w.sandbox_id=$1 AND w.operation IS DISTINCT FROM CASE m.message_type WHEN 'F' THEN 'REQUEST_CANCEL' WHEN '9' THEN 'REJECT_CANCEL' WHEN '8' THEN CASE m.fields->>'150' WHEN '0' THEN 'ACK_ORDER' WHEN '8' THEN 'REJECT_ORDER' WHEN 'F' THEN 'EXECUTE_ORDER' WHEN '4' THEN 'ACK_CANCEL' WHEN '6' THEN 'PROTOCOL_ONLY' END END
  UNION ALL SELECT 'PREPARED_REFERENCE',p.work_id::text FROM fi.fix_prepared p JOIN fi.fix_work w ON(w.sandbox_id,w.id)=(p.sandbox_id,p.work_id) JOIN fi.fix_messages m ON(m.sandbox_id,m.id)=(w.sandbox_id,w.message_id) JOIN fi.fix_lanes l ON(l.sandbox_id,l.order_id)=(p.sandbox_id,p.order_id) WHERE p.sandbox_id=$1 AND (p.operation<>w.operation OR p.prepared_fence>l.fence OR p.payload IS DISTINCT FROM (jsonb_build_object('order_id',w.order_id,'expected_version','1')||CASE WHEN w.operation='EXECUTE_ORDER' THEN jsonb_build_object('execution_id',m.execution_id,'source_event_id',m.source_event_id,'par_amount',m.fields->>'32') WHEN w.operation IN ('REQUEST_CANCEL','ACK_CANCEL','REJECT_CANCEL') THEN jsonb_build_object('cancel_id',m.fields->>'11') ELSE '{}'::jsonb END))
  UNION ALL SELECT 'OUTCOME_ELIGIBILITY',o.work_id::text FROM fi.fix_outcomes o JOIN fi.fix_work w ON(w.sandbox_id,w.id)=(o.sandbox_id,o.work_id) WHERE o.sandbox_id=$1 AND (w.operation<>'PROTOCOL_ONLY' OR NOT EXISTS(SELECT 1 FROM fi.fix_prepared p WHERE p.sandbox_id=o.sandbox_id AND p.work_id=o.work_id))
- UNION ALL SELECT 'AUDIT_CORRESPONDENCE',c.id::text FROM fi.fix_commands c JOIN fi.fix_events e ON(e.sandbox_id,e.command_seq)=(c.sandbox_id,c.command_seq) WHERE c.sandbox_id=$1 AND (e.event_type<>c.operation OR e.order_id::text IS DISTINCT FROM c.response_body->>'order_id' OR e.payload IS DISTINCT FROM jsonb_build_object('financial_applied',false,'record',c.response_body-'payload'))
+ UNION ALL SELECT 'AUDIT_CORRESPONDENCE',c.id::text FROM fi.fix_commands c JOIN fi.fix_events e ON(e.sandbox_id,e.command_seq)=(c.sandbox_id,c.command_seq) WHERE c.sandbox_id=$1 AND (e.event_type<>c.operation OR e.order_id::text IS DISTINCT FROM c.response_body->>'order_id' OR e.payload IS DISTINCT FROM jsonb_build_object('financial_applied',false,'record',CASE WHEN jsonb_typeof(c.response_body)='object' THEN c.response_body-'payload' ELSE NULL::jsonb END))
  UNION ALL SELECT 'MANUAL_FIX_WRITER',c.id::text FROM fi.commands c JOIN fi.fix_bindings b ON(b.sandbox_id,b.order_id::text)=(c.sandbox_id,c.response_body->>'order_id') WHERE c.sandbox_id=$1 AND c.created_at>b.created_at AND c.operation IN ('ACK_ORDER','REJECT_ORDER','EXECUTE_ORDER','REQUEST_CANCEL','ACK_CANCEL','REJECT_CANCEL')
 )
 SELECT 'fix-foundation-v1' AS profile,6 AS physical_schema_revision,

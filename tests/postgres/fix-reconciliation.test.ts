@@ -719,8 +719,12 @@ void test('independent verifier detects coherent message-price corruption agains
       'FOUNDATION_FINDINGS',
       'Independent verifier must reject wire evidence that contradicts the frozen order contract.',
     );
-    assert.deepEqual(actual.findings, [{ code: 'MESSAGE_CONTRACT', record_id: message }]);
-    assert.equal(actual.total_findings, 1);
+    const expected = [
+      { code: 'MESSAGE_CONTRACT', record_id: message },
+      ...recordEvidenceFindings(original, String(message)),
+    ];
+    assert.deepEqual(actual.findings, expected);
+    assert.equal(actual.total_findings, expected.length);
     assert.deepEqual(scopeEvidence(actual), scopeEvidence(baseline));
   } finally {
     await admin.query('ROLLBACK');
@@ -1014,7 +1018,10 @@ async function assertContractFinding(
         'Contract corruption changed non-wire state: ' + table,
       );
   const assessment = await verifyFixFoundation(context.database, context.binding, () => {}, true);
-  const expected = [{ code: 'MESSAGE_CONTRACT', record_id: target.message }];
+  const expected = [
+    { code: 'MESSAGE_CONTRACT', record_id: target.message },
+    ...recordEvidenceFindings(target.original, target.message),
+  ];
   if (mixedRepresentations) expected.push({ code: 'WIRE_SEMANTICS', record_id: target.attempt });
   assert.equal(assessment.foundation_assessment, 'FOUNDATION_FINDINGS');
   assert.deepEqual(assessment.findings, expected);
@@ -1242,4 +1249,721 @@ void test('stored message and independently decoded physical evidence are each c
       await corruptContractEvidence(context, target, { '44': '999.000000000000' }, mode);
       await assertContractFinding(context, target, true);
     });
+});
+
+void test('independent verifier detects missing sole physical attempts and sequence slots for retained IN and OUT messages', async () => {
+  const observations: {
+    assessment: FixAssessment;
+    expected: { code: string; record_id: string }[];
+  }[] = [];
+  for (const direction of ['IN', 'OUT'] as const)
+    await withContractSandbox(async ({ s, admin, database, binding }) => {
+      const reconciler = await connection('reconciler');
+      try {
+        const base = await report(s),
+          incomingAttempt = randomUUID(),
+          outgoingAttempt = randomUUID(),
+          incomingKey = randomUUID(),
+          outgoingKey = randomUUID(),
+          incoming = await record(s, base, incomingKey, incomingAttempt),
+          outgoing = await record(s, outboundFields(base), outgoingKey, outgoingAttempt);
+        assert.equal(incoming.status, 201);
+        assert.equal(outgoing.status, 201);
+        assert.equal(incoming.body['financial_applied'], false);
+        assert.equal(outgoing.body['financial_applied'], false);
+        const message = String((direction === 'IN' ? incoming : outgoing).body['message_id']),
+          attempt = direction === 'IN' ? incomingAttempt : outgoingAttempt,
+          key = direction === 'IN' ? incomingKey : outgoingKey,
+          original = await durableFixSnapshot(s.id),
+          receipt = String(
+            original['fix_commands']!.find((c) => c['idempotency_key'] === key)!['id'],
+          );
+        assert.equal(original['fix_messages']!.length, 2);
+        assert.deepEqual(original['fix_messages']!.map((m) => m['direction']).sort(), [
+          'IN',
+          'OUT',
+        ]);
+        assert.equal(original['fix_attempts']!.length, 2);
+        assert.equal(original['fix_sequence_slots']!.length, 2);
+        assert.equal(original['fix_outbox']!.length, 1);
+        assert.equal(
+          original['fix_attempts']!.filter((a) => a['message_id'] === message).length,
+          1,
+        );
+        const healthy = await verifyFixFoundation(database, binding, () => {}, true);
+        assert.equal(healthy.foundation_assessment, 'FOUNDATION_CONSISTENT');
+        assert.deepEqual(healthy.findings, []);
+        for (const client of [s.app, reconciler]) {
+          await assert.rejects(
+            client.query('DELETE FROM fi.fix_attempts WHERE sandbox_id=$1 AND id=$2', [
+              s.id,
+              attempt,
+            ]),
+            { code: '42501' },
+          );
+          await assert.rejects(
+            client.query(
+              'DELETE FROM fi.fix_sequence_slots WHERE sandbox_id=$1 AND message_id=$2',
+              [s.id, message],
+            ),
+            { code: '42501' },
+          );
+        }
+        assert.ok(isDeepStrictEqual(await durableFixSnapshot(s.id), original));
+        await corruptOutbox(admin, 'DELETE FROM fi.fix_attempts WHERE sandbox_id=$1 AND id=$2', [
+          s.id,
+          attempt,
+        ]);
+        await corruptOutbox(
+          admin,
+          'DELETE FROM fi.fix_sequence_slots WHERE sandbox_id=$1 AND message_id=$2',
+          [s.id, message],
+        );
+        const damaged = await durableFixSnapshot(s.id);
+        assert.ok(
+          isDeepStrictEqual(damaged, {
+            ...original,
+            fix_attempts: original['fix_attempts']!.filter((a) => a['id'] !== attempt),
+            fix_sequence_slots: original['fix_sequence_slots']!.filter(
+              (x) => x['message_id'] !== message,
+            ),
+          }),
+          'Corruption must retain the logical messages, successful receipts, outbox and opposite-direction graph.',
+        );
+        const assessment = await verifyFixFoundation(database, binding, () => {}, true),
+          repeated = await verifyFixFoundation(database, binding, () => {}, true),
+          expected = [
+            { code: 'MESSAGE_SEQUENCE', record_id: message },
+            { code: 'MISSING_PHYSICAL_EVIDENCE', record_id: message },
+            { code: 'RECORD_EVIDENCE', record_id: receipt },
+          ];
+        console.log(
+          'Missing sole physical evidence assessment:',
+          JSON.stringify({
+            direction,
+            message,
+            attempt,
+            receipt,
+            healthy: healthy.foundation_assessment,
+            corrupted: assessment.foundation_assessment,
+            findings: assessment.findings,
+            logicalMessages: damaged['fix_messages']!.length,
+            physicalAttempts: damaged['fix_attempts']!.length,
+            sequenceSlots: damaged['fix_sequence_slots']!.length,
+            outboxIntents: damaged['fix_outbox']!.length,
+            appAndReconcilerDeletionDenied: true,
+            scope: scopeEvidence(assessment),
+          }),
+        );
+        assert.deepEqual(scopeEvidence(assessment), scopeEvidence(healthy));
+        assert.deepEqual(repeated.findings, assessment.findings);
+        assert.deepEqual(scopeEvidence(repeated), scopeEvidence(healthy));
+        assert.ok(
+          isDeepStrictEqual(await durableFixSnapshot(s.id), damaged),
+          'Verifier mutated retained evidence.',
+        );
+        observations.push({ assessment, expected });
+      } finally {
+        await reconciler.end();
+      }
+    });
+  for (const { assessment, expected } of observations) {
+    assert.equal(assessment.foundation_assessment, 'FOUNDATION_FINDINGS');
+    assert.deepEqual(assessment.findings, expected);
+    assert.equal(assessment.total_findings, expected.length);
+  }
+});
+
+void test('independent verifier detects a lost physical retransmission attempt while its same-sequence sibling and successful receipt survive', async () => {
+  await withContractSandbox(async ({ s, admin, database, binding }) => {
+    const base = await report(s),
+      lostAttempt = randomUUID(),
+      survivingAttempt = randomUUID(),
+      lostKey = randomUUID(),
+      first = await record(s, base, lostKey, lostAttempt),
+      retransmission = await record(
+        s,
+        {
+          ...base,
+          '43': 'Y',
+          '122': base['52'],
+          '52': '20261030-12:01:00.000',
+        },
+        randomUUID(),
+        survivingAttempt,
+      ),
+      outgoing = await record(s, outboundFields(base));
+    assert.equal(first.status, 201);
+    assert.equal(retransmission.status, 201);
+    assert.equal(outgoing.status, 201);
+    assert.equal(retransmission.body['message_id'], first.body['message_id']);
+    assert.equal(retransmission.body['logical_duplicate'], true);
+    assert.equal(retransmission.body['physical_duplicate'], false);
+    const message = String(first.body['message_id']),
+      original = await durableFixSnapshot(s.id),
+      receipt = String(
+        original['fix_commands']!.find((c) => c['idempotency_key'] === lostKey)!['id'],
+      );
+    assert.equal(original['fix_messages']!.length, 2);
+    assert.equal(original['fix_attempts']!.length, 3);
+    assert.equal(original['fix_sequence_slots']!.length, 2);
+    assert.equal(original['fix_attempts']!.filter((a) => a['message_id'] === message).length, 2);
+    assert.equal(
+      original['fix_sequence_slots']!.filter(
+        (x) => x['message_id'] === message && x['message_seq'] === 1,
+      ).length,
+      1,
+    );
+    const healthy = await verifyFixFoundation(database, binding, () => {}, true);
+    assert.equal(healthy.foundation_assessment, 'FOUNDATION_CONSISTENT');
+    assert.deepEqual(healthy.findings, []);
+    await assert.rejects(
+      s.app.query('DELETE FROM fi.fix_attempts WHERE sandbox_id=$1 AND id=$2', [s.id, lostAttempt]),
+      { code: '42501' },
+    );
+    assert.ok(isDeepStrictEqual(await durableFixSnapshot(s.id), original));
+    await corruptOutbox(admin, 'DELETE FROM fi.fix_attempts WHERE sandbox_id=$1 AND id=$2', [
+      s.id,
+      lostAttempt,
+    ]);
+    const damaged = await durableFixSnapshot(s.id);
+    assert.ok(
+      isDeepStrictEqual(damaged, {
+        ...original,
+        fix_attempts: original['fix_attempts']!.filter((a) => a['id'] !== lostAttempt),
+      }),
+      'Only the named physical attempt may be removed; its receipt and same-sequence sibling must survive.',
+    );
+    assert.ok(
+      damaged['fix_attempts']!.some(
+        (a) => a['id'] === survivingAttempt && a['message_id'] === message,
+      ),
+    );
+    const assessment = await verifyFixFoundation(database, binding, () => {}, true),
+      repeated = await verifyFixFoundation(database, binding, () => {}, true);
+    console.log(
+      'Lost retransmission evidence assessment:',
+      JSON.stringify({
+        message,
+        lostAttempt,
+        survivingAttempt,
+        receipt,
+        healthy: healthy.foundation_assessment,
+        corrupted: assessment.foundation_assessment,
+        findings: assessment.findings,
+        logicalMessages: damaged['fix_messages']!.length,
+        physicalAttempts: damaged['fix_attempts']!.length,
+        sequenceSlots: damaged['fix_sequence_slots']!.length,
+        retainedReceipt: true,
+        appDeletionDenied: true,
+        scope: scopeEvidence(assessment),
+      }),
+    );
+    assert.deepEqual(scopeEvidence(assessment), scopeEvidence(healthy));
+    assert.deepEqual(repeated.findings, assessment.findings);
+    assert.deepEqual(scopeEvidence(repeated), scopeEvidence(healthy));
+    assert.ok(
+      isDeepStrictEqual(await durableFixSnapshot(s.id), damaged),
+      'Verifier mutated retained evidence.',
+    );
+    assert.equal(assessment.foundation_assessment, 'FOUNDATION_FINDINGS');
+    assert.deepEqual(assessment.findings, [{ code: 'RECORD_EVIDENCE', record_id: receipt }]);
+    assert.equal(assessment.total_findings, 1);
+  });
+});
+
+type EvidenceFinding = { code: string; record_id: string };
+function recordEvidenceFindings(
+  snapshot: Awaited<ReturnType<typeof durableFixSnapshot>>,
+  message: string,
+) {
+  const receipts = snapshot['fix_commands']!.filter(
+    (c) =>
+      c['operation'] === 'RECORD' &&
+      (c['response_body'] as Record<string, unknown>)['message_id'] === message,
+  );
+  assert.ok(receipts.length > 0, 'A successful RECORD receipt must predate the corruption.');
+  return receipts
+    .map((c) => ({ code: 'RECORD_EVIDENCE', record_id: String(c['id']) }))
+    .sort((a, b) => (a.record_id < b.record_id ? -1 : a.record_id > b.record_id ? 1 : 0));
+}
+async function assertReverseEvidence(
+  context: ContractContext,
+  original: Awaited<ReturnType<typeof durableFixSnapshot>>,
+  healthy: FixAssessment,
+  expected: EvidenceFinding[],
+  changedTables: string[],
+) {
+  const damaged = await durableFixSnapshot(context.s.id);
+  for (const table of Object.keys(original))
+    if (!changedTables.includes(table))
+      assert.ok(
+        isDeepStrictEqual(damaged[table], original[table]),
+        'Unexpected corruption outside ' + changedTables.join(', ') + ': ' + table,
+      );
+  const findings = [...expected].sort((a, b) =>
+    a.code < b.code
+      ? -1
+      : a.code > b.code
+        ? 1
+        : a.record_id < b.record_id
+          ? -1
+          : a.record_id > b.record_id
+            ? 1
+            : 0,
+  );
+  const assessment = await verifyFixFoundation(context.database, context.binding, () => {}, true);
+  assert.equal(assessment.foundation_assessment, 'FOUNDATION_FINDINGS');
+  assert.deepEqual(assessment.findings, findings);
+  assert.equal(assessment.total_findings, findings.length);
+  assert.deepEqual(scopeEvidence(assessment), scopeEvidence(healthy));
+  const repeated = await verifyFixFoundation(context.database, context.binding, () => {}, true);
+  assert.deepEqual(repeated.findings, findings);
+  assert.deepEqual(scopeEvidence(repeated), scopeEvidence(healthy));
+  assert.ok(
+    isDeepStrictEqual(await durableFixSnapshot(context.s.id), damaged),
+    'Verifier mutated damaged evidence.',
+  );
+}
+async function rewriteRecordReceipt(context: ContractContext, receipt: string, body: unknown) {
+  // Keep the audit payload coherent for object bodies, so receipt checks have an independent oracle.
+  if (body !== null && typeof body === 'object' && !Array.isArray(body))
+    await corruptOutbox(
+      context.admin,
+      "WITH changed AS (UPDATE fi.fix_commands SET response_body=$3::jsonb WHERE sandbox_id=$1 AND id=$2 RETURNING sandbox_id,command_seq,response_body) UPDATE fi.fix_events e SET payload=jsonb_build_object('financial_applied',false,'record',changed.response_body-'payload') FROM changed WHERE (e.sandbox_id,e.command_seq)=(changed.sandbox_id,changed.command_seq)",
+      [context.s.id, receipt, JSON.stringify(body)],
+    );
+  else
+    await corruptOutbox(
+      context.admin,
+      'UPDATE fi.fix_commands SET response_body=$3::jsonb WHERE sandbox_id=$1 AND id=$2',
+      [context.s.id, receipt, JSON.stringify(body)],
+    );
+}
+
+void test('healthy reverse evidence retains one logical identity across same/new-sequence retransmission, physical reuse and original-key replay', async () => {
+  for (const direction of ['IN', 'OUT'] as const)
+    await withContractSandbox(async ({ s, database, binding }) => {
+      const base = await report(s),
+        fields = direction === 'IN' ? base : outboundFields(base),
+        key = randomUUID(),
+        attempt = randomUUID(),
+        first = await record(s, fields, key, attempt);
+      assert.equal(first.status, 201);
+      assert.equal(first.body['logical_duplicate'], false);
+      assert.equal(first.body['physical_duplicate'], false);
+      const initial = await durableFixSnapshot(s.id);
+      assert.equal(initial['fix_messages']!.length, 1);
+      assert.equal(initial['fix_attempts']!.length, 1);
+      assert.equal(initial['fix_sequence_slots']!.length, 1);
+      const initialAssessment = await verifyFixFoundation(database, binding, () => {}, true);
+      assert.equal(initialAssessment.foundation_assessment, 'FOUNDATION_CONSISTENT');
+      assert.deepEqual(initialAssessment.findings, []);
+      assert.ok(isDeepStrictEqual(await durableFixSnapshot(s.id), initial));
+      const reused = await record(s, fields, randomUUID(), attempt);
+      assert.equal(reused.status, 201);
+      assert.equal(reused.body['message_id'], first.body['message_id']);
+      assert.equal(reused.body['logical_duplicate'], true);
+      assert.equal(reused.body['physical_duplicate'], true);
+      const reusedState = await durableFixSnapshot(s.id);
+      assert.equal(reusedState['fix_commands']!.length, initial['fix_commands']!.length + 1);
+      assert.equal(reusedState['fix_events']!.length, initial['fix_events']!.length + 1);
+      for (const table of Object.keys(initial))
+        if (!['fix_commands', 'fix_events', 'command_keys'].includes(table))
+          assert.ok(
+            isDeepStrictEqual(reusedState[table], initial[table]),
+            'Physical reuse changed ' + table,
+          );
+      const replay = await record(s, fields, key, attempt);
+      assert.equal(replay.status, 201);
+      assert.equal(replay.replayed, true);
+      assert.deepEqual(replay.body, first.body);
+      assert.ok(
+        isDeepStrictEqual(await durableFixSnapshot(s.id), reusedState),
+        'Original replay created another receipt or observation.',
+      );
+      const same = await record(s, {
+          ...fields,
+          '43': 'Y',
+          '122': base['52'],
+          '52': '20261030-12:01:00.000',
+        }),
+        next = await record(s, {
+          ...fields,
+          '34': '2',
+          '43': 'Y',
+          '122': base['52'],
+          '52': '20261030-12:02:00.000',
+        });
+      for (const observed of [same, next]) {
+        assert.equal(observed.status, 201);
+        assert.equal(observed.body['message_id'], first.body['message_id']);
+        assert.equal(observed.body['logical_duplicate'], true);
+        assert.equal(observed.body['physical_duplicate'], false);
+      }
+      const final = await durableFixSnapshot(s.id);
+      assert.equal(final['fix_messages']!.length, 1);
+      assert.equal(final['fix_attempts']!.length, 3);
+      assert.equal(final['fix_sequence_slots']!.length, 2);
+      assert.equal(final['fix_commands']!.filter((c) => c['operation'] === 'RECORD').length, 4);
+      assert.equal(final['fix_outbox']!.length, direction === 'OUT' ? 1 : 0);
+      const assessment = await verifyFixFoundation(database, binding, () => {}, true);
+      assert.equal(assessment.foundation_assessment, 'FOUNDATION_CONSISTENT');
+      assert.deepEqual(assessment.findings, []);
+      assert.equal(assessment.total_findings, 0);
+      assert.equal(assessment.financial_watermark, initialAssessment.financial_watermark);
+      assert.equal(assessment.protocol_watermark, '5');
+      assert.equal(assessment.protocol_ingest_watermark, '5');
+      assert.equal(assessment.financial_application_verified, false);
+      assert.equal(assessment.delivery_verified, false);
+      assert.equal(assessment.complete, false);
+      assert.ok(isDeepStrictEqual(await durableFixSnapshot(s.id), final));
+    });
+});
+
+void test('reverse sequence and attempt evidence rejects missing, wrong-channel, wrong-direction and wrong-state witnesses', async () => {
+  const cases = [
+    'missing-attempt',
+    'missing-slot',
+    'channel',
+    'direction',
+    'sequence',
+    'state',
+    'lost-new-sequence-attempt',
+  ] as const;
+  for (const direction of ['IN', 'OUT'] as const)
+    for (const corruption of cases)
+      await withContractSandbox(async (context) => {
+        const { s, admin, database, binding } = context,
+          base = await report(s),
+          fields = direction === 'IN' ? base : outboundFields(base),
+          attempt = randomUUID(),
+          key = randomUUID(),
+          first = await record(s, fields, key, attempt);
+        assert.equal(first.status, 201);
+        const message = String(first.body['message_id']),
+          alternateChannel = corruption === 'channel' ? randomUUID() : undefined;
+        if (alternateChannel) {
+          const alternateOrder = await s.createOrder();
+          assert.equal(
+            (
+              await s.fix('BIND', {
+                order_id: alternateOrder,
+                dealer_id: 'ATLAS',
+                channel_id: alternateChannel,
+              })
+            ).status,
+            201,
+          );
+          assert.equal(
+            (
+              await admin.query('SELECT id FROM fi.fix_channels WHERE sandbox_id=$1 AND id=$2', [
+                s.id,
+                alternateChannel,
+              ])
+            ).rowCount,
+            1,
+            'The wrong-channel witness must still reference an existing legitimately bound channel.',
+          );
+        }
+        if (corruption === 'lost-new-sequence-attempt') {
+          const next = await record(s, { ...fields, '34': '2' });
+          assert.equal(next.status, 201);
+          assert.equal(next.body['message_id'], message);
+        }
+        const original = await durableFixSnapshot(s.id),
+          receipt = String(
+            original['fix_commands']!.find((c) => c['idempotency_key'] === key)!['id'],
+          ),
+          healthy = await verifyFixFoundation(database, binding, () => {}, true);
+        assert.equal(healthy.foundation_assessment, 'FOUNDATION_CONSISTENT');
+        assert.deepEqual(healthy.findings, []);
+        const expected: EvidenceFinding[] = [{ code: 'RECORD_EVIDENCE', record_id: receipt }];
+        let changedTables: string[];
+        if (corruption === 'missing-attempt' || corruption === 'lost-new-sequence-attempt') {
+          await corruptOutbox(admin, 'DELETE FROM fi.fix_attempts WHERE sandbox_id=$1 AND id=$2', [
+            s.id,
+            attempt,
+          ]);
+          changedTables = ['fix_attempts'];
+          expected.push({ code: 'SEQUENCE_CORRELATION', record_id: message });
+          if (corruption === 'missing-attempt')
+            expected.push({ code: 'MISSING_PHYSICAL_EVIDENCE', record_id: message });
+        } else if (corruption === 'state') {
+          await corruptOutbox(
+            admin,
+            'UPDATE fi.fix_attempts SET state=$3 WHERE sandbox_id=$1 AND id=$2',
+            [s.id, attempt, direction === 'IN' ? 'STAGED' : 'RECEIVED'],
+          );
+          changedTables = ['fix_attempts'];
+        } else {
+          changedTables = ['fix_sequence_slots'];
+          expected.push({ code: 'MISSING_SEQUENCE', record_id: attempt });
+          if (corruption !== 'sequence')
+            expected.push({ code: 'MESSAGE_SEQUENCE', record_id: message });
+          if (corruption === 'missing-slot')
+            await corruptOutbox(
+              admin,
+              'DELETE FROM fi.fix_sequence_slots WHERE sandbox_id=$1 AND message_id=$2',
+              [s.id, message],
+            );
+          else {
+            const column =
+              corruption === 'channel'
+                ? 'channel_id'
+                : corruption === 'direction'
+                  ? 'direction'
+                  : 'message_seq';
+            const value =
+              corruption === 'channel'
+                ? alternateChannel!
+                : corruption === 'direction'
+                  ? direction === 'IN'
+                    ? 'OUT'
+                    : 'IN'
+                  : '2';
+            await corruptOutbox(
+              admin,
+              'UPDATE fi.fix_sequence_slots SET ' +
+                column +
+                '=$3 WHERE sandbox_id=$1 AND message_id=$2',
+              [s.id, message, value],
+            );
+            expected.push({ code: 'SEQUENCE_CORRELATION', record_id: message });
+          }
+        }
+        await assertReverseEvidence(context, original, healthy, expected, changedTables);
+      });
+  console.log(
+    'Reverse witness corruption matrix:',
+    JSON.stringify({ directions: ['IN', 'OUT'], cases }),
+  );
+});
+
+void test('successful RECORD receipts require exact retained message, attempt, order, hashes and original canonical request', async () => {
+  const mutations: {
+    name: string;
+    field?: string;
+    value?: unknown;
+    omit?: boolean;
+    whole?: boolean;
+  }[] = [
+    { name: 'different message' },
+    { name: 'different attempt' },
+    { name: 'different order' },
+    { name: 'different raw hash' },
+    { name: 'different semantic hash' },
+    { name: 'coherent redirect to surviving attempt' },
+    { name: 'different original request hash' },
+    { name: 'non-201 successful status' },
+  ];
+  for (const field of ['message_id', 'attempt_id', 'order_id', 'raw_hash', 'semantic_hash']) {
+    mutations.push({ name: field + ' missing', field, omit: true });
+    for (const [kind, value] of [
+      ['null', null],
+      ['number', 7],
+      ['array', []],
+      ['object', { unexpected: 'synthetic' }],
+      ['malformed string', 'not-evidence'],
+    ] as const)
+      mutations.push({ name: field + ' ' + kind, field, value });
+  }
+  for (const [kind, value] of [
+    ['null', null],
+    ['array', []],
+    ['boolean', true],
+    ['number', 7],
+    ['string', 'synthetic'],
+  ] as const)
+    mutations.push({ name: 'whole body ' + kind, value, whole: true });
+  for (const mutation of mutations)
+    await withContractSandbox(async (context) => {
+      const { s, admin, database, binding } = context,
+        base = await report(s),
+        key = randomUUID(),
+        attempt = randomUUID(),
+        first = await record(s, base, key, attempt),
+        sibling = await record(s, {
+          ...base,
+          '43': 'Y',
+          '122': base['52'],
+          '52': '20261030-12:01:00.000',
+        }),
+        outgoing = await record(s, outboundFields(base));
+      assert.equal(first.status, 201);
+      assert.equal(sibling.status, 201);
+      assert.equal(outgoing.status, 201);
+      assert.equal(sibling.body['message_id'], first.body['message_id']);
+      assert.notEqual(sibling.body['attempt_id'], attempt);
+      const otherOrder = mutation.name === 'different order' ? await s.createOrder() : undefined,
+        original = await durableFixSnapshot(s.id),
+        receiptRow = original['fix_commands']!.find((c) => c['idempotency_key'] === key)!,
+        receipt = String(receiptRow['id']),
+        body = { ...(receiptRow['response_body'] as Record<string, unknown>) },
+        healthy = await verifyFixFoundation(database, binding, () => {}, true);
+      assert.equal(healthy.foundation_assessment, 'FOUNDATION_CONSISTENT');
+      assert.deepEqual(healthy.findings, []);
+      const auditMismatch =
+        mutation.whole || mutation.field === 'order_id' || mutation.name === 'different order';
+      let changedTables = ['fix_commands', 'fix_events'];
+      if (
+        mutation.name === 'different original request hash' ||
+        mutation.name === 'non-201 successful status'
+      ) {
+        const column =
+          mutation.name === 'different original request hash' ? 'request_hash' : 'http_status';
+        await corruptOutbox(
+          admin,
+          'UPDATE fi.fix_commands SET ' + column + '=$3 WHERE sandbox_id=$1 AND id=$2',
+          [s.id, receipt, column === 'request_hash' ? '0'.repeat(64) : 200],
+        );
+        changedTables = ['fix_commands'];
+      } else {
+        if (mutation.name === 'different message') body['message_id'] = outgoing.body['message_id'];
+        else if (mutation.name === 'different attempt')
+          body['attempt_id'] = sibling.body['attempt_id'];
+        else if (mutation.name === 'different order') body['order_id'] = otherOrder;
+        else if (mutation.name === 'different raw hash') body['raw_hash'] = '0'.repeat(64);
+        else if (mutation.name === 'different semantic hash')
+          body['semantic_hash'] = '0'.repeat(64);
+        else if (mutation.name === 'coherent redirect to surviving attempt')
+          for (const field of ['attempt_id', 'raw_hash', 'semantic_hash'])
+            body[field] = sibling.body[field];
+        else if (mutation.field) {
+          if (mutation.omit) delete body[mutation.field];
+          else body[mutation.field] = mutation.value;
+        }
+        await rewriteRecordReceipt(context, receipt, mutation.whole ? mutation.value : body);
+        const damagedReceipt = (await durableFixSnapshot(s.id))['fix_commands']!.find(
+          (c) => c['id'] === receipt,
+        )!;
+        assert.equal(
+          damagedReceipt['request_hash'],
+          receiptRow['request_hash'],
+          'Receipt corruption must preserve the original request fingerprint.',
+        );
+        if (mutation.whole) changedTables = ['fix_commands'];
+      }
+      const expected = [{ code: 'RECORD_EVIDENCE', record_id: receipt }];
+      if (auditMismatch) expected.push({ code: 'AUDIT_CORRESPONDENCE', record_id: receipt });
+      await assertReverseEvidence(context, original, healthy, expected, changedTables);
+    });
+  console.log(
+    'Exact RECORD receipt corruption matrix:',
+    JSON.stringify({ cases: mutations.map((m) => m.name) }),
+  );
+});
+
+void test('foreign RECORD body references cannot borrow physical evidence from another sandbox or mutate it', async () => {
+  await withContractSandbox(async (context) => {
+    const { s, database, binding } = context,
+      other = await fixture();
+    try {
+      assert.equal((await other.bind()).status, 201);
+      const key = randomUUID(),
+        local = await record(s, await report(s), key),
+        foreign = await record(other, await report(other));
+      assert.equal(local.status, 201);
+      assert.equal(foreign.status, 201);
+      const original = await durableFixSnapshot(s.id),
+        foreignOriginal = await durableFixSnapshot(other.id),
+        receipt = String(
+          original['fix_commands']!.find((c) => c['idempotency_key'] === key)!['id'],
+        ),
+        healthy = await verifyFixFoundation(database, binding, () => {}, true),
+        foreignBinding = {
+          sandboxId: other.id,
+          digest: other.proof,
+          scope: 'trade' as const,
+          generation: '1',
+        },
+        foreignHealthy = await verifyFixFoundation(database, foreignBinding, () => {}, true);
+      assert.equal(healthy.foundation_assessment, 'FOUNDATION_CONSISTENT');
+      assert.deepEqual(healthy.findings, []);
+      assert.equal(foreignHealthy.foundation_assessment, 'FOUNDATION_CONSISTENT');
+      assert.deepEqual(foreignHealthy.findings, []);
+      const body = { ...local.body };
+      for (const field of ['message_id', 'attempt_id', 'raw_hash', 'semantic_hash'])
+        body[field] = foreign.body[field];
+      await rewriteRecordReceipt(context, receipt, body);
+      await assertReverseEvidence(
+        context,
+        original,
+        healthy,
+        [{ code: 'RECORD_EVIDENCE', record_id: receipt }],
+        ['fix_commands', 'fix_events'],
+      );
+      const foreignAfter = await verifyFixFoundation(database, foreignBinding, () => {}, true);
+      assert.equal(foreignAfter.foundation_assessment, 'FOUNDATION_CONSISTENT');
+      assert.deepEqual(foreignAfter.findings, []);
+      assert.deepEqual(scopeEvidence(foreignAfter), scopeEvidence(foreignHealthy));
+      assert.ok(
+        isDeepStrictEqual(await durableFixSnapshot(other.id), foreignOriginal),
+        'Local corruption or verification changed the other sandbox.',
+      );
+    } finally {
+      await other.close();
+    }
+  });
+});
+
+void test('reverse-evidence corruption fixtures preserve ordinary CHECK, NOT NULL and unique constraints', async () => {
+  await withContractSandbox(async ({ s, admin, database, binding }) => {
+    const fields = await report(s),
+      first = await record(s, fields),
+      second = await record(s, { ...fields, '34': '2' });
+    assert.equal(first.status, 201);
+    assert.equal(second.status, 201);
+    const original = await durableFixSnapshot(s.id),
+      attempt = String(first.body['attempt_id']),
+      message = String(first.body['message_id']),
+      receipt = String(original['fix_commands']!.find((c) => c['operation'] === 'RECORD')!['id']);
+    for (const [sql, parameters, code] of [
+      [
+        "UPDATE fi.fix_attempts SET state='DELIVERED' WHERE sandbox_id=$1 AND id=$2",
+        [s.id, attempt],
+        '23514',
+      ],
+      [
+        'UPDATE fi.fix_attempts SET attempt_no=2 WHERE sandbox_id=$1 AND id=$2',
+        [s.id, attempt],
+        '23505',
+      ],
+      [
+        'UPDATE fi.fix_sequence_slots SET epoch=2 WHERE sandbox_id=$1 AND message_id=$2 AND message_seq=1',
+        [s.id, message],
+        '23514',
+      ],
+      [
+        'UPDATE fi.fix_sequence_slots SET message_seq=0 WHERE sandbox_id=$1 AND message_id=$2 AND message_seq=1',
+        [s.id, message],
+        '23514',
+      ],
+      [
+        'UPDATE fi.fix_commands SET http_status=202 WHERE sandbox_id=$1 AND id=$2',
+        [s.id, receipt],
+        '23514',
+      ],
+      [
+        'UPDATE fi.fix_commands SET response_body=NULL WHERE sandbox_id=$1 AND id=$2',
+        [s.id, receipt],
+        '23502',
+      ],
+    ] as const)
+      await assert.rejects(corruptOutbox(admin, sql, [...parameters]), { code });
+    assert.ok(isDeepStrictEqual(await durableFixSnapshot(s.id), original));
+    const assessment = await verifyFixFoundation(database, binding, () => {}, true);
+    assert.equal(assessment.foundation_assessment, 'FOUNDATION_CONSISTENT');
+    assert.deepEqual(assessment.findings, []);
+    assert.ok(isDeepStrictEqual(await durableFixSnapshot(s.id), original));
+    console.log(
+      'Reverse-evidence fixture constraints:',
+      JSON.stringify({
+        checkEnforced: true,
+        notNullEnforced: true,
+        uniquenessEnforced: true,
+        bypassedImpossibleFixtures: false,
+      }),
+    );
+  });
 });

@@ -49,7 +49,7 @@ export async function verifyFixFoundation(
   );
   if (
     createHash('sha256').update(sql).digest('hex') !==
-    'cfe6c493b37701ea878e26d8fcc93311a5937e0ebf7d3f53e95fdce369cfc041'
+    'ea1debde05e8c98f530642130f044251d8eb725c5f2af4eeee2cc1d319679a0d'
   )
     throw new DomainError(503, 'VERIFICATION_SOURCE_CHANGED', 'Protocol verifier source changed.');
   return database.transaction(true, verify, async (db) => {
