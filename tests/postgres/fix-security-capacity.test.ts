@@ -4,7 +4,10 @@ import { test } from 'node:test';
 import { isDeepStrictEqual } from 'node:util';
 import { durableFixSnapshot } from './fix-recovery-evidence.js';
 import { fixture, report, record } from './fix-fixture.js';
-import { connection } from './harness.js';
+import { connection, owner } from './harness.js';
+import { WorkflowDatabase } from '../../app/persistence/postgres/workflow.js';
+import { RfqService } from '../../app/server/fixed-income-workflow/rfq-service.js';
+import { DomainError } from '../../app/domain/errors.js';
 import { digest, rfqInput } from './rfq-fixture.js';
 void test('real roles force RLS, reject cross-sandbox proof and deny private kernels, forged contexts and immutable writes', async () => {
   const a = await fixture(),
@@ -733,6 +736,327 @@ void test('distinct-order BIND contenders admit only the final retained slot wit
     await Promise.all(clients.map((client) => client.end()));
     await holder.end();
     await monitor.end();
+    await s.close();
+  }
+});
+
+void test('protected event totals admit 1023 and 1024 but reject 1025 independently of command and binding limits', async () => {
+  const s = await fixture(),
+    cfg = await owner(),
+    observer = await connection('admin');
+  const database = new WorkflowDatabase(cfg.appUrl!);
+  const rfq = new RfqService(database);
+  const binding = { sandboxId: s.id, digest: s.proof, scope: 'trade' as const, generation: '1' };
+  const financialRows = [
+    'orders',
+    'order_states',
+    'executions',
+    'positions',
+    'order_history',
+    'cancellation_requests',
+    'cancellation_outcomes',
+  ] as const;
+  async function snapshot() {
+    const data = await durableFixSnapshot(s.id);
+    for (const table of ['rfqs', 'quotes', 'invitations']) {
+      data[table] = (
+        await observer.query<{ record: Record<string, unknown> }>(
+          `SELECT to_jsonb(t) AS record FROM fi.${table} t WHERE sandbox_id=$1 ORDER BY to_jsonb(t)::text`,
+          [s.id],
+        )
+      ).rows.map((row) => row.record);
+    }
+    assert.equal(Number(data['sandboxes']![0]!['command_count']), data['commands']!.length);
+    assert.equal(Number(data['sandboxes']![0]!['commit_seq']), data['commands']!.length);
+    assert.equal(Number(data['sandboxes']![0]!['event_count']), data['audit_events']!.length);
+    return data;
+  }
+  function budgets(data: Awaited<ReturnType<typeof snapshot>>) {
+    const active = data['fix_reservations']!.filter((row) => row['released_at'] === null);
+    return {
+      commands: Number(data['sandboxes']![0]!['command_count']),
+      events: Number(data['sandboxes']![0]!['event_count']),
+      reservedCommands: active.reduce((sum, row) => sum + Number(row['commands']), 0),
+      reservedEvents: active.reduce((sum, row) => sum + Number(row['events']), 0),
+      retained: data['fix_bindings']!.length,
+    };
+  }
+  async function create(input: ReturnType<typeof rfqInput>, key: string) {
+    return rfq.command(binding, 'CREATE_RFQ', input, key, s.actor, () => {});
+  }
+  try {
+    // Supported Phase 2C manual activity: 30 full orders and one seven-fill order.
+    // The fixture's original order stays pristine for FIX binding.
+    for (let index = 0; index < 31; index++) {
+      const order = await s.createOrder();
+      assert.equal(
+        (await s.command('ACK_ORDER', { order_id: order, expected_version: '1' })).status,
+        200,
+      );
+      const fills = index === 30 ? 7 : 8;
+      for (let fill = 0; fill < fills; fill++) {
+        const executed = await s.command('EXECUTE_ORDER', {
+          order_id: order,
+          expected_version: String(fill + 2),
+          par_amount: '12.50',
+          execution_id: randomUUID(),
+          source_event_id: randomUUID(),
+        });
+        assert.equal(executed.status, 201);
+        assert.equal(executed.body.lifecycle.execution_count, fill + 1);
+        assert.equal(executed.body.lifecycle.status, fill === 7 ? 'FILLED' : 'PARTIALLY_FILLED');
+      }
+    }
+    const targets = [s.order, await s.createOrder(), await s.createOrder()];
+    assert.equal(new Set(targets).size, 3);
+    assert.equal((await create(rfqInput(), randomUUID())).status, 201);
+    const initial = await snapshot();
+    assert.deepEqual(budgets(initial), {
+      commands: 382,
+      events: 978,
+      reservedCommands: 0,
+      reservedEvents: 0,
+      retained: 0,
+    });
+    assert.equal(initial['rfqs']!.length, 35);
+    assert.equal(initial['orders']!.length, 34);
+    assert.equal(initial['executions']!.length, 247);
+    assert.equal(initial['order_states']!.filter((row) => row['status'] === 'FILLED').length, 30);
+    assert.equal(
+      initial['order_states']!.filter((row) => row['status'] === 'PARTIALLY_FILLED').length,
+      1,
+    );
+    for (const target of targets) {
+      const state = initial['order_states']!.find((row) => row['order_id'] === target)!;
+      assert.equal(state['status'], 'PENDING_ACK');
+      assert.equal(state['version'], 1);
+      assert.equal(state['execution_count'], 0);
+      assert.equal(state['pending_cancel_id'], null);
+    }
+    assert.equal(initial['positions']!.length, 1);
+    assert.equal(Number(initial['positions']![0]!['signed_par']), 3087.5);
+    assert.equal(initial['positions']![0]!['execution_count'], 247);
+    assert.equal(
+      BigInt(String(initial['positions']![0]!['signed_cash_cents'])),
+      -initial['executions']!.reduce(
+        (sum, row) => sum + BigInt(String(row['consideration_cents'])),
+        0n,
+      ),
+    );
+
+    const requests = targets.map((order_id) => ({
+      input: { order_id, dealer_id: 'ATLAS', channel_id: randomUUID() },
+      key: randomUUID(),
+    }));
+    assert.ok(382 + 25 + 2 < 512);
+    assert.equal(978 + 43 + 2, 1023);
+    const below = await s.fix('BIND', requests[0]!.input, requests[0]!.key);
+    assert.equal(below.status, 201);
+    assert.equal(below.replayed, false);
+    assert.equal(below.body['financial_applied'], false);
+    const afterBelow = await snapshot();
+    assert.deepEqual(budgets(afterBelow), {
+      commands: 382,
+      events: 978,
+      reservedCommands: 25,
+      reservedEvents: 43,
+      retained: 1,
+    });
+
+    // A real one-event writer fills the last protected slot without hitting C or RFQ limits.
+    const atInput = rfqInput(),
+      atKey = randomUUID();
+    const at = await create(atInput, atKey);
+    assert.equal(at.status, 201);
+    assert.equal(at.replayed, false);
+    const limit = await snapshot();
+    assert.deepEqual(budgets(limit), {
+      commands: 383,
+      events: 979,
+      reservedCommands: 25,
+      reservedEvents: 43,
+      retained: 1,
+    });
+    assert.equal(limit['rfqs']!.length, 36);
+    assert.equal(979 + 43 + 2, 1024);
+    const atReplay = await create(atInput, atKey);
+    assert.equal(atReplay.status, 201);
+    assert.equal(atReplay.replayed, true);
+    assert.ok(isDeepStrictEqual(atReplay.body, at.body));
+    assert.ok(
+      isDeepStrictEqual(await snapshot(), limit),
+      'Replay at the event boundary changed state.',
+    );
+
+    const overInput = rfqInput(),
+      overKey = randomUUID();
+    assert.ok(384 + 25 + 2 < 512);
+    assert.equal(980 + 43 + 2, 1025);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await assert.rejects(
+        create(overInput, overKey),
+        (error: unknown) =>
+          error instanceof DomainError &&
+          error.status === 429 &&
+          error.code === 'PROTECTED_FINANCIAL_CAPACITY',
+      );
+      assert.ok(
+        isDeepStrictEqual(await snapshot(), limit),
+        'Rejected one-event writer left partial financial/RFQ/protocol state.',
+      );
+    }
+    assert.equal(limit['commands']!.filter((row) => row['idempotency_key'] === overKey).length, 0);
+    assert.equal(
+      limit['command_keys']!.filter((row) => row['idempotency_key'] === overKey).length,
+      0,
+    );
+
+    // Legitimate pristine release restores active reservations without erasing retained bindings.
+    assert.equal((await s.fix('RELEASE', { order_id: targets[0] })).status, 200);
+    const releasedA = await snapshot();
+    assert.deepEqual(budgets(releasedA), {
+      commands: 383,
+      events: 979,
+      reservedCommands: 0,
+      reservedEvents: 0,
+      retained: 1,
+    });
+    const equality = await s.fix('BIND', requests[1]!.input, requests[1]!.key);
+    assert.equal(equality.status, 201);
+    assert.equal(equality.replayed, false);
+    const exact = await snapshot();
+    assert.deepEqual(budgets(exact), {
+      commands: 383,
+      events: 979,
+      reservedCommands: 25,
+      reservedEvents: 43,
+      retained: 2,
+    });
+    assert.equal(979 + 43 + 2, 1024);
+    const equalityReplay = await s.fix('BIND', requests[1]!.input, requests[1]!.key);
+    assert.equal(equalityReplay.status, 201);
+    assert.equal(equalityReplay.replayed, true);
+    assert.ok(isDeepStrictEqual(equalityReplay.body, equality.body));
+    assert.ok(isDeepStrictEqual(await snapshot(), exact));
+
+    assert.equal((await s.fix('RELEASE', { order_id: targets[1] })).status, 200);
+    const retry = await create(overInput, overKey);
+    assert.equal(retry.status, 201);
+    assert.equal(retry.replayed, false);
+    const over = await snapshot();
+    assert.deepEqual(budgets(over), {
+      commands: 384,
+      events: 980,
+      reservedCommands: 0,
+      reservedEvents: 0,
+      retained: 2,
+    });
+    assert.equal(over['rfqs']!.length, 37);
+    assert.equal(over['rfqs']!.filter((row) => row['id'] === overInput.rfq_id).length, 1);
+    assert.equal(over['commands']!.filter((row) => row['idempotency_key'] === overKey).length, 1);
+    assert.ok(384 + 25 + 2 < 512);
+    assert.ok(over['fix_bindings']!.length < 4);
+    assert.equal(980 + 43 + 2, 1025);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const rejected = await s.fix('BIND', requests[2]!.input, requests[2]!.key);
+      assert.equal(rejected.status, 429);
+      assert.equal(rejected.replayed, false);
+      assert.equal((rejected.body['error'] as { code: string }).code, 'FIX_RESERVATION_CAPACITY');
+      assert.ok(
+        isDeepStrictEqual(await snapshot(), over),
+        'Event-only BIND rejection left a partial binding/reservation/receipt/record.',
+      );
+    }
+    assert.equal(over['fix_channels']!.length, 2);
+    for (const table of ['fix_bindings', 'fix_reservations', 'fix_lanes']) {
+      assert.deepEqual(
+        over[table]!.map((row) => row['order_id']).sort(),
+        targets.slice(0, 2).sort(),
+      );
+    }
+    assert.equal(over['fix_commands']!.length, 4);
+    assert.equal(over['fix_events']!.length, 4);
+    assert.equal(
+      over['fix_commands']!.filter((row) => row['idempotency_key'] === requests[2]!.key).length,
+      0,
+    );
+    assert.equal(
+      over['command_keys']!.filter((row) => row['idempotency_key'] === requests[2]!.key).length,
+      0,
+    );
+    for (const table of [
+      'fix_messages',
+      'fix_attempts',
+      'fix_sequence_slots',
+      'fix_outbox',
+      'fix_dealer_correlations',
+      'fix_cancel_correlations',
+      'fix_work',
+      'fix_prepared',
+      'fix_outcomes',
+    ])
+      assert.equal(over[table]!.length, 0);
+    for (const table of financialRows)
+      assert.ok(
+        isDeepStrictEqual(over[table], initial[table]),
+        `Capacity checks changed ${table}.`,
+      );
+    assert.ok(
+      isDeepStrictEqual(
+        over['commands']!.filter((row) => Number(row['command_seq']) <= 382),
+        initial['commands'],
+      ),
+      'Existing financial receipts changed.',
+    );
+    assert.ok(
+      isDeepStrictEqual(
+        over['audit_events']!.filter((row) => Number(row['command_seq']) <= 382),
+        initial['audit_events'],
+      ),
+      'Existing financial audit events changed.',
+    );
+    const original = await s.fix('BIND', requests[0]!.input, requests[0]!.key);
+    assert.equal(original.status, 201);
+    assert.equal(original.replayed, true);
+    assert.ok(isDeepStrictEqual(original.body, below.body));
+    const financialReplay = await create(overInput, overKey);
+    assert.equal(financialReplay.status, 201);
+    assert.equal(financialReplay.replayed, true);
+    assert.ok(isDeepStrictEqual(financialReplay.body, retry.body));
+    assert.ok(
+      isDeepStrictEqual(await snapshot(), over),
+      'Closed-binding/original-key replay changed capacity.',
+    );
+    console.log(
+      'Independent event-capacity persisted evidence:',
+      JSON.stringify({
+        initialCommands: 382,
+        initialEvents: 978,
+        belowProtectedEvents: 1023,
+        equalityCommands: 383,
+        equalityEvents: 979,
+        activeReservedCommands: 25,
+        activeReservedEvents: 43,
+        equalityProtectedEvents: 1024,
+        rejectedWriterProjectedCommands: 411,
+        rejectedWriterProjectedEvents: 1025,
+        finalCommands: budgets(over).commands,
+        finalEvents: budgets(over).events,
+        retainedBindings: budgets(over).retained,
+        finalActiveReservations: budgets(over).reservedEvents,
+        rejectedBindProjectedCommands: 411,
+        rejectedBindProjectedEvents: 1025,
+        rfqs: over['rfqs']!.length,
+        orders: over['orders']!.length,
+        manualExecutions: over['executions']!.length,
+        fixMessages: over['fix_messages']!.length,
+        protocolReceipts: over['fix_commands']!.length,
+        protocolEvents: over['fix_events']!.length,
+      }),
+    );
+  } finally {
+    await database.close();
+    await observer.end();
     await s.close();
   }
 });
