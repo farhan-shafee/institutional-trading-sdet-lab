@@ -56,6 +56,15 @@ jobs:
         run: npm ci
       - name: Build workstation browser assets
         run: npm run build:ui
+      - name: Prefer canonical Ubuntu archive before Azure mirror
+        run: |
+          test -f /etc/apt/apt-mirrors.txt
+          grep -Fq 'mirror+file:/etc/apt/apt-mirrors.txt' /etc/apt/sources.list.d/ubuntu.sources
+          printf '%s\tpriority:%s\n' \
+            'https://archive.ubuntu.com/ubuntu/' 1 \
+            'http://azure.archive.ubuntu.com/ubuntu/' 2 \
+            'https://security.ubuntu.com/ubuntu/' 3 |
+            sudo tee /etc/apt/apt-mirrors.txt > /dev/null
       - name: Install workflow browsers and system libraries
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Real PostgreSQL RFQ workstation in three browsers
