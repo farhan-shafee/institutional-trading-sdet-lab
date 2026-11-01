@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
+import { isDeepStrictEqual } from 'node:util';
+import { durableFixSnapshot } from './fix-recovery-evidence.js';
 import { fixture, report, record } from './fix-fixture.js';
 import { connection } from './harness.js';
 import { digest, rfqInput } from './rfq-fixture.js';
@@ -433,6 +435,304 @@ void test('review: a trade cannot freeze a financial preparation before acknowle
       0,
     );
   } finally {
+    await s.close();
+  }
+});
+
+void test('distinct-order BIND contenders admit only the final retained slot without partial state', async () => {
+  const s = await fixture(),
+    holder = await connection('admin'),
+    monitor = await connection('admin');
+  const clients: Awaited<ReturnType<typeof connection>>[] = [];
+  let holding = false;
+  let pending: Promise<Awaited<ReturnType<typeof s.fix>>[]> | undefined;
+  try {
+    const orders = [s.order];
+    for (let i = 0; i < 5; i++) orders.push(await s.createOrder());
+    assert.equal(new Set(orders).size, 6);
+    const requests = orders.map((order) => ({
+      input: { order_id: order, dealer_id: 'ATLAS', channel_id: randomUUID() },
+      key: randomUUID(),
+    }));
+    assert.equal(new Set(requests.map((request) => request.key)).size, 6);
+    for (const request of requests.slice(0, 3)) {
+      const bound = await s.fix('BIND', request.input, request.key);
+      assert.equal(bound.status, 201);
+      assert.equal(bound.replayed, false);
+      assert.equal(bound.body['order_id'], request.input.order_id);
+    }
+
+    const before = await durableFixSnapshot(s.id);
+    const retained = requests
+      .slice(0, 3)
+      .map((request) => request.input.order_id)
+      .sort();
+    assert.deepEqual(before['fix_bindings']!.map((row) => row['order_id']).sort(), retained);
+    assert.equal(before['fix_reservations']!.length, 3);
+    assert.equal(before['fix_commands']!.length, 3);
+    assert.equal(before['fix_events']!.length, 3);
+    assert.equal(before['fix_lanes']!.length, 3);
+    assert.equal(before['fix_channels']!.length, 3);
+    for (const reservation of before['fix_reservations']!) {
+      assert.equal(reservation['commands'], 25);
+      assert.equal(reservation['events'], 43);
+      assert.equal(reservation['released_at'], null);
+    }
+    assert.equal(
+      before['fix_reservations']!.reduce((n, row) => n + Number(row['commands']), 0),
+      75,
+    );
+    assert.equal(
+      before['fix_reservations']!.reduce((n, row) => n + Number(row['events']), 0),
+      129,
+    );
+    assert.equal(before['orders']!.length, 6);
+    assert.equal(before['order_states']!.length, 6);
+    for (const order of before['orders']!) {
+      assert.equal((order['contract'] as Record<string, unknown>)['dealer_id'], 'ATLAS');
+    }
+    for (const state of before['order_states']!) {
+      assert.equal(state['status'], 'PENDING_ACK');
+      assert.equal(state['version'], 1);
+      assert.equal(state['execution_count'], 0);
+      assert.equal(state['pending_cancel_id'], null);
+    }
+    // Financial budgets permit the fourth binding; the retained-slot cap is decisive.
+    assert.ok(Number(before['sandboxes']![0]!['command_count']) + 100 + 2 <= 512);
+    assert.ok(Number(before['sandboxes']![0]!['event_count']) + 172 + 2 <= 1024);
+    // Even a fifth binding would fit the financial budgets: the retained limit rejects it.
+    assert.ok(Number(before['sandboxes']![0]!['command_count']) + 125 + 2 <= 512);
+    assert.ok(Number(before['sandboxes']![0]!['event_count']) + 215 + 2 <= 1024);
+
+    const contenders = requests.slice(3);
+    for (let i = 0; i < contenders.length; i++) clients.push(await connection('app'));
+    const pids = await Promise.all(
+      clients.map(async (client) => {
+        const row = (
+          await client.query<{ pid: number; role: string }>(
+            'SELECT pg_backend_pid() AS pid,current_user AS role',
+          )
+        ).rows[0]!;
+        assert.equal(row.role, 'tf_app');
+        return row.pid;
+      }),
+    );
+    assert.equal(new Set(pids).size, 3);
+    await holder.query('BEGIN');
+    holding = true;
+    assert.equal(
+      (await holder.query('SELECT id FROM fi.sandboxes WHERE id=$1 FOR UPDATE', [s.id])).rowCount,
+      1,
+    );
+
+    // Every request is submitted before waiting; only PostgreSQL serializes admission.
+    pending = Promise.all(
+      contenders.map((request, index) => s.fix('BIND', request.input, request.key, clients[index])),
+    );
+    void pending.catch(() => {});
+    const deadline = performance.now() + 1000;
+    let blocked = 0;
+    while (performance.now() < deadline) {
+      const rows = (
+        await monitor.query<{ pid: number }>(
+          `SELECT pid FROM pg_stat_activity
+         WHERE pid=ANY($1::int[]) AND state='active' AND wait_event_type='Lock'
+         AND cardinality(pg_blocking_pids(pid))>0
+         AND query LIKE 'SELECT fi_control.fix_command(%'`,
+          [pids],
+        )
+      ).rows;
+      blocked = rows.length;
+      if (blocked === 3) break;
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+    assert.equal(blocked, 3, 'All distinct-order BIND calls must reach the database lock barrier.');
+    assert.ok(
+      isDeepStrictEqual(await durableFixSnapshot(s.id), before),
+      'Blocked contenders must expose no partial durable state.',
+    );
+    await holder.query('COMMIT');
+    holding = false;
+    const results = await pending;
+    assert.equal(results.filter((result) => result.status === 201).length, 1);
+    assert.equal(results.filter((result) => result.status === 429).length, 2);
+    const winnerIndex = results.findIndex((result) => result.status === 201);
+    const winner = contenders[winnerIndex]!;
+    for (const result of results) {
+      assert.equal(result.replayed, false);
+      if (result.status === 429)
+        assert.equal((result.body['error'] as { code: string }).code, 'FIX_RESERVATION_CAPACITY');
+    }
+
+    const after = await durableFixSnapshot(s.id);
+    const accepted = [...requests.slice(0, 3), winner];
+    const acceptedIds = accepted.map((request) => request.input.order_id).sort();
+    for (const table of ['fix_bindings', 'fix_lanes', 'fix_reservations']) {
+      assert.equal(after[table]!.length, 4);
+      assert.deepEqual(after[table]!.map((row) => row['order_id']).sort(), acceptedIds);
+    }
+    assert.equal(after['fix_channels']!.length, 4);
+    assert.deepEqual(
+      after['fix_channels']!.map((row) => row['id']).sort(),
+      accepted.map((request) => request.input.channel_id).sort(),
+    );
+    for (const request of accepted) {
+      const binding = after['fix_bindings']!.find(
+        (row) => row['order_id'] === request.input.order_id,
+      )!;
+      assert.equal(binding['cl_ord_id'], request.input.order_id);
+      assert.equal(binding['channel_id'], request.input.channel_id);
+      assert.equal(binding['dealer_id'], 'ATLAS');
+    }
+    for (const lane of after['fix_lanes']!) {
+      assert.equal(lane['owner_id'], null);
+      assert.equal(lane['actor_id'], null);
+      assert.equal(lane['fence'], 0);
+      assert.equal(lane['closed_at'], null);
+      assert.equal(lane['lease_expires_at'], null);
+    }
+    for (const reservation of after['fix_reservations']!) {
+      assert.equal(reservation['commands'], 25);
+      assert.equal(reservation['events'], 43);
+      assert.equal(reservation['released_at'], null);
+    }
+    const reservedCommands = after['fix_reservations']!.reduce(
+      (n, row) => n + Number(row['commands']),
+      0,
+    );
+    const reservedEvents = after['fix_reservations']!.reduce(
+      (n, row) => n + Number(row['events']),
+      0,
+    );
+    assert.equal(reservedCommands, 100);
+    assert.equal(reservedEvents, 172);
+    assert.ok(Number(after['sandboxes']![0]!['command_count']) + reservedCommands + 2 <= 512);
+    assert.ok(Number(after['sandboxes']![0]!['event_count']) + reservedEvents + 2 <= 1024);
+    assert.equal(after['fix_commands']!.length, 4);
+    assert.equal(after['fix_events']!.length, 4);
+    assert.deepEqual(after['fix_commands']!.map((row) => row['command_seq']).sort(), [1, 2, 3, 4]);
+    assert.deepEqual(
+      after['fix_commands']!.map((row) => row['idempotency_key']).sort(),
+      accepted.map((request) => request.key).sort(),
+    );
+    for (const request of accepted) {
+      const command = after['fix_commands']!.find((row) => row['idempotency_key'] === request.key)!;
+      assert.equal(command['operation'], 'BIND');
+      assert.equal(command['http_status'], 201);
+      assert.equal(command['actor_id'], s.actor);
+      const expectedBody = {
+        order_id: request.input.order_id,
+        cl_ord_id: request.input.order_id,
+        dealer_order_id: null,
+        reserved_commands: 25,
+        reserved_events: 43,
+        financial_applied: false,
+      };
+      assert.ok(isDeepStrictEqual(command['response_body'], expectedBody));
+      const event = after['fix_events']!.find(
+        (row) => row['command_seq'] === command['command_seq'],
+      )!;
+      assert.equal(event['event_index'], 0);
+      assert.equal(event['event_type'], 'BIND');
+      assert.equal(event['order_id'], request.input.order_id);
+      assert.ok(
+        isDeepStrictEqual(event['payload'], { financial_applied: false, record: expectedBody }),
+      );
+    }
+    assert.ok(
+      isDeepStrictEqual(
+        after['command_keys']!.filter((row) => row['idempotency_key'] !== winner.key),
+        before['command_keys'],
+      ),
+      'Only the admitted BIND may reserve a new key.',
+    );
+    assert.deepEqual(
+      after['command_keys']!.filter((row) => row['idempotency_key'] === winner.key).map(
+        (row) => row['domain'],
+      ),
+      ['FIX'],
+    );
+    for (const table of [
+      'fix_messages',
+      'fix_attempts',
+      'fix_sequence_slots',
+      'fix_outbox',
+      'fix_dealer_correlations',
+      'fix_cancel_correlations',
+      'fix_work',
+      'fix_prepared',
+      'fix_outcomes',
+    ]) {
+      assert.equal(after[table]!.length, 0);
+    }
+    for (const table of [
+      'sandboxes',
+      'commands',
+      'audit_events',
+      'orders',
+      'order_states',
+      'executions',
+      'positions',
+      'cancellation_requests',
+      'cancellation_outcomes',
+      'order_history',
+    ])
+      assert.ok(
+        isDeepStrictEqual(after[table], before[table]),
+        `BIND contention changed ${table}.`,
+      );
+
+    for (const [index, request] of contenders.entries()) {
+      const replay = await s.fix('BIND', request.input, request.key, clients[index]);
+      assert.equal(replay.status, index === winnerIndex ? 201 : 429);
+      assert.equal(replay.replayed, index === winnerIndex);
+      if (index === winnerIndex) {
+        assert.ok(isDeepStrictEqual(replay.body, results[index]!.body));
+      } else {
+        assert.equal((replay.body['error'] as { code: string }).code, 'FIX_RESERVATION_CAPACITY');
+        const receipt = (
+          await clients[index]!.query<{
+            result: { status: number; body: { error: { code: string } } };
+          }>('SELECT fi_control.read_fix($1,$2,$3,$4,$5,$6) AS result', [
+            s.id,
+            s.proof,
+            'trade',
+            '1',
+            'RECEIPT',
+            request.key,
+          ])
+        ).rows[0]!.result;
+        assert.equal(receipt.status, 404);
+        assert.equal(receipt.body.error.code, 'FIX_OUTCOME_UNRESOLVED');
+      }
+    }
+    assert.ok(
+      isDeepStrictEqual(await durableFixSnapshot(s.id), after),
+      'Original-key replays and capacity rejections must not change accounting or evidence.',
+    );
+    console.log(
+      'Distinct-order BIND persisted evidence:',
+      JSON.stringify({
+        distinctOrders: orders.length,
+        blockedCompetitors: blocked,
+        retainedBefore: before['fix_bindings']!.length,
+        retainedAfter: after['fix_bindings']!.length,
+        admitted: results.filter((result) => result.status === 201).length,
+        rejected: results.filter((result) => result.status === 429).length,
+        reservedCommands,
+        reservedEvents,
+        protocolReceipts: after['fix_commands']!.length,
+        protocolEvents: after['fix_events']!.length,
+        executions: after['executions']!.length,
+        outboundIntents: after['fix_outbox']!.length,
+      }),
+    );
+  } finally {
+    if (holding) await holder.query('ROLLBACK');
+    await pending?.catch(() => {});
+    await Promise.all(clients.map((client) => client.end()));
+    await holder.end();
+    await monitor.end();
     await s.close();
   }
 });
