@@ -153,7 +153,7 @@ for (const command of [
     'Workstation gates must be unconditional and blocking.',
   );
 }
-for (const command of ['npm ci', 'npm run validate', 'npm test -- --repeat-each=2']) {
+for (const command of ['npm ci', 'npm run validate', 'npm test -- --repeat-each=2 --retries=0']) {
   const matches = persistence.jobs.regression.steps.filter((step) => step.run === command);
   assert(matches.length === 1, `Missing independent legacy regression gate: ${command}`);
   assert(

@@ -87,4 +87,4 @@ jobs:
       - name: Execute the complete existing validation command
         run: npm run validate
       - name: Repeat all legacy API and browser regressions
-        run: npm test -- --repeat-each=2
+        run: npm test -- --repeat-each=2 --retries=0
