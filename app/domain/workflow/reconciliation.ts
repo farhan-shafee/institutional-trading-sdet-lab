@@ -52,7 +52,7 @@ export const coverageSchema = z
     rows: z.number().int().min(0).max(100000),
   })
   .strict();
-export const metadataSchema = z
+const legacyMetadataSchema = z
   .object({
     engine_version: z.literal('reconciliation-v1'),
     source_revision: z.string().regex(/^[a-f0-9]{40}$/),
@@ -72,6 +72,16 @@ export const metadataSchema = z
       .optional(),
   })
   .strict();
+export const metadataSchema = z.discriminatedUnion('engine_version', [
+  legacyMetadataSchema,
+  legacyMetadataSchema.extend({
+    engine_version: z.literal('reconciliation-v2'),
+    schema_revision: z.literal(6),
+    schema_checksums: z
+      .array(z.object({ version: z.number().int(), checksum: hash }).strict())
+      .length(6),
+  }),
+]);
 export const snapshotSchema = z
   .object({
     id: z

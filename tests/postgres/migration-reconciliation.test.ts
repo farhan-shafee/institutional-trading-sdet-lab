@@ -91,7 +91,7 @@ await test('005 upgrades populated Phase 2C contracts, execution ledger, project
         'SELECT * FROM fi_control.schema_migrations ORDER BY version',
       )
     ).rows;
-    await migrate(owned);
+    await migrate(owned, undefined, 5);
     for (const t of tables)
       assert.deepEqual(
         (
@@ -116,7 +116,7 @@ await test('005 upgrades populated Phase 2C contracts, execution ledger, project
       6,
     );
     assert.equal((await admin.query('SELECT * FROM fi.reconciliation_runs')).rowCount, 0);
-    await migrate(owned);
+    await migrate(owned, undefined, 5);
     assert.equal((await app.query('SELECT * FROM fi_control.schema_migrations')).rowCount, 5);
   } finally {
     await app?.end();

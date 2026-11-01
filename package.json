@@ -17,7 +17,7 @@
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test:unit": "tsx --test tests/unit/*.test.ts tests/unit/fix44/*.test.ts",
+    "test:unit": "tsx --test tests/unit/*.test.ts tests/unit/fix44/*.test.ts tests/unit/fix-foundation/*.test.ts",
     "contract:validate": "tsx scripts/validate-openapi.ts",
     "workflow:validate": "tsx scripts/validate-workflow.ts && tsx scripts/validate-database-contract.ts",
     "browsers:install": "playwright install chromium firefox webkit",
