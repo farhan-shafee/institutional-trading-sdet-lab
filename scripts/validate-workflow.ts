@@ -41,6 +41,7 @@ for (const command of [
   'npm run workflow:validate',
   'npm run test:unit',
   'npm run test:financial',
+  'npm run test:fix44',
   'npm run build',
   'npm run smoke:production',
   'npm test',
@@ -50,7 +51,7 @@ for (const command of [
     `Missing CI gate: ${command}`,
   );
 }
-for (const command of ['npm audit', 'npm audit --omit=dev']) {
+for (const command of ['npm audit', 'npm audit --omit=dev', 'npm run test:fix44']) {
   const step = steps.find((candidate) => candidate.run === command);
   assert(
     step && step.if === undefined && step['continue-on-error'] !== true,
