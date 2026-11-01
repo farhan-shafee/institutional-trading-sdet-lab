@@ -166,3 +166,5 @@ Demo credentials are intentionally public synthetic fixtures. Reports, browser a
 This project is licensed under the [MIT License](LICENSE).
 
 Phase 2D candidate: [durable reconciliation and exception investigation](docs/FIXED_INCOME_RECONCILIATION.md), opt-in local/ephemeral CI only. Completed results are historical snapshot assessments; no financial repair or production rollout is included.
+
+Phase 3A candidate: [bounded FIX4.4 codec and bilateral profile](docs/FIX44_PROFILE.md), standalone synthetic bytes only. No FIX financial adapter, transport, session engine or deployment. `npm run test:fix44` independently checks raw bytes and the pinned base FIX4.4 dictionary.

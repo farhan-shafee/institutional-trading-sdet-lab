@@ -17,7 +17,7 @@
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test:unit": "tsx --test tests/unit/*.test.ts",
+    "test:unit": "tsx --test tests/unit/*.test.ts tests/unit/fix44/*.test.ts",
     "contract:validate": "tsx scripts/validate-openapi.ts",
     "workflow:validate": "tsx scripts/validate-workflow.ts && tsx scripts/validate-database-contract.ts",
     "browsers:install": "playwright install chromium firefox webkit",
@@ -31,14 +31,15 @@
     "report": "playwright show-report playwright-report",
     "report:demo": "playwright show-report demo-report",
     "perf:smoke": "tsx scripts/perf-smoke.ts",
-    "validate": "npm audit && npm audit --omit=dev && npm run typecheck && npm run lint && npm run format:check && npm run contract:validate && npm run workflow:validate && npm run test:unit && npm run test:financial && npm run build && npm run smoke:production && npm test",
+    "validate": "npm audit && npm audit --omit=dev && npm run typecheck && npm run lint && npm run format:check && npm run contract:validate && npm run workflow:validate && npm run test:unit && npm run test:financial && npm run test:fix44 && npm run build && npm run smoke:production && npm test",
     "test:financial": "tsx scripts/verify-financial.ts",
     "test:postgres": "node --import tsx scripts/test-postgres.ts",
     "test:workflow-browser": "node --import tsx scripts/test-workflow-browser.ts",
     "validate:all": "npm run validate && npm test -- --repeat-each=2 && npm run test:postgres && npm run test:postgres && npm run build:ui && npm run test:workflow-browser && npm run test:workflow-browser -- --repeat-each=2",
     "db:local": "node --import tsx scripts/workflow-local.ts",
     "sandbox:client": "node --import tsx scripts/sandbox-client.ts",
-    "reconcile:local": "node --import tsx scripts/reconcile.ts"
+    "reconcile:local": "node --import tsx scripts/reconcile.ts",
+    "test:fix44": "node --import tsx scripts/verify-fix44.ts"
   },
   "dependencies": {
     "decimal.js": "10.6.0",
