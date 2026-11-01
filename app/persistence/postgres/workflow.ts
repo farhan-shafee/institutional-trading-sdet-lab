@@ -1,6 +1,7 @@
 import pg from 'pg';
 import { DomainError } from '../../domain/errors.js';
 import { financialSource, migrationChecksums } from '../../domain/workflow/database-contract.js';
+import { checkoutClient, type ClientLease } from './client-errors.js';
 
 export type TransactionHooks = {
   beforeCommit?: () => void | Promise<void>;
@@ -46,10 +47,12 @@ export class WorkflowDatabase {
     try {
       for (let attempt = 0; attempt < 3; attempt++) {
         let db: pg.PoolClient | undefined;
+        let lease: ClientLease | undefined;
         let commitDispatched = false;
         try {
           verify();
-          db = await this.pool.connect();
+          lease = await checkoutClient(this.pool);
+          db = lease.client;
           await db.query(readOnly ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN');
           await db.query("SET LOCAL statement_timeout='1500ms'");
           await db.query("SET LOCAL lock_timeout='750ms'");
@@ -68,15 +71,28 @@ export class WorkflowDatabase {
           commitDispatched = true;
           await db.query('COMMIT');
           if (!readOnly) await this.hooks.afterCommit?.();
-          db.release();
+          if (lease.error) throw lease.error;
+          lease.release();
           db = undefined;
           return result;
         } catch (error: unknown) {
           if (db) {
             if (!commitDispatched) await db.query('ROLLBACK').catch(() => undefined);
-            db.release(true);
+            lease!.release(true);
           }
           if (error instanceof DomainError) throw error;
+          if (
+            !commitDispatched &&
+            typeof error === 'object' &&
+            error !== null &&
+            'code' in error &&
+            error.code === 'TF409'
+          )
+            throw new DomainError(
+              409,
+              'IDEMPOTENCY_KEY_REUSED',
+              'The key belongs to another fixed-income command.',
+            );
           const code =
             typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
           if (

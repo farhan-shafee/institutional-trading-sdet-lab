@@ -164,3 +164,5 @@ Demo credentials are intentionally public synthetic fixtures. Reports, browser a
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+Phase 2D candidate: [durable reconciliation and exception investigation](docs/FIXED_INCOME_RECONCILIATION.md), opt-in local/ephemeral CI only. Completed results are historical snapshot assessments; no financial repair or production rollout is included.

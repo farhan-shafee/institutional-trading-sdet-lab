@@ -38,8 +38,33 @@ jobs:
         run: npm run test:postgres
       - name: Repeat using a fresh owned PostgreSQL instance
         run: npm run test:postgres
+
+  workstation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
       - name: Build workstation browser assets
         run: npm run build:ui
+      - name: Prefer canonical Ubuntu archive before Azure mirror
+        run: |
+          test -f /etc/apt/apt-mirrors.txt
+          grep -Fq 'mirror+file:/etc/apt/apt-mirrors.txt' /etc/apt/sources.list.d/ubuntu.sources
+          printf '%s\tpriority:%s\n' \
+            'https://archive.ubuntu.com/ubuntu/' 1 \
+            'http://azure.archive.ubuntu.com/ubuntu/' 2 \
+            'https://security.ubuntu.com/ubuntu/' 3 |
+            sudo tee /etc/apt/apt-mirrors.txt > /dev/null
       - name: Install workflow browsers and system libraries
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Real PostgreSQL RFQ workstation in three browsers
@@ -66,9 +91,18 @@ jobs:
           python-version: '3.12'
       - name: Install locked dependencies
         run: npm ci
+      - name: Prefer canonical Ubuntu archive before Azure mirror
+        run: |
+          test -f /etc/apt/apt-mirrors.txt
+          grep -Fq 'mirror+file:/etc/apt/apt-mirrors.txt' /etc/apt/sources.list.d/ubuntu.sources
+          printf '%s\tpriority:%s\n' \
+            'https://archive.ubuntu.com/ubuntu/' 1 \
+            'http://azure.archive.ubuntu.com/ubuntu/' 2 \
+            'https://security.ubuntu.com/ubuntu/' 3 |
+            sudo tee /etc/apt/apt-mirrors.txt > /dev/null
       - name: Install legacy browsers and system libraries
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Execute the complete existing validation command
         run: npm run validate
       - name: Repeat all legacy API and browser regressions
-        run: npm test -- --repeat-each=2
+        run: npm test -- --repeat-each=2 --retries=0

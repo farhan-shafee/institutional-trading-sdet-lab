@@ -96,6 +96,17 @@ const persistence = workflowSchema
           }),
         ),
       }),
+      workstation: z.object({
+        'runs-on': z.literal('ubuntu-latest'),
+        'timeout-minutes': z.number().positive(),
+        steps: z.array(
+          z.object({
+            run: z.string().optional(),
+            if: z.string().optional(),
+            'continue-on-error': z.boolean().optional(),
+          }),
+        ),
+      }),
       regression: z.object({
         'runs-on': z.literal('ubuntu-latest'),
         'timeout-minutes': z.number().positive(),
@@ -117,9 +128,6 @@ for (const command of [
   'npm audit --omit=dev',
   'npm run workflow:validate',
   'npm run test:postgres',
-  'npm run build:ui',
-  'npm run test:workflow-browser',
-  'npm run test:workflow-browser -- --repeat-each=2',
 ]) {
   const matches = persistenceSteps.filter((step) => step.run === command);
   assert(
@@ -131,7 +139,21 @@ for (const command of [
     'Persistence gates must be unconditional and blocking.',
   );
 }
-for (const command of ['npm ci', 'npm run validate', 'npm test -- --repeat-each=2']) {
+for (const command of [
+  'npm ci',
+  'npm run build:ui',
+  'npx playwright install --with-deps chromium firefox webkit',
+  'npm run test:workflow-browser',
+  'npm run test:workflow-browser -- --repeat-each=2',
+]) {
+  const matches = persistence.jobs.workstation.steps.filter((step) => step.run === command);
+  assert.equal(matches.length, 1, `Missing workstation gate: ${command}`);
+  assert(
+    matches.every((step) => step.if === undefined && step['continue-on-error'] !== true),
+    'Workstation gates must be unconditional and blocking.',
+  );
+}
+for (const command of ['npm ci', 'npm run validate', 'npm test -- --repeat-each=2 --retries=0']) {
   const matches = persistence.jobs.regression.steps.filter((step) => step.run === command);
   assert(matches.length === 1, `Missing independent legacy regression gate: ${command}`);
   assert(

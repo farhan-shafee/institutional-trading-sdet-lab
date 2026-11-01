@@ -2292,6 +2292,530 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/FiVersionCommand'
+  /api/fixed-income/v1/reconciliation/status:
+    get:
+      operationId: getReconciliationConfiguration
+      summary: getReconciliationConfiguration
+      description: Local optional synthetic reconciliation. Existing authorized sandbox binding
+        required. Results are historical as-of the recorded financial command watermark. Request
+        receipts use a separate metadata sequence. No financial repair, editing or unrestricted
+        SQL is exposed. Retain original request and key before submission; replay refers to the
+        same run.
+      parameters: []
+      responses:
+        '200':
+          description: Owned synthetic reconciliation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationStatus'
+        '400':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sid}/reconciliation-runs:
+    post:
+      operationId: requestReconciliation
+      summary: requestReconciliation
+      description: Local optional synthetic reconciliation. Existing authorized sandbox binding
+        required. Results are historical as-of the recorded financial command watermark. Request
+        receipts use a separate metadata sequence. No financial repair, editing or unrestricted
+        SQL is exposed. Retain original request and key before submission; replay refers to the
+        same run.
+      parameters:
+        - in: path
+          name: sid
+          required: true
+          schema: &a3
+            type: string
+            format: uuid
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+      responses:
+        '201':
+          description: Owned synthetic reconciliation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationReference'
+        '400':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconciliationRequest'
+    get:
+      operationId: listReconciliationRuns
+      summary: listReconciliationRuns
+      description: Local optional synthetic reconciliation. Existing authorized sandbox binding
+        required. Results are historical as-of the recorded financial command watermark. Request
+        receipts use a separate metadata sequence. No financial repair, editing or unrestricted
+        SQL is exposed. Retain original request and key before submission; replay refers to the
+        same run.
+      parameters:
+        - in: path
+          name: sid
+          required: true
+          schema: *a3
+        - in: query
+          name: after
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 128
+        - in: query
+          name: as_of
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 20
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+      responses:
+        '200':
+          description: Owned synthetic reconciliation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationList'
+        '400':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sid}/reconciliation-runs/{rid}:
+    get:
+      operationId: readReconciliationRun
+      summary: readReconciliationRun
+      description: Local optional synthetic reconciliation. Existing authorized sandbox binding
+        required. Results are historical as-of the recorded financial command watermark. Request
+        receipts use a separate metadata sequence. No financial repair, editing or unrestricted
+        SQL is exposed. Retain original request and key before submission; replay refers to the
+        same run.
+      parameters:
+        - in: path
+          name: sid
+          required: true
+          schema: *a3
+        - in: path
+          name: rid
+          required: true
+          schema: *a3
+      responses:
+        '200':
+          description: Owned synthetic reconciliation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationDetail'
+        '400':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sid}/reconciliation-runs/{rid}/findings:
+    get:
+      operationId: readReconciliationFindings
+      summary: readReconciliationFindings
+      description: Local optional synthetic reconciliation. Existing authorized sandbox binding
+        required. Results are historical as-of the recorded financial command watermark. Request
+        receipts use a separate metadata sequence. No financial repair, editing or unrestricted
+        SQL is exposed. Retain original request and key before submission; replay refers to the
+        same run.
+      parameters:
+        - in: path
+          name: sid
+          required: true
+          schema: *a3
+        - in: path
+          name: rid
+          required: true
+          schema: *a3
+        - in: query
+          name: after
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 128
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+        - in: query
+          name: category
+          schema:
+            type: string
+            enum: &a27
+              - FOUNDATION
+              - RFQ_CONTRACT
+              - ORDER_QUANTITY
+              - EXECUTION_FINANCE
+              - POSITION
+              - CANCELLATION
+              - AUDIT_HISTORY
+              - REFERENCE
+              - INSTRUMENT_SOURCE
+      responses:
+        '200':
+          description: Owned synthetic reconciliation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationFindingPage'
+        '400':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sid}/reconciliation-runs/{rid}/recover:
+    post:
+      operationId: recoverReconciliationRun
+      summary: recoverReconciliationRun
+      description: Local optional synthetic reconciliation. Existing authorized sandbox binding
+        required. Results are historical as-of the recorded financial command watermark. Request
+        receipts use a separate metadata sequence. No financial repair, editing or unrestricted
+        SQL is exposed. Retain original request and key before submission; replay refers to the
+        same run.
+      parameters:
+        - in: path
+          name: sid
+          required: true
+          schema: *a3
+        - in: path
+          name: rid
+          required: true
+          schema: *a3
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+      responses:
+        '200':
+          description: Owned synthetic reconciliation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationReference'
+        '400':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconciliationRecovery'
+  /api/fixed-income/v1/sandboxes/{sid}/reconciliation-commands/{key}:
+    get:
+      operationId: readReconciliationReceipt
+      summary: readReconciliationReceipt
+      description: Local optional synthetic reconciliation. Existing authorized sandbox binding
+        required. Results are historical as-of the recorded financial command watermark. Request
+        receipts use a separate metadata sequence. No financial repair, editing or unrestricted
+        SQL is exposed. Retain original request and key before submission; replay refers to the
+        same run.
+      parameters:
+        - in: path
+          name: sid
+          required: true
+          schema: *a3
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+      responses:
+        '200':
+          description: Owned synthetic reconciliation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationReceipt'
+        '400':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Controlled workflow error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   securitySchemes:
     bearerAuth:
@@ -3123,7 +3647,7 @@ components:
                       order_id:
                         type: string
                         format: uuid
-                      dealer_id: &a3
+                      dealer_id: &a4
                         type: string
                         enum:
                           - ATLAS
@@ -3154,12 +3678,12 @@ components:
         rfq_id:
           type: string
           format: uuid
-        instrument_id: &a5
+        instrument_id: &a6
           type: string
           enum:
             - SYN-UST-2031
             - SYN-CORP-2031
-        side: &a6
+        side: &a7
           type: string
           enum:
             - BUY
@@ -3172,7 +3696,7 @@ components:
           format: date
         invited_dealers:
           type: array
-          items: *a3
+          items: *a4
           minItems: 1
           maxItems: 3
           uniqueItems: true
@@ -3184,10 +3708,10 @@ components:
         - dealer_id
         - response
       properties:
-        expected_version: &a4
+        expected_version: &a5
           type: string
           pattern: ^[1-9][0-9]{0,2}$
-        dealer_id: *a3
+        dealer_id: *a4
         response:
           type: string
           enum:
@@ -3200,7 +3724,7 @@ components:
         - expected_version
         - quote_id
       properties:
-        expected_version: *a4
+        expected_version: *a5
         quote_id:
           type: string
           format: uuid
@@ -3213,7 +3737,7 @@ components:
         - quotes
         - order
       properties:
-        rfq: &a20
+        rfq: &a21
           type: object
           additionalProperties: false
           required:
@@ -3232,20 +3756,20 @@ components:
             id:
               type: string
               format: uuid
-            instrument_revision: &a8
+            instrument_revision: &a9
               type: string
               enum:
                 - phase1-ust-1
                 - phase1-corp-1
-            instrument_id: *a5
-            side: *a6
-            par_amount: &a9
+            instrument_id: *a6
+            side: *a7
+            par_amount: &a10
               type: string
               pattern: ^[0-9]{1,10}\.[0-9]{2}$
             settlement_date:
               type: string
               format: date
-            version: *a4
+            version: *a5
             state:
               type: string
               enum:
@@ -3272,7 +3796,7 @@ components:
               - dealer_id
               - state
             properties:
-              dealer_id: *a3
+              dealer_id: *a4
               state:
                 type: string
                 enum:
@@ -3303,11 +3827,11 @@ components:
               rfq_id:
                 type: string
                 format: uuid
-              dealer_id: *a3
-              bid_clean_price: &a7
+              dealer_id: *a4
+              bid_clean_price: &a8
                 type: string
                 pattern: ^[0-9]{1,5}\.[0-9]{12}$
-              ask_clean_price: *a7
+              ask_clean_price: *a8
               snapshot:
                 type: object
                 additionalProperties: false
@@ -3331,20 +3855,20 @@ components:
                   - expires_at
                   - valuation_model_version
                 properties:
-                  quote_id: &a10
+                  quote_id: &a11
                     type: string
                     format: uuid
-                  rfq_id: &a11
+                  rfq_id: &a12
                     type: string
                     format: uuid
-                  dealer_id: *a3
-                  instrument_id: *a5
-                  instrument_revision: *a8
-                  financial_source: &a12
+                  dealer_id: *a4
+                  instrument_id: *a6
+                  instrument_revision: *a9
+                  financial_source: &a13
                     type: string
                     enum:
                       - 6016fb700840d081fe1fba651c918f0a7e709383
-                  instrument_terms: &a13
+                  instrument_terms: &a14
                     type: object
                     additionalProperties: false
                     required:
@@ -3385,29 +3909,29 @@ components:
                         enum:
                           - ACT_ACT_ICMA
                           - THIRTY_360_US
-                  model_version: &a14
+                  model_version: &a15
                     type: string
                     enum:
                       - synthetic-dealer-grid-v1
-                  currency: &a15
+                  currency: &a16
                     type: string
                     enum:
                       - USD
-                  price_unit: &a16
+                  price_unit: &a17
                     type: string
                     enum:
                       - per 100 par
-                  side: *a6
-                  par_amount: *a9
-                  settlement_date: &a17
+                  side: *a7
+                  par_amount: *a10
+                  settlement_date: &a18
                     type: string
                     format: date
-                  bid_clean_price: *a7
-                  ask_clean_price: *a7
-                  quoted_at: &a18
+                  bid_clean_price: *a8
+                  ask_clean_price: *a8
+                  quoted_at: &a19
                     type: string
                     format: date-time
-                  expires_at: &a19
+                  expires_at: &a20
                     type: string
                     format: date-time
                   valuation_model_version:
@@ -3479,24 +4003,24 @@ components:
                 - clean_price
                 - valuation_model_version
               properties:
-                quote_id: *a10
-                rfq_id: *a11
-                dealer_id: *a3
-                instrument_id: *a5
-                instrument_revision: *a8
-                financial_source: *a12
-                instrument_terms: *a13
-                model_version: *a14
-                currency: *a15
-                price_unit: *a16
-                side: *a6
-                par_amount: *a9
-                settlement_date: *a17
-                bid_clean_price: *a7
-                ask_clean_price: *a7
-                quoted_at: *a18
-                expires_at: *a19
-                clean_price: *a7
+                quote_id: *a11
+                rfq_id: *a12
+                dealer_id: *a4
+                instrument_id: *a6
+                instrument_revision: *a9
+                financial_source: *a13
+                instrument_terms: *a14
+                model_version: *a15
+                currency: *a16
+                price_unit: *a17
+                side: *a7
+                par_amount: *a10
+                settlement_date: *a18
+                bid_clean_price: *a8
+                ask_clean_price: *a8
+                quoted_at: *a19
+                expires_at: *a20
+                clean_price: *a8
                 valuation_model_version:
                   type: string
                   enum:
@@ -3511,7 +4035,7 @@ components:
         rfqs:
           type: array
           maxItems: 50
-          items: *a20
+          items: *a21
     FiLifecycle:
       type: object
       additionalProperties: false
@@ -3535,14 +4059,14 @@ components:
             - PARTIALLY_FILLED
             - FILLED
             - CANCELED
-        version: &a24
+        version: &a25
           type: string
           pattern: ^[1-9][0-9]{0,2}$
-        filled_par: &a21
+        filled_par: &a22
           type: string
           pattern: ^[0-9]{1,10}\.[0-9]{2}$
-        remaining_par: *a21
-        executed_cents: &a23
+        remaining_par: *a22
+        executed_cents: &a24
           type: string
           pattern: ^[0-9]+$
         execution_count:
@@ -3553,10 +4077,10 @@ components:
           type: string
           format: uuid
           nullable: true
-        decided_at: &a22
+        decided_at: &a23
           type: string
           format: date-time
-        recorded_at: *a22
+        recorded_at: *a23
     FiExecution:
       type: object
       additionalProperties: false
@@ -3586,7 +4110,7 @@ components:
           type: integer
           minimum: 1
           maximum: 8
-        par_amount: *a21
+        par_amount: *a22
         clean_price:
           type: string
           pattern: ^[0-9]{1,5}\.[0-9]{12}$
@@ -3611,15 +4135,15 @@ components:
           type: integer
           minimum: 180
           maximum: 184
-        consideration_cents: *a23
+        consideration_cents: *a24
         command_id: *a1
-        command_seq: *a23
+        command_seq: *a24
         event_index:
           type: integer
           enum:
             - 0
-        decided_at: *a22
-        recorded_at: *a22
+        decided_at: *a23
+        recorded_at: *a23
     FiCancellation:
       type: object
       additionalProperties: false
@@ -3656,8 +4180,8 @@ components:
             - TOO_LATE
             - null
         command_id: *a1
-        command_seq: *a23
-        decided_at: *a22
+        command_seq: *a24
+        decided_at: *a23
         outcome_command_id:
           type: string
           format: uuid
@@ -3691,7 +4215,7 @@ components:
         - command_seq
         - decided_at
       properties:
-        version: *a24
+        version: *a25
         operation:
           type: string
           enum:
@@ -3712,7 +4236,7 @@ components:
           type: string
           pattern: ^[0-9]+$
           nullable: true
-        decided_at: *a22
+        decided_at: *a23
     FiOrderDetail:
       type: object
       additionalProperties: false
@@ -3864,17 +4388,17 @@ components:
                 settlement_date:
                   type: string
                   format: date
-                bid_clean_price: &a25
+                bid_clean_price: &a26
                   type: string
                   pattern: ^[0-9]{1,5}\.[0-9]{12}$
-                ask_clean_price: *a25
+                ask_clean_price: *a26
                 quoted_at:
                   type: string
                   format: date-time
                 expires_at:
                   type: string
                   format: date-time
-                clean_price: *a25
+                clean_price: *a26
                 valuation_model_version:
                   type: string
                   enum:
@@ -3951,8 +4475,8 @@ components:
           type: integer
           minimum: 1
           maximum: 400
-        last_command_seq: *a23
-        updated_at: *a22
+        last_command_seq: *a24
+        updated_at: *a23
     FiPositions:
       type: object
       additionalProperties: false
@@ -3970,7 +4494,7 @@ components:
       required:
         - expected_version
       properties:
-        expected_version: *a24
+        expected_version: *a25
     FiFillCommand:
       type: object
       additionalProperties: false
@@ -3980,7 +4504,7 @@ components:
         - source_event_id
         - par_amount
       properties:
-        expected_version: *a24
+        expected_version: *a25
         execution_id: *a1
         source_event_id: *a1
         par_amount:
@@ -3993,5 +4517,459 @@ components:
         - expected_version
         - cancel_id
       properties:
-        expected_version: *a24
+        expected_version: *a25
         cancel_id: *a1
+    ReconciliationRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - run_id
+      properties:
+        run_id: *a3
+    ReconciliationRecovery:
+      type: object
+      additionalProperties: false
+      properties: {}
+    ReconciliationReference:
+      type: object
+      additionalProperties: false
+      required:
+        - run_id
+        - request_command_seq
+        - requested_at
+      properties:
+        run_id: *a3
+        request_command_seq: &a30
+          type: string
+          pattern: ^[0-9]{1,3}$
+        requested_at: &a31
+          type: string
+          format: date-time
+    ReconciliationFinding:
+      type: object
+      additionalProperties: false
+      required:
+        - ordinal
+        - category
+        - code
+        - record_kind
+        - record_id
+        - related
+        - expected
+        - observed
+      properties:
+        ordinal:
+          type: integer
+          minimum: 1
+          maximum: 128
+        category:
+          type: string
+          enum: *a27
+        code:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]{2,63}$
+        record_kind:
+          type: string
+          enum:
+            - SANDBOX
+            - COMMAND
+            - RFQ
+            - QUOTE
+            - ORDER
+            - EXECUTION
+            - POSITION
+            - CANCELLATION
+            - INSTRUMENT
+        record_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        related:
+          type: object
+          additionalProperties:
+            type: string
+            maxLength: 128
+            nullable: true
+        expected: &a28
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+                maxLength: 4096
+              - type: integer
+              - type: boolean
+              - type: string
+                nullable: true
+                enum:
+                  - null
+        observed: *a28
+    ReconciliationCoverage:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - hash
+        - status
+        - rows
+      properties:
+        name:
+          type: string
+          enum:
+            - foundation
+            - rfq
+            - executions
+            - comparisons
+        hash: &a29
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        status:
+          type: string
+          enum:
+            - COMPLETE
+            - FAILED
+            - NOT_RUN
+        rows:
+          type: integer
+          minimum: 0
+          maximum: 100000
+    ReconciliationMetadata:
+      type: object
+      additionalProperties: false
+      required:
+        - engine_version
+        - source_revision
+        - source_tree
+        - source_state
+        - schema_revision
+        - financial_source
+        - valuation_model
+        - quotation_model
+        - conventions
+        - query_hashes
+      properties:
+        engine_version:
+          type: string
+          enum:
+            - reconciliation-v1
+        source_revision:
+          type: string
+          pattern: ^[a-f0-9]{40}$
+        source_tree:
+          type: string
+          pattern: ^[a-f0-9]{40}$
+        source_state:
+          type: string
+          enum:
+            - CLEAN
+            - DIRTY
+        schema_revision:
+          type: integer
+          enum:
+            - 5
+        financial_source:
+          type: string
+          enum:
+            - 6016fb700840d081fe1fba651c918f0a7e709383
+        valuation_model:
+          type: string
+          enum:
+            - phase1-regular-coupon-v1
+        quotation_model:
+          type: string
+          enum:
+            - synthetic-dealer-grid-v1
+        conventions:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            type: string
+            enum:
+              - ACT_ACT_ICMA
+              - THIRTY_360_US
+        query_hashes:
+          type: object
+          additionalProperties: false
+          required:
+            - foundation
+            - rfq
+            - executions
+            - comparisons
+          properties:
+            foundation: *a29
+            rfq: *a29
+            executions: *a29
+            comparisons: *a29
+        schema_checksums:
+          type: array
+          minItems: 5
+          maxItems: 5
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - version
+              - checksum
+            properties:
+              version:
+                type: integer
+              checksum: *a29
+    ReconciliationRun:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - run_no
+        - state
+        - version
+        - request_command_id
+        - request_command_seq
+        - source_metadata
+        - requested_at
+        - started_at
+        - lease_expires_at
+        - completed_at
+        - snapshot_id
+        - snapshot_at
+        - source_watermark
+        - coverage
+        - complete
+        - finding_count
+        - total_findings
+        - failure_reason
+        - report_hash
+      properties:
+        id: *a3
+        run_no:
+          type: integer
+          minimum: 1
+          maximum: 20
+        state:
+          type: string
+          enum: &a32
+            - REQUESTED
+            - RUNNING
+            - COMPLETED_CLEAN
+            - COMPLETED_WITH_FINDINGS
+            - INCOMPLETE
+            - FAILED
+        version:
+          type: integer
+          minimum: 1
+          maximum: 3
+        request_command_id: *a3
+        request_command_seq: *a30
+        source_metadata:
+          $ref: '#/components/schemas/ReconciliationMetadata'
+        requested_at: *a31
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        lease_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        snapshot_id:
+          type: string
+          pattern: ^[0-9]+:[0-9]+:[0-9,]*$
+          nullable: true
+        snapshot_at:
+          type: string
+          format: date-time
+          nullable: true
+        source_watermark:
+          type: string
+          pattern: ^[0-9]{1,3}$
+          nullable: true
+        coverage:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReconciliationCoverage'
+          maxItems: 4
+        complete:
+          type: boolean
+        finding_count:
+          type: integer
+          minimum: 0
+          maximum: 128
+        total_findings:
+          type: integer
+          minimum: 0
+          maximum: 100000
+        failure_reason:
+          type: string
+          nullable: true
+          enum:
+            - INTERRUPTED_BEFORE_START
+            - INTERRUPTED_SCAN
+            - REQUEST_EXPIRED
+            - LEASE_EXPIRED
+            - FINDING_LIMIT
+            - SQL_FAILURE
+            - DATABASE_UNAVAILABLE
+            - ENGINE_CHANGED
+            - SOURCE_CHANGED
+            - VERIFICATION_TIMEOUT
+            - null
+        report_hash:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+          nullable: true
+    ReconciliationEvent:
+      type: object
+      additionalProperties: false
+      required:
+        - event_no
+        - state
+        - decided_at
+        - reason
+        - report_hash
+      properties:
+        event_no:
+          type: integer
+          minimum: 1
+          maximum: 3
+        state:
+          type: string
+          enum: *a32
+        decided_at: *a31
+        reason:
+          type: string
+          nullable: true
+          enum:
+            - INTERRUPTED_BEFORE_START
+            - INTERRUPTED_SCAN
+            - REQUEST_EXPIRED
+            - LEASE_EXPIRED
+            - FINDING_LIMIT
+            - SQL_FAILURE
+            - DATABASE_UNAVAILABLE
+            - ENGINE_CHANGED
+            - SOURCE_CHANGED
+            - VERIFICATION_TIMEOUT
+            - null
+        report_hash:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+          nullable: true
+    ReconciliationList:
+      type: object
+      additionalProperties: false
+      required:
+        - runs
+        - as_of
+        - next_after
+        - observed_command_seq
+        - latest_completed_run_id
+      properties:
+        runs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReconciliationRun'
+          maxItems: 20
+        as_of: &a33
+          type: integer
+          minimum: 0
+          maximum: 128
+        next_after: &a34
+          type: integer
+          minimum: 1
+          maximum: 128
+          nullable: true
+        observed_command_seq: *a30
+        latest_completed_run_id:
+          type: string
+          format: uuid
+          nullable: true
+    ReconciliationDetail:
+      type: object
+      additionalProperties: false
+      required:
+        - run
+        - events
+        - observed_command_seq
+        - latest_completed_run_id
+      properties:
+        run:
+          $ref: '#/components/schemas/ReconciliationRun'
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReconciliationEvent'
+          maxItems: 3
+        observed_command_seq: *a30
+        latest_completed_run_id:
+          type: string
+          format: uuid
+          nullable: true
+    ReconciliationFindingPage:
+      type: object
+      additionalProperties: false
+      required:
+        - run_id
+        - findings
+        - as_of
+        - next_after
+      properties:
+        run_id: *a3
+        findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReconciliationFinding'
+          maxItems: 20
+        as_of: *a33
+        next_after: *a34
+    ReconciliationStatus:
+      type: object
+      additionalProperties: false
+      required:
+        - configured
+      properties:
+        configured:
+          type: boolean
+    ReconciliationReceipt:
+      type: object
+      additionalProperties: false
+      required:
+        - command
+      properties:
+        command:
+          type: object
+          additionalProperties: false
+          required:
+            - id
+            - idempotency_key
+            - operation
+            - receipt_seq
+            - http_status
+            - response_body
+            - actor_id
+            - created_at
+          properties:
+            id: *a3
+            idempotency_key:
+              type: string
+              pattern: ^[A-Za-z0-9_-]{8,128}$
+            operation:
+              type: string
+              enum:
+                - CREATE_RECONCILIATION
+                - RECOVER_RECONCILIATION
+            receipt_seq: *a30
+            http_status:
+              type: integer
+              enum:
+                - 200
+                - 201
+                - 409
+            response_body:
+              oneOf:
+                - $ref: '#/components/schemas/ReconciliationReference'
+                - $ref: '#/components/schemas/ErrorResponse'
+            actor_id: *a3
+            created_at: *a31
