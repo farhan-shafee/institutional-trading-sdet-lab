@@ -49,7 +49,10 @@ export class FixFoundationService {
     verify: () => void,
   ) {
     this.authorize(binding, true, verify);
-    const p = inputs[action]?.safeParse(input);
+    const p =
+      typeof action === 'string' && Object.hasOwn(inputs, action)
+        ? inputs[action].safeParse(input)
+        : undefined;
     if (!p?.success || !/^[A-Za-z0-9_-]{8,128}$/.test(key) || !uuid.safeParse(actor).success)
       throw new DomainError(400, 'VALIDATION_ERROR', 'Invalid FIX metadata command.');
     if (action === 'RECORD')
