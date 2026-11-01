@@ -1,9 +1,10 @@
+import { verifyOwned } from '../../scripts/owned-postgres.js';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual, promisify } from 'node:util';
 import { execFile } from 'node:child_process';
 import { durableFixSnapshot } from './fix-recovery-evidence.js';
-import { encodeFix44 } from '../../app/protocol/fix44/index.js';
+import { encodeFix44, decodeFix44 } from '../../app/protocol/fix44/index.js';
 import { test } from 'node:test';
 import { fixture, report, record } from './fix-fixture.js';
 import { connection, owner } from './harness.js';
@@ -624,4 +625,621 @@ void test('FIX verification stays default OFF and rejects altered SQL before aut
     transactions: 0,
     authorizations: 0,
   });
+});
+
+void test('independent verifier detects coherent message-price corruption against frozen contract terms', async () => {
+  const owned = await verifyOwned(process.env.TF_DB_OWNER_FILE!);
+  const cfg = await owner();
+  assert.equal(cfg.adminUrl, owned.adminUrl);
+  const s = await fixture(),
+    admin = await connection('admin'),
+    database = new VerificationDatabase(cfg.reconcilerUrl!);
+  const binding = { sandboxId: s.id, digest: s.proof, scope: 'trade' as const, generation: '1' };
+  try {
+    assert.equal((await s.bind()).status, 201);
+    const fields = await report(s),
+      good = await record(s, fields);
+    assert.equal(good.status, 201);
+    const message = good.body['message_id'];
+    assert.equal(typeof message, 'string');
+    const baseline = await verifyFixFoundation(database, binding, () => {}, true);
+    assert.equal(baseline.foundation_assessment, 'FOUNDATION_CONSISTENT');
+    assert.deepEqual(baseline.findings, []);
+    const original = await durableFixSnapshot(s.id);
+    const wrong = { ...fields, '44': '999.000000000000' };
+    assert.notEqual(wrong['44'], fields['44']);
+    const raw = encodeFix44(wrong),
+      decoded = decodeFix44(raw).fields;
+    assert.equal(decoded['44'], wrong['44']);
+    // The normal authenticated writer correctly rejects these contract-incompatible bytes.
+    const admission = await record(s, wrong, randomUUID());
+    assert.equal(admission.status, 400);
+    assert.equal((admission.body['error'] as { code: string }).code, 'FIX_PROFILE_VIOLATION');
+    assert.ok(isDeepStrictEqual(await durableFixSnapshot(s.id), original));
+
+    // Existing test-only coherent-corruption fixture, restricted to the owned instance.
+    await admin.query('BEGIN');
+    await admin.query("SET LOCAL session_replication_role='replica'");
+    const changed = await admin.query(
+      "UPDATE fi.fix_messages SET fields=$3::jsonb,semantic_hash=encode(sha256(convert_to(($3::jsonb-ARRAY['8','9','10','34','43','52','122'])::text,'UTF8')),'hex') WHERE sandbox_id=$1 AND id=$2",
+      [s.id, message, JSON.stringify(decoded)],
+    );
+    assert.equal(changed.rowCount, 1);
+    const physical = await admin.query(
+      "UPDATE fi.fix_attempts SET raw_bytes=$3::bytea,raw_hash=encode(sha256($3::bytea),'hex') WHERE sandbox_id=$1 AND message_id=$2",
+      [s.id, message, raw],
+    );
+    assert.equal(physical.rowCount, 1);
+    await admin.query('COMMIT');
+    const damaged = await durableFixSnapshot(s.id);
+    for (const table of Object.keys(original))
+      if (!['fix_messages', 'fix_attempts'].includes(table))
+        assert.ok(
+          isDeepStrictEqual(damaged[table], original[table]),
+          'Unexpected corruption outside wire evidence: ' + table,
+        );
+    const values = (
+      await admin.query<{
+        message_price: string;
+        contract_price: string;
+        semantic_hash_valid: boolean;
+        raw_hash_valid: boolean;
+      }>(
+        "SELECT m.fields->>'44' AS message_price,o.contract->>'clean_price' AS contract_price,m.semantic_hash=encode(sha256(convert_to((m.fields-ARRAY['8','9','10','34','43','52','122'])::text,'UTF8')),'hex') AS semantic_hash_valid,a.raw_hash=encode(sha256(a.raw_bytes),'hex') AS raw_hash_valid FROM fi.fix_messages m JOIN fi.orders o ON(o.sandbox_id,o.id)=(m.sandbox_id,m.order_id) JOIN fi.fix_attempts a ON(a.sandbox_id,a.message_id)=(m.sandbox_id,m.id) WHERE m.sandbox_id=$1 AND m.id=$2",
+        [s.id, message],
+      )
+    ).rows[0]!;
+    assert.notEqual(values.message_price, values.contract_price);
+    assert.equal(values.semantic_hash_valid, true);
+    assert.equal(values.raw_hash_valid, true);
+    const actual = await verifyFixFoundation(database, binding, () => {}, true);
+    assert.ok(
+      isDeepStrictEqual(await durableFixSnapshot(s.id), damaged),
+      'Verification changed data.',
+    );
+    console.log(
+      'Contract-integrity verification evidence:',
+      JSON.stringify({
+        message,
+        normalWriterStatus: admission.status,
+        normalWriterCode: 'FIX_PROFILE_VIOLATION',
+        values,
+        baseline: baseline.foundation_assessment,
+        actual: actual.foundation_assessment,
+        findings: actual.findings,
+        financialWatermark: actual.financial_watermark,
+        protocolWatermark: actual.protocol_watermark,
+        financialApplication: actual.financial_application_verified,
+        delivery: actual.delivery_verified,
+        executions: damaged['executions']!.length,
+      }),
+    );
+    assert.equal(
+      actual.foundation_assessment,
+      'FOUNDATION_FINDINGS',
+      'Independent verifier must reject wire evidence that contradicts the frozen order contract.',
+    );
+    assert.deepEqual(actual.findings, [{ code: 'MESSAGE_CONTRACT', record_id: message }]);
+    assert.equal(actual.total_findings, 1);
+    assert.deepEqual(scopeEvidence(actual), scopeEvidence(baseline));
+  } finally {
+    await admin.query('ROLLBACK');
+    await database.close();
+    await s.close();
+    const cleanup = (
+      await admin.query<{ sandboxes: number; retained: number }>(
+        'SELECT (SELECT count(*)::int FROM fi.sandboxes) AS sandboxes,retained_count AS retained FROM fi_control.service_capacity WHERE singleton',
+      )
+    ).rows[0]!;
+    console.log('Acceptance diagnostic cleanup:', JSON.stringify(cleanup));
+    assert.deepEqual(cleanup, { sandboxes: 0, retained: 0 });
+    await admin.end();
+  }
+});
+
+type ContractSandbox = Awaited<ReturnType<typeof fixture>>;
+type ContractContext = {
+  s: ContractSandbox;
+  admin: Awaited<ReturnType<typeof connection>>;
+  database: VerificationDatabase;
+  binding: { sandboxId: string; digest: string; scope: 'trade'; generation: string };
+};
+async function withContractSandbox(
+  run: (context: ContractContext) => Promise<void>,
+  side = 'BUY',
+  instrument = 'SYN-UST-2031',
+) {
+  const original = await fixture(),
+    cfg = await owner(),
+    admin = await connection('admin'),
+    database = new VerificationDatabase(cfg.reconcilerUrl!);
+  try {
+    const order =
+      side === 'BUY' && instrument === 'SYN-UST-2031'
+        ? original.order
+        : await original.createOrder('100.00', side, instrument);
+    const s = { ...original, order };
+    const bound = await s.fix('BIND', {
+      order_id: order,
+      dealer_id: 'ATLAS',
+      channel_id: s.channel,
+    });
+    assert.equal(bound.status, 201);
+    await run({
+      s,
+      admin,
+      database,
+      binding: { sandboxId: s.id, digest: s.proof, scope: 'trade', generation: '1' },
+    });
+  } finally {
+    await database.close();
+    await admin.end();
+    await original.close();
+  }
+}
+function cancelFields(
+  base: Awaited<ReturnType<typeof report>>,
+  type: 'F' | '9',
+  order: string,
+  sequence: string,
+) {
+  const fields = Object.fromEntries(
+    (type === 'F'
+      ? (['35', '49', '56', '34', '52', '37', '55', '167', '54', '38', '60'] as const)
+      : (['35', '49', '56', '34', '52', '37', '60'] as const)
+    ).map((tag) => [tag, base[tag]]),
+  );
+  Object.assign(fields, { '35': type, '34': sequence, '11': randomUUID(), '41': order });
+  if (type === 'F') Object.assign(fields, { '49': 'TRADEFLOW', '56': 'ATLAS' });
+  else Object.assign(fields, { '39': '0', '434': '1', '102': '99' });
+  return fields;
+}
+function executionVariants(
+  base: Awaited<ReturnType<typeof report>>,
+  order: string,
+): { name: string; fields: Record<string, string> }[] {
+  const price = base['44'];
+  return [
+    { name: 'new', fields: { ...base } },
+    { name: 'rejected', fields: { ...base, '150': '8', '39': '8', '151': '0.00', '103': '99' } },
+    {
+      name: 'duplicate rejection',
+      fields: { ...base, '150': '8', '39': '8', '151': '0.00', '103': '6' },
+    },
+    {
+      name: 'partial trade',
+      fields: {
+        ...base,
+        '150': 'F',
+        '39': '1',
+        '14': '40.00',
+        '151': '60.00',
+        '32': '40.00',
+        '31': price,
+        '6': price,
+      },
+    },
+    {
+      name: 'full trade',
+      fields: {
+        ...base,
+        '150': 'F',
+        '39': '2',
+        '14': '100.00',
+        '151': '0.00',
+        '32': '60.00',
+        '31': price,
+        '6': price,
+      },
+    },
+    {
+      name: 'pending cancel before fills',
+      fields: { ...base, '150': '6', '39': '6', '11': randomUUID(), '41': order },
+    },
+    {
+      name: 'pending cancel after fills',
+      fields: {
+        ...base,
+        '150': '6',
+        '39': '6',
+        '11': randomUUID(),
+        '41': order,
+        '14': '40.00',
+        '151': '60.00',
+        '6': price,
+      },
+    },
+    {
+      name: 'trade while cancel pending',
+      fields: {
+        ...base,
+        '150': 'F',
+        '39': '6',
+        '14': '60.00',
+        '151': '40.00',
+        '32': '20.00',
+        '31': price,
+        '6': price,
+      },
+    },
+    {
+      name: 'full trade while cancel pending',
+      fields: {
+        ...base,
+        '150': 'F',
+        '39': '6',
+        '14': '100.00',
+        '151': '0.00',
+        '32': '40.00',
+        '31': price,
+        '6': price,
+      },
+    },
+    {
+      name: 'canceled before fills',
+      fields: { ...base, '150': '4', '39': '4', '11': randomUUID(), '41': order, '151': '0.00' },
+    },
+    {
+      name: 'canceled after fills',
+      fields: {
+        ...base,
+        '150': '4',
+        '39': '4',
+        '11': randomUUID(),
+        '41': order,
+        '14': '40.00',
+        '151': '0.00',
+        '6': price,
+      },
+    },
+  ];
+}
+async function contractMessage(
+  context: ContractContext,
+  type: 'D' | '8' | 'F' | '9',
+  trade = false,
+) {
+  const { s, database, binding } = context,
+    base = await report(s);
+  let fields: Record<string, string>;
+  if (type === 'D') fields = outboundFields(base);
+  else if (type === '8')
+    fields = trade
+      ? {
+          ...base,
+          '150': 'F',
+          '39': '1',
+          '14': '40.00',
+          '151': '60.00',
+          '32': '40.00',
+          '31': base['44'],
+          '6': base['44'],
+        }
+      : { ...base };
+  else {
+    assert.equal((await record(s, base)).status, 201); // establish the accepted dealer OrderID
+    fields = cancelFields(base, type, s.order, type === '9' ? '2' : '1');
+  }
+  const attempt = randomUUID(),
+    result = await record(s, fields, randomUUID(), attempt);
+  assert.equal(result.status, 201);
+  assert.equal(typeof result.body['message_id'], 'string');
+  const message = String(result.body['message_id']);
+  const healthy = await verifyFixFoundation(database, binding, () => {}, true);
+  assert.equal(healthy.foundation_assessment, 'FOUNDATION_CONSISTENT');
+  assert.deepEqual(healthy.findings, []);
+  return { fields, attempt, message, healthy, original: await durableFixSnapshot(s.id) };
+}
+// Test-only framing for deliberately invalid business fields. Production codec is unchanged.
+// Preserve header/body order, then recompute byte BodyLength and CheckSum independently.
+function reframe(original: Buffer, patch: Record<string, string | null>) {
+  const parts = original
+    .toString('ascii')
+    .split('\x01')
+    .filter(Boolean)
+    .map((part) => [part.slice(0, part.indexOf('=')), part.slice(part.indexOf('=') + 1)] as const)
+    .filter(([tag]) => !['8', '9', '10'].includes(tag));
+  const pairs: [string, string][] = [];
+  for (const [tag, value] of parts) {
+    const replacement = Object.hasOwn(patch, tag) ? patch[tag] : value;
+    if (replacement !== null) pairs.push([tag, replacement!]);
+  }
+  for (const [tag, value] of Object.entries(patch))
+    if (value !== null && !parts.some(([existing]) => existing === tag)) pairs.push([tag, value]);
+  const body = Buffer.from(
+    pairs.map(([tag, value]) => tag + '=' + value + '\x01').join(''),
+    'ascii',
+  );
+  const prefix = Buffer.concat([
+    Buffer.from('8=FIX.4.4\x019=' + body.length + '\x01', 'ascii'),
+    body,
+  ]);
+  const checksum = prefix
+    .reduce((sum, byte) => (sum + byte) % 256, 0)
+    .toString()
+    .padStart(3, '0');
+  const raw = Buffer.concat([prefix, Buffer.from('10=' + checksum + '\x01', 'ascii')]);
+  const fields: Record<string, unknown> = Object.fromEntries(
+    raw
+      .toString('ascii')
+      .split('\x01')
+      .filter(Boolean)
+      .map((part) => [part.slice(0, part.indexOf('=')), part.slice(part.indexOf('=') + 1)]),
+  );
+  return { raw, fields };
+}
+async function corruptContractEvidence(
+  context: ContractContext,
+  target: Awaited<ReturnType<typeof contractMessage>>,
+  patch: Record<string, string | null>,
+  mode: 'coherent' | 'raw-only' | 'stored-only' = 'coherent',
+  jsonPatch: Record<string, unknown> = {},
+) {
+  const row = target.original['fix_attempts']!.find((a) => a['id'] === target.attempt)!;
+  const changed = reframe(Buffer.from(String(row['raw_bytes']).slice(2), 'hex'), patch);
+  await context.admin.query('BEGIN');
+  try {
+    await context.admin.query("SET LOCAL session_replication_role='replica'");
+    if (mode !== 'raw-only') {
+      const fields = { ...changed.fields, ...jsonPatch };
+      const updated = await context.admin.query(
+        "UPDATE fi.fix_messages SET fields=$3::jsonb,semantic_hash=encode(sha256(convert_to(($3::jsonb-ARRAY['8','9','10','34','43','52','122'])::text,'UTF8')),'hex') WHERE sandbox_id=$1 AND id=$2",
+        [context.s.id, target.message, JSON.stringify(fields)],
+      );
+      assert.equal(updated.rowCount, 1);
+    }
+    if (mode !== 'stored-only') {
+      const updated = await context.admin.query(
+        "UPDATE fi.fix_attempts SET raw_bytes=$3::bytea,raw_hash=encode(sha256($3::bytea),'hex') WHERE sandbox_id=$1 AND id=$2",
+        [context.s.id, target.attempt, changed.raw],
+      );
+      assert.equal(updated.rowCount, 1);
+    }
+    await context.admin.query('COMMIT');
+  } catch (error) {
+    await context.admin.query('ROLLBACK');
+    throw error;
+  }
+}
+async function assertContractFinding(
+  context: ContractContext,
+  target: Awaited<ReturnType<typeof contractMessage>>,
+  mixedRepresentations = false,
+) {
+  const damaged = await durableFixSnapshot(context.s.id);
+  for (const table of Object.keys(target.original))
+    if (!['fix_messages', 'fix_attempts'].includes(table))
+      assert.ok(
+        isDeepStrictEqual(damaged[table], target.original[table]),
+        'Contract corruption changed non-wire state: ' + table,
+      );
+  const assessment = await verifyFixFoundation(context.database, context.binding, () => {}, true);
+  const expected = [{ code: 'MESSAGE_CONTRACT', record_id: target.message }];
+  if (mixedRepresentations) expected.push({ code: 'WIRE_SEMANTICS', record_id: target.attempt });
+  assert.equal(assessment.foundation_assessment, 'FOUNDATION_FINDINGS');
+  assert.deepEqual(assessment.findings, expected);
+  assert.equal(assessment.total_findings, expected.length);
+  assert.deepEqual(scopeEvidence(assessment), scopeEvidence(target.healthy));
+  const repeated = await verifyFixFoundation(context.database, context.binding, () => {}, true);
+  assert.deepEqual(repeated.findings, expected);
+  assert.deepEqual(scopeEvidence(repeated), scopeEvidence(target.healthy));
+  assert.ok(
+    isDeepStrictEqual(await durableFixSnapshot(context.s.id), damaged),
+    'Verifier changed corrupted evidence.',
+  );
+}
+
+for (const [side, instrument] of [
+  ['BUY', 'SYN-UST-2031'],
+  ['SELL', 'SYN-UST-2031'],
+  ['BUY', 'SYN-CORP-2031'],
+  ['SELL', 'SYN-CORP-2031'],
+])
+  void test(
+    'exact frozen terms and all supported report variants remain healthy for ' +
+      side +
+      ' ' +
+      instrument,
+    async () => {
+      await withContractSandbox(
+        async (context) => {
+          const { s, database, binding } = context,
+            base = await report(s),
+            before = await durableFixSnapshot(s.id),
+            messages: string[] = [];
+          let inbound = 0;
+          const variants = executionVariants(base, s.order);
+          // Metadata observations are not financial transitions or a counterparty/session simulation.
+          for (const variant of variants) {
+            const fields = {
+              ...variant.fields,
+              '34': String(++inbound),
+              '17': 'ATLAS-' + randomUUID().toUpperCase(),
+            };
+            const result = await record(s, fields);
+            assert.equal(result.status, 201, variant.name);
+            messages.push(String(result.body['message_id']));
+          }
+          const outbound = await record(s, outboundFields(base));
+          assert.equal(outbound.status, 201);
+          messages.push(String(outbound.body['message_id']));
+          const cancellation = await record(s, cancelFields(base, 'F', s.order, '2'));
+          assert.equal(cancellation.status, 201);
+          messages.push(String(cancellation.body['message_id']));
+          for (const [status, reason] of [
+            ['0', '99'],
+            ['1', '99'],
+            ['2', '0'],
+          ]) {
+            const result = await record(s, {
+              ...cancelFields(base, '9', s.order, String(++inbound)),
+              '39': status!,
+              '102': reason!,
+            });
+            assert.equal(result.status, 201);
+            messages.push(String(result.body['message_id']));
+          }
+          const state = await durableFixSnapshot(s.id);
+          assert.equal(messages.length, 16);
+          assert.equal(new Set(messages).size, 16);
+          assert.equal(state['fix_messages']!.length, 16);
+          assert.equal(state['fix_attempts']!.length, 16);
+          assert.equal(state['fix_outbox']!.length, 2);
+          for (const table of [
+            'sandboxes',
+            'commands',
+            'audit_events',
+            'orders',
+            'order_states',
+            'executions',
+            'positions',
+            'cancellation_requests',
+            'cancellation_outcomes',
+            'order_history',
+          ])
+            assert.ok(
+              isDeepStrictEqual(state[table], before[table]),
+              'Healthy FIX metadata changed ' + table,
+            );
+          const result = await verifyFixFoundation(database, binding, () => {}, true);
+          assert.equal(result.foundation_assessment, 'FOUNDATION_CONSISTENT');
+          assert.deepEqual(result.findings, []);
+          assert.equal(result.protocol_watermark, '17');
+          assert.equal(result.protocol_ingest_watermark, '17');
+          assert.equal(
+            result.financial_watermark,
+            String(before['sandboxes']![0]!['command_count']),
+          );
+          assert.equal(result.financial_application_verified, false);
+          assert.equal(result.delivery_verified, false);
+          assert.equal(result.complete, false);
+          assert.ok(isDeepStrictEqual(await durableFixSnapshot(s.id), state));
+          console.log(
+            'Healthy contract matrix:',
+            JSON.stringify({
+              side,
+              instrument,
+              executionVariants: variants.map((v) => v.name),
+              messages: 16,
+              outbox: 2,
+              assessment: result.foundation_assessment,
+            }),
+          );
+        },
+        side,
+        instrument,
+      );
+    },
+  );
+const termMutations: { name: string; patch: Record<string, string | null> }[] = [
+  { name: 'instrument pair', patch: { '55': 'SYN-CORP-2031', '167': 'CORP' } },
+  { name: 'security type', patch: { '167': 'CORP' } },
+  { name: 'client side', patch: { '54': '2' } },
+  { name: 'original total par', patch: { '38': '101.00' } },
+  { name: 'contractual clean price', patch: { '44': '999.000000000000' } },
+  { name: 'settlement date', patch: { '64': '20280301' } },
+  { name: 'quantity type', patch: { '854': '1' } },
+  { name: 'order type', patch: { '40': '1' } },
+  { name: 'time in force', patch: { '59': '0' } },
+  { name: 'price type', patch: { '423': '2' } },
+  { name: 'currency', patch: { '15': 'EUR' } },
+];
+for (const type of ['D', '8', 'F'] as const)
+  void test(
+    'independent ' + type + ' contract matrix rejects each applicable coherently rewritten term',
+    async () => {
+      const applicable = type === 'F' ? termMutations.slice(0, 4) : termMutations;
+      for (const mutation of applicable)
+        await withContractSandbox(async (context) => {
+          const target = await contractMessage(context, type);
+          const patch = { ...mutation.patch };
+          if (type === '8' && mutation.name === 'original total par') patch['151'] = '101.00';
+          await corruptContractEvidence(context, target, patch);
+          await assertContractFinding(context, target);
+        });
+      console.log(
+        'Contract term corruption matrix:',
+        JSON.stringify({ type, cases: applicable.map((m) => m.name) }),
+      );
+    },
+  );
+void test('filled execution price remains contractual even when Price, LastPx and AvgPx are coherently changed together', async () => {
+  await withContractSandbox(async (context) => {
+    const target = await contractMessage(context, '8', true);
+    await corruptContractEvidence(context, target, {
+      '44': '999.000000000000',
+      '31': '999.000000000000',
+      '6': '999.000000000000',
+    });
+    await assertContractFinding(context, target);
+  });
+});
+void test('execution-report quantities, prices and conditional fields fail closed without applying financial effects', async () => {
+  const cases: { name: string; trade: boolean; patch: Record<string, string | null> }[] = [
+    { name: 'zero-fill average', trade: false, patch: { '6': '1.000000000000' } },
+    { name: 'filled average', trade: true, patch: { '6': '0.000000000000' } },
+    { name: 'last price', trade: true, patch: { '31': '999.000000000000' } },
+    { name: 'last quantity above cumulative', trade: true, patch: { '32': '40.01' } },
+    { name: 'zero last quantity', trade: true, patch: { '32': '0.00' } },
+    { name: 'missing last quantity', trade: true, patch: { '32': null } },
+    { name: 'cumulative and leaves', trade: true, patch: { '151': '59.99' } },
+    {
+      name: 'partial status at full amount',
+      trade: true,
+      patch: { '14': '100.00', '151': '0.00' },
+    },
+    { name: 'full status with partial amount', trade: true, patch: { '39': '2' } },
+    { name: 'nontrade last quantity', trade: false, patch: { '32': '1.00' } },
+    {
+      name: 'missing reject reason',
+      trade: false,
+      patch: { '150': '8', '39': '8', '151': '0.00' },
+    },
+    { name: 'cancel report without original ID', trade: false, patch: { '150': '6', '39': '6' } },
+  ];
+  for (const item of cases)
+    await withContractSandbox(async (context) => {
+      const target = await contractMessage(context, '8', item.trade);
+      await corruptContractEvidence(context, target, item.patch);
+      await assertContractFinding(context, target);
+    });
+  console.log(
+    'Execution contract negative matrix:',
+    JSON.stringify({ cases: cases.map((c) => c.name) }),
+  );
+});
+void test('missing, malformed and nonstring contractual evidence yields bounded findings instead of SQL errors', async () => {
+  const cases: {
+    name: string;
+    patch: Record<string, string | null>;
+    json?: Record<string, unknown>;
+  }[] = [
+    { name: 'missing price', patch: { '44': null } },
+    { name: 'nonnumeric total par', patch: { '38': 'not-a-quantity' } },
+    { name: 'nonnumeric cumulative', patch: { '14': 'NaN' } },
+    { name: 'oversized cumulative representation', patch: { '14': '9'.repeat(200) + '.00' } },
+    { name: 'missing cumulative', patch: { '14': null } },
+    { name: 'JSON null price', patch: {}, json: { '44': null } },
+    { name: 'JSON numeric quantity type', patch: {}, json: { '854': 0 } },
+    { name: 'JSON object cumulative', patch: {}, json: { '14': { unexpected: 'synthetic' } } },
+    { name: 'JSON array quantity', patch: {}, json: { '38': [] } },
+  ];
+  for (const item of cases)
+    await withContractSandbox(async (context) => {
+      const target = await contractMessage(context, '8');
+      await corruptContractEvidence(context, target, item.patch, 'coherent', item.json);
+      await assertContractFinding(context, target, Boolean(item.json));
+    });
+  console.log(
+    'Malformed contract evidence matrix:',
+    JSON.stringify({ cases: cases.map((c) => c.name) }),
+  );
+});
+void test('stored message and independently decoded physical evidence are each checked against frozen terms', async () => {
+  for (const mode of ['stored-only', 'raw-only'] as const)
+    await withContractSandbox(async (context) => {
+      const target = await contractMessage(context, '8');
+      await corruptContractEvidence(context, target, { '44': '999.000000000000' }, mode);
+      await assertContractFinding(context, target, true);
+    });
 });

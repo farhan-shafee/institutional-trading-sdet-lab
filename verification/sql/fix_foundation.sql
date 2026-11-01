@@ -1,6 +1,24 @@
 -- Independent read-only metadata reconstruction. No financial helper/projection expected totals.
 WITH bindings AS (SELECT b.*,o.contract,l.status,l.version FROM fi.fix_bindings b JOIN fi.orders o ON(o.sandbox_id,o.id)=(b.sandbox_id,b.order_id) JOIN fi.order_states l ON(l.sandbox_id,l.order_id)=(b.sandbox_id,b.order_id) WHERE b.sandbox_id=$1),
 wire_evidence AS (SELECT a.*,m.semantic_hash,(SELECT jsonb_object_agg(split_part(part,'=',1),substring(part,length(split_part(part,'=',1))+2)) FROM unnest(string_to_array(convert_from(a.raw_bytes,'SQL_ASCII'),chr(1))) part WHERE part<>'') decoded FROM fi.fix_attempts a JOIN fi.fix_messages m ON(m.sandbox_id,m.id)=(a.sandbox_id,a.message_id) WHERE a.sandbox_id=$1),
+-- Inspect stored terms and each physical observation independently; agreement alone is insufficient.
+message_evidence AS (
+ SELECT m.sandbox_id,m.id AS message_id,m.order_id,m.dealer_id,m.message_type,m.direction,m.fields AS evidence
+ FROM fi.fix_messages m WHERE m.sandbox_id=$1
+ UNION ALL
+ SELECT m.sandbox_id,m.id,m.order_id,m.dealer_id,m.message_type,m.direction,a.decoded
+ FROM wire_evidence a JOIN fi.fix_messages m ON(m.sandbox_id,m.id)=(a.sandbox_id,a.message_id)
+ WHERE m.sandbox_id=$1
+),
+contract_evidence AS (
+ SELECT e.*,o.id AS contract_order_id,o.contract,
+ CASE WHEN jsonb_typeof(e.evidence)='object' THEN e.evidence ELSE '{}'::jsonb END AS f,
+ CASE WHEN jsonb_typeof(e.evidence->'38')='string' AND e.evidence->>'38' ~ '^(0|[1-9][0-9]{0,9})[.][0-9]{2}$' THEN (e.evidence->>'38')::numeric END AS total_par,
+ CASE WHEN jsonb_typeof(e.evidence->'14')='string' AND e.evidence->>'14' ~ '^(0|[1-9][0-9]{0,9})[.][0-9]{2}$' THEN (e.evidence->>'14')::numeric END AS cumulative_par,
+ CASE WHEN jsonb_typeof(e.evidence->'151')='string' AND e.evidence->>'151' ~ '^(0|[1-9][0-9]{0,9})[.][0-9]{2}$' THEN (e.evidence->>'151')::numeric END AS leaves_par,
+ CASE WHEN jsonb_typeof(e.evidence->'32')='string' AND e.evidence->>'32' ~ '^(0|[1-9][0-9]{0,9})[.][0-9]{2}$' THEN (e.evidence->>'32')::numeric END AS last_par
+ FROM message_evidence e LEFT JOIN fi.orders o ON(o.sandbox_id,o.id)=(e.sandbox_id,e.order_id)
+),
 issues AS (
  SELECT 'WIRE_FRAMING' code,a.id::text record_id FROM wire_evidence a WHERE
  split_part(convert_from(a.raw_bytes,'SQL_ASCII'),chr(1),1)<>'8=FIX.4.4'
@@ -11,6 +29,59 @@ issues AS (
  UNION ALL SELECT 'WIRE_SEMANTICS' code,a.id::text record_id FROM wire_evidence a WHERE a.semantic_hash<>encode(sha256(convert_to((a.decoded-ARRAY['8','9','10','34','43','52','122'])::text,'UTF8')),'hex')
  UNION ALL
  SELECT 'BINDING_CONTRACT' code,b.order_id::text record_id FROM bindings b WHERE b.cl_ord_id<>b.order_id OR b.dealer_id<>b.contract->>'dealer_id' OR b.contract_hash<>encode(sha256(convert_to(b.contract::text,'UTF8')),'hex')
+ UNION ALL SELECT DISTINCT 'MESSAGE_CONTRACT',v.message_id::text FROM contract_evidence v WHERE NOT COALESCE(
+ v.contract_order_id IS NOT NULL AND jsonb_typeof(v.evidence)='object'
+ AND NOT EXISTS(SELECT 1 FROM jsonb_each(v.f) p WHERE jsonb_typeof(p.value) IS DISTINCT FROM 'string')
+ AND v.message_type IN ('D','8','F','9') AND v.f->>'35'=v.message_type
+ AND v.direction=CASE WHEN v.message_type IN ('D','F') THEN 'OUT' ELSE 'IN' END
+ AND v.dealer_id=v.contract->>'dealer_id'
+ AND v.f->>'49'=CASE WHEN v.message_type IN ('D','F') THEN 'TRADEFLOW' ELSE v.contract->>'dealer_id' END
+ AND v.f->>'56'=CASE WHEN v.message_type IN ('D','F') THEN v.contract->>'dealer_id' ELSE 'TRADEFLOW' END
+ AND CASE WHEN v.message_type IN ('F','9') OR (v.message_type='8' AND v.f->>'150' IN ('6','4')) THEN
+   v.f->>'11' ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+   AND v.f->>'11'<>v.order_id::text AND v.f->>'41'=v.order_id::text
+ ELSE v.f->>'11'=v.order_id::text AND NOT(v.f ? '41') END
+ AND (v.message_type='D' OR (
+   v.f->>'37' ~ '^(ATLAS|BIRCH|CEDAR)-[A-Z0-9-]{1,48}$'
+   AND split_part(v.f->>'37','-',1)=v.contract->>'dealer_id'))
+ AND CASE WHEN v.message_type='9' THEN
+   NOT(v.f ?| ARRAY['55','167','54','38','854','40','59','423','44','15','64','17','150','14','151','6','31','32','103'])
+   AND v.f->>'434'='1'
+   AND ((v.f->>'102'='0' AND v.f->>'39'='2') OR (v.f->>'102'='99' AND v.f->>'39' IN ('0','1')))
+ ELSE
+   v.f->'55'=to_jsonb(v.contract->>'instrument_id')
+   AND v.f->'167'=to_jsonb(CASE v.contract->>'instrument_id' WHEN 'SYN-UST-2031' THEN 'TNOTE' WHEN 'SYN-CORP-2031' THEN 'CORP' END)
+   AND v.f->'54'=to_jsonb(CASE v.contract->>'side' WHEN 'BUY' THEN '1' WHEN 'SELL' THEN '2' END)
+   AND v.f->'38'=to_jsonb(v.contract->>'par_amount') AND v.total_par BETWEEN 1 AND 1000000000
+ END
+ AND CASE WHEN v.message_type IN ('D','8') THEN
+   v.f->'854'='"0"'::jsonb AND v.f->'40'='"2"'::jsonb AND v.f->'59'='"1"'::jsonb
+   AND v.f->'423'='"1"'::jsonb AND v.f->'15'='"USD"'::jsonb
+   AND v.f->'44'=to_jsonb(v.contract->>'clean_price')
+   AND v.f->'64'=to_jsonb(replace(v.contract->>'settlement_date','-',''))
+ ELSE NOT(v.f ?| ARRAY['854','40','59','423','44','15','64']) END
+ AND CASE WHEN v.message_type='D' THEN NOT(v.f ?| ARRAY['37','17','150','39','14','151','6','31','32','103','434','102'])
+ WHEN v.message_type='F' THEN NOT(v.f ?| ARRAY['17','150','39','14','151','6','31','32','103','434','102'])
+ WHEN v.message_type='8' THEN
+   v.f->>'17' ~ '^(ATLAS|BIRCH|CEDAR)-[A-Z0-9-]{1,48}$'
+   AND split_part(v.f->>'17','-',1)=v.contract->>'dealer_id'
+   AND NOT(v.f ?| ARRAY['434','102'])
+   AND v.cumulative_par BETWEEN 0 AND v.total_par AND v.leaves_par BETWEEN 0 AND v.total_par
+   AND v.f->'6'=to_jsonb(CASE WHEN v.cumulative_par=0 THEN '0.000000000000' ELSE v.contract->>'clean_price' END)
+   AND (v.f->>'150'='F' OR NOT(v.f ?| ARRAY['31','32']))
+   AND (CASE WHEN v.f->>'150'='8' THEN v.f->>'103' IN ('6','99') ELSE NOT(v.f ? '103') END)
+   AND CASE v.f->>'150'
+     WHEN '0' THEN v.f->>'39'='0' AND v.cumulative_par=0 AND v.leaves_par=v.total_par
+     WHEN '8' THEN v.f->>'39'='8' AND v.cumulative_par=0 AND v.leaves_par=0
+     WHEN '6' THEN v.f->>'39'='6' AND v.cumulative_par+v.leaves_par=v.total_par
+     WHEN '4' THEN v.f->>'39'='4' AND v.cumulative_par<v.total_par AND v.leaves_par=0
+     WHEN 'F' THEN v.f->>'39' IN ('1','2','6') AND v.cumulative_par>0
+       AND v.cumulative_par+v.leaves_par=v.total_par AND v.last_par BETWEEN 0.01 AND v.cumulative_par
+       AND v.f->'31'=to_jsonb(v.contract->>'clean_price')
+       AND (v.f->>'39'<>'1' OR v.cumulative_par<v.total_par)
+       AND (v.f->>'39'<>'2' OR v.cumulative_par=v.total_par)
+     ELSE false END
+ ELSE true END,false)
  UNION ALL SELECT 'RAW_BYTES',a.id::text FROM fi.fix_attempts a WHERE a.sandbox_id=$1 AND (a.raw_hash<>encode(sha256(a.raw_bytes),'hex') OR NOT EXISTS(SELECT 1 FROM fi.fix_messages m WHERE m.sandbox_id=a.sandbox_id AND m.id=a.message_id))
  UNION ALL SELECT 'SEMANTIC_HASH',m.id::text FROM fi.fix_messages m WHERE m.sandbox_id=$1 AND m.semantic_hash<>encode(sha256(convert_to((m.fields-ARRAY['8','9','10','34','43','52','122'])::text,'UTF8')),'hex')
  UNION ALL SELECT 'MISSING_OUTBOX',m.id::text FROM fi.fix_messages m WHERE m.sandbox_id=$1 AND m.direction='OUT' AND NOT EXISTS(SELECT 1 FROM fi.fix_outbox o WHERE o.sandbox_id=m.sandbox_id AND o.message_id=m.id AND o.order_id=m.order_id)
