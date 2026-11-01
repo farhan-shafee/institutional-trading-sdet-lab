@@ -1,6 +1,7 @@
 import pg from 'pg';
 import { DomainError } from '../../domain/errors.js';
 import { financialSource, migrationChecksums } from '../../domain/workflow/database-contract.js';
+import { checkoutClient, type ClientLease } from '../../persistence/postgres/client-errors.js';
 export type VerificationHooks = {
   beforeCommit?: () => void | Promise<void>;
   afterCommit?: () => void | Promise<void>;
@@ -38,10 +39,12 @@ export class VerificationDatabase {
     this.pending++;
     let client: pg.PoolClient | undefined,
       committing = false;
+    let lease: ClientLease | undefined;
     const deadline = performance.now() + 5000;
     try {
       verify();
-      client = await this.pool.connect();
+      lease = await checkoutClient(this.pool);
+      client = lease.client;
       await client.query(readOnly ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN');
       await client.query("SET LOCAL statement_timeout='1500ms'");
       await client.query("SET LOCAL lock_timeout='750ms'");
@@ -74,13 +77,14 @@ export class VerificationDatabase {
       committing = true;
       await client.query('COMMIT');
       if (!readOnly) await hooks.afterCommit?.();
-      client.release();
+      if (lease.error) throw lease.error;
+      lease.release();
       client = undefined;
       return result;
     } catch (error) {
       if (client) {
         if (!committing) await client.query('ROLLBACK').catch(() => undefined);
-        client.release(true);
+        lease!.release(true);
       }
       if (error instanceof DomainError) throw error;
       const code =
@@ -91,7 +95,10 @@ export class VerificationDatabase {
           ? 'OUTCOME_UNKNOWN'
           : code === '57014'
             ? 'VERIFICATION_TIMEOUT'
-            : code.startsWith('08') || code.startsWith('ECONN')
+            : lease?.error ||
+                ['57P01', '57P02', '57P03'].includes(code) ||
+                code.startsWith('08') ||
+                code.startsWith('ECONN')
               ? 'RECONCILER_UNAVAILABLE'
               : 'RECONCILIATION_SQL_FAILURE',
         'Reconciliation did not complete. Retry only the original retained request.',
