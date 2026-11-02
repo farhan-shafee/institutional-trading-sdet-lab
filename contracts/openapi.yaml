@@ -4633,6 +4633,10 @@ components:
           minimum: 0
           maximum: 100000
     ReconciliationMetadata:
+      oneOf:
+        - $ref: '#/components/schemas/ReconciliationMetadataV1'
+        - $ref: '#/components/schemas/ReconciliationMetadataV2'
+    ReconciliationMetadataV1:
       type: object
       additionalProperties: false
       required:
@@ -4704,6 +4708,89 @@ components:
           type: array
           minItems: 5
           maxItems: 5
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - version
+              - checksum
+            properties:
+              version:
+                type: integer
+              checksum: *a29
+    ReconciliationMetadataV2:
+      type: object
+      additionalProperties: false
+      required:
+        - engine_version
+        - source_revision
+        - source_tree
+        - source_state
+        - schema_revision
+        - financial_source
+        - valuation_model
+        - quotation_model
+        - conventions
+        - query_hashes
+        - schema_checksums
+      properties:
+        engine_version:
+          type: string
+          enum:
+            - reconciliation-v2
+        source_revision:
+          type: string
+          pattern: ^[a-f0-9]{40}$
+        source_tree:
+          type: string
+          pattern: ^[a-f0-9]{40}$
+        source_state:
+          type: string
+          enum:
+            - CLEAN
+            - DIRTY
+        schema_revision:
+          type: integer
+          enum:
+            - 6
+        financial_source:
+          type: string
+          enum:
+            - 6016fb700840d081fe1fba651c918f0a7e709383
+        valuation_model:
+          type: string
+          enum:
+            - phase1-regular-coupon-v1
+        quotation_model:
+          type: string
+          enum:
+            - synthetic-dealer-grid-v1
+        conventions:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            type: string
+            enum:
+              - ACT_ACT_ICMA
+              - THIRTY_360_US
+        query_hashes:
+          type: object
+          additionalProperties: false
+          required:
+            - foundation
+            - rfq
+            - executions
+            - comparisons
+          properties:
+            foundation: *a29
+            rfq: *a29
+            executions: *a29
+            comparisons: *a29
+        schema_checksums:
+          type: array
+          minItems: 6
+          maxItems: 6
           items:
             type: object
             additionalProperties: false

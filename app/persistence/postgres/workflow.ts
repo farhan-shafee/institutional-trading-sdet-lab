@@ -93,6 +93,18 @@ export class WorkflowDatabase {
               'IDEMPOTENCY_KEY_REUSED',
               'The key belongs to another fixed-income command.',
             );
+          if (
+            !commitDispatched &&
+            typeof error === 'object' &&
+            error !== null &&
+            'code' in error &&
+            error.code === 'TF429'
+          )
+            throw new DomainError(
+              429,
+              'PROTECTED_FINANCIAL_CAPACITY',
+              'Capacity is reserved for an owned workflow.',
+            );
           const code =
             typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
           if (
