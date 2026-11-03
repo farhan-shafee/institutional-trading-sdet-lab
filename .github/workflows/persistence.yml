@@ -13,7 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  postgres:
+  postgres-run-a:
+    name: postgres-run-a
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -36,10 +37,57 @@ jobs:
         run: npm run workflow:validate
       - name: Real PostgreSQL foundation, contracts, concurrency and recovery
         run: npm run test:postgres
-      - name: Repeat using a fresh owned PostgreSQL instance
+
+  postgres-run-b:
+    name: postgres-run-b
+    needs: postgres-run-a
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Audit full dependency graph
+        run: npm audit
+      - name: Audit runtime dependency graph
+        run: npm audit --omit=dev
+      - name: Validate SQL and runtime contract
+        run: npm run workflow:validate
+      - name: Second complete verification using a fresh owned PostgreSQL instance
         run: npm run test:postgres
 
-  workstation:
+  postgres:
+    name: postgres
+    needs: [postgres-run-a, postgres-run-b]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions: {}
+    steps:
+      - name: Require both complete PostgreSQL executions
+        if: ${{ always() }}
+        shell: bash
+        env:
+          FIRST_RESULT: ${{ needs['postgres-run-a'].result }}
+          SECOND_RESULT: ${{ needs['postgres-run-b'].result }}
+          WORKFLOW_CANCELLED: ${{ cancelled() }}
+        run: |
+          set -euo pipefail
+          printf 'first=%s second=%s workflow_cancelled=%s\n' "$FIRST_RESULT" "$SECOND_RESULT" "$WORKFLOW_CANCELLED"
+          test "$WORKFLOW_CANCELLED" = 'false'
+          test "$FIRST_RESULT" = 'success'
+          test "$SECOND_RESULT" = 'success'
+
+  workstation-baseline:
+    name: workstation-baseline
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -69,8 +117,61 @@ jobs:
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Real PostgreSQL RFQ workstation in three browsers
         run: npm run test:workflow-browser
+
+  workstation-repeat:
+    name: workstation-repeat
+    needs: workstation-baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Build workstation browser assets
+        run: npm run build:ui
+      - name: Prefer canonical Ubuntu archive before Azure mirror
+        run: |
+          test -f /etc/apt/apt-mirrors.txt
+          grep -Fq 'mirror+file:/etc/apt/apt-mirrors.txt' /etc/apt/sources.list.d/ubuntu.sources
+          printf '%s\tpriority:%s\n' \
+            'https://archive.ubuntu.com/ubuntu/' 1 \
+            'http://azure.archive.ubuntu.com/ubuntu/' 2 \
+            'https://security.ubuntu.com/ubuntu/' 3 |
+            sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+      - name: Install workflow browsers and system libraries
+        run: npx playwright install --with-deps chromium firefox webkit
       - name: Repeat RFQ workstation without retries
         run: npm run test:workflow-browser -- --repeat-each=2
+
+  workstation:
+    name: workstation
+    needs: [workstation-baseline, workstation-repeat]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions: {}
+    steps:
+      - name: Require baseline and repeated three-browser execution
+        if: ${{ always() }}
+        shell: bash
+        env:
+          FIRST_RESULT: ${{ needs['workstation-baseline'].result }}
+          SECOND_RESULT: ${{ needs['workstation-repeat'].result }}
+          WORKFLOW_CANCELLED: ${{ cancelled() }}
+        run: |
+          set -euo pipefail
+          printf 'first=%s second=%s workflow_cancelled=%s\n' "$FIRST_RESULT" "$SECOND_RESULT" "$WORKFLOW_CANCELLED"
+          test "$WORKFLOW_CANCELLED" = 'false'
+          test "$FIRST_RESULT" = 'success'
+          test "$SECOND_RESULT" = 'success'
 
   regression:
     runs-on: ubuntu-latest
