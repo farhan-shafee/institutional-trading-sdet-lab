@@ -1,0 +1,86 @@
+profile: fix-foundation-v2
+schema_revision: 8
+transport: NONE
+financial_application: NOT_IMPLEMENTED
+activation: internal SDK explicit opt-in only; default OFF; no public route
+ownership: current sandbox proof/generation plus trusted session verification before COMMIT
+idempotency:
+  scope: sandbox
+  normalized_fingerprint: SHA256 of canonical JSONB version/sandbox/operation/payload; UUIDs normalized
+  replay: original response before quota/expiry/fence admission; current authorization still required
+  conflicting_key: 409
+  prepared_keys: reserved in FIX_PREPARED domain; not financial commands
+  unknown: preserve original key/request; receipt404 does not prove another transaction cannot commit
+operations:
+  BIND:
+    required: [order_id, dealer_id, channel_id]
+    effect: metadata only; pristine owned order, actual accepted dealer; allocate lifecycle reservation
+  RECORD:
+    required: [order_id, raw_hex, attempt_id]
+    effect: validate exact bytes/terms; correlate logical identity and immutable physical evidence; OUT is staged only
+  CLAIM:
+    required: [order_id, owner_id]
+    effect: actor/generation-bound 15-second lease, increasing fence; stale generation cannot act
+  QUEUE:
+    required: [order_id, message_id, work_id]
+    effect: bounded immutable ordered intent; no NewOrderSingle financial creation
+  PREPARE:
+    required: [order_id, owner_id, fence, work_id, financial_key]
+    effect: current owner and unresolved head only; freeze current version/payload/key/identities; no application
+  RESOLVE_METADATA:
+    required: [order_id, owner_id, fence, work_id]
+    effect: PROTOCOL_ONLY work only; outcome METADATA_ONLY; financial references constrained NULL
+  RELEASE:
+    required: [order_id]
+    effect: no messages/live lease; retire binding and release capacity; never cancel or restore manual driver
+reads:
+  RECEIPT: bounded original-key lookup; FIX_OUTCOME_UNRESOLVED on absence
+  STATE: one owned order, bounded work/prepared intent/lease state
+financial_capacity:
+  commands_per_binding: 25
+  actual_events_per_lifecycle: 41
+  protected_events_per_binding: 43
+  shared_rotation_headroom: 2
+  limits: [512, 1024]
+  enforcement: universal sandbox-counter trigger, private rotation context; no client-controlled bypass
+  consumption: disabled; future effect-backed promotion/application requires separate approval
+bounds:
+  bindings_per_sandbox: 4
+  logical_messages_per_order: 40
+  work_items_per_order: 40
+  attempts_per_message: 4
+  ordinary_protocol_receipts: 960
+  maximum_protocol_receipts_including_recovery: 1024
+  raw_frame_bytes: 8192
+  lease_seconds: 15
+  write_days: 7
+  retention_days: 30
+reconciliation:
+  financial_history: historical v1/schema5, v2/schema6 and v3/schema7 unchanged; current financial v4/schema8 retains the four financial queries
+  independent_sql: verification/sql/fix_foundation_v2.sql
+  protocol_profile: fix-foundation-v2
+  financial_watermark: maximum committed financial command sequence in snapshot
+  protocol_watermark: maximum committed protocol control sequence in snapshot
+  protocol_ingest_watermark: maximum RECORD sequence in snapshot
+  protocol_prepare_watermark: maximum PREPARE sequence in snapshot
+  protocol_application_watermark: '0; application unavailable'
+  protocol_completeness: NOT_IMPLEMENTED
+  financial_ledger_consistency: NOT_EVALUATED
+  allowed_assessments: [FOUNDATION_CONSISTENT, FOUNDATION_FINDINGS]
+  complete: false
+  delivery_verified: false
+  financial_application_verified: false
+errors: [400, 401, 403, 404, 409, 429, 503]
+unsupported:
+  - financial application, key promotion and reservation consumption
+  - transport/delivery, sessions, sockets, reconnect, replay engine
+  - hosted infrastructure, production deployment, settlement or live counterparties
+
+capacity_admission:
+  commands_limit: 512
+  audit_limit: 1024
+  reservation_per_binding: { commands: 25, events: 43 }
+  outstanding: active reservations minus actual consumption
+  security_headroom: max(2 minus rotation receipts since earliest retained binding, 0)
+  rotation_replay: no new receipt or spending
+  historical_basis: fix-foundation-v1 remains unchanged

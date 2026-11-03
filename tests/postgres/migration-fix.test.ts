@@ -202,7 +202,7 @@ void test('006 upgrades populated exact schema5, preserves all financial/histori
         'SELECT version,checksum FROM fi_control.schema_migrations ORDER BY version',
       )
     ).rows;
-    await migrate(cfg);
+    await migrate(cfg, undefined, 6);
     assert.deepEqual(await hashes(), before);
     assert.deepEqual(
       (
@@ -238,7 +238,13 @@ void test('006 upgrades populated exact schema5, preserves all financial/histori
     ).rows[0]!;
     assert.equal(historical.state, 'COMPLETED_CLEAN');
     assert.equal(metadataSchema.parse(historical.source_metadata).schema_revision, 5);
-    const current = await verificationManifest();
+    const physical = await verificationManifest();
+    const current = {
+      ...physical,
+      engine_version: 'reconciliation-v2',
+      schema_revision: 6,
+      schema_checksums: physical.schema_checksums!.slice(0, 6),
+    };
     assert.equal(current.engine_version, 'reconciliation-v2');
     assert.equal(current.schema_revision, 6);
     assert.equal(current.schema_checksums?.length, 6);

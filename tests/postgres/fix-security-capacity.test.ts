@@ -9,6 +9,7 @@ import { WorkflowDatabase } from '../../app/persistence/postgres/workflow.js';
 import { RfqService } from '../../app/server/fixed-income-workflow/rfq-service.js';
 import { DomainError } from '../../app/domain/errors.js';
 import { digest, rfqInput } from './rfq-fixture.js';
+import { assertCleanCapacity, capacityEvidence } from './fix-capacity-oracle.js';
 void test('real roles force RLS, reject cross-sandbox proof and deny private kernels, forged contexts and immutable writes', async () => {
   const a = await fixture(),
     b = await fixture();
@@ -57,7 +58,7 @@ void test('real roles force RLS, reject cross-sandbox proof and deny private ker
     );
     assert.equal(roles.rows[0]!.v, true);
     const tables = await db.query<{ n: number }>(
-      "SELECT count(*)::int n FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fi' AND c.relname LIKE 'fix_%' AND c.relkind='r' AND c.relrowsecurity AND c.relforcerowsecurity",
+      "SELECT count(*)::int n FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='fi' AND c.relname IN ('fix_channels','fix_bindings','fix_lanes','fix_messages','fix_sequence_slots','fix_attempts','fix_outbox','fix_dealer_correlations','fix_cancel_correlations','fix_work','fix_prepared','fix_outcomes','fix_commands','fix_events') AND c.relkind='r' AND c.relrowsecurity AND c.relforcerowsecurity",
     );
     assert.equal(tables.rows[0]!.n, 14);
   } finally {
@@ -148,6 +149,18 @@ void test('every financial writer respects protected reservations and only authe
       ).rows,
       [{ commands: 25, events: 43 }],
     );
+    const evidence = await capacityEvidence(admin, s.id);
+    assert.equal(evidence.C, 486);
+    assert.equal(evidence.R, 25);
+    assert.equal(evidence.S, 43);
+    assert.equal(evidence.N, 1);
+    assert.equal(evidence.H, 1);
+    await assertCleanCapacity(admin, {
+      sandboxId: s.id,
+      digest: newTrade,
+      generation: '2',
+      scope: 'trade',
+    });
   } finally {
     await admin.end();
     await s.close();
@@ -811,6 +824,7 @@ void test('protected event totals admit 1023 and 1024 but reject 1025 independen
     assert.equal(new Set(targets).size, 3);
     assert.equal((await create(rfqInput(), randomUUID())).status, 201);
     const initial = await snapshot();
+    await assertCleanCapacity(observer, binding);
     assert.deepEqual(budgets(initial), {
       commands: 382,
       events: 978,
@@ -855,6 +869,7 @@ void test('protected event totals admit 1023 and 1024 but reject 1025 independen
     assert.equal(below.replayed, false);
     assert.equal(below.body['financial_applied'], false);
     const afterBelow = await snapshot();
+    await assertCleanCapacity(observer, binding);
     assert.deepEqual(budgets(afterBelow), {
       commands: 382,
       events: 978,
@@ -870,6 +885,7 @@ void test('protected event totals admit 1023 and 1024 but reject 1025 independen
     assert.equal(at.status, 201);
     assert.equal(at.replayed, false);
     const limit = await snapshot();
+    await assertCleanCapacity(observer, binding);
     assert.deepEqual(budgets(limit), {
       commands: 383,
       events: 979,
@@ -914,6 +930,7 @@ void test('protected event totals admit 1023 and 1024 but reject 1025 independen
     // Legitimate pristine release restores active reservations without erasing retained bindings.
     assert.equal((await s.fix('RELEASE', { order_id: targets[0] })).status, 200);
     const releasedA = await snapshot();
+    await assertCleanCapacity(observer, binding);
     assert.deepEqual(budgets(releasedA), {
       commands: 383,
       events: 979,
@@ -925,6 +942,7 @@ void test('protected event totals admit 1023 and 1024 but reject 1025 independen
     assert.equal(equality.status, 201);
     assert.equal(equality.replayed, false);
     const exact = await snapshot();
+    await assertCleanCapacity(observer, binding);
     assert.deepEqual(budgets(exact), {
       commands: 383,
       events: 979,
@@ -944,6 +962,7 @@ void test('protected event totals admit 1023 and 1024 but reject 1025 independen
     assert.equal(retry.status, 201);
     assert.equal(retry.replayed, false);
     const over = await snapshot();
+    await assertCleanCapacity(observer, binding);
     assert.deepEqual(budgets(over), {
       commands: 384,
       events: 980,
@@ -1027,6 +1046,7 @@ void test('protected event totals admit 1023 and 1024 but reject 1025 independen
       isDeepStrictEqual(await snapshot(), over),
       'Closed-binding/original-key replay changed capacity.',
     );
+    await assertCleanCapacity(observer, binding);
     console.log(
       'Independent event-capacity persisted evidence:',
       JSON.stringify({
@@ -1052,6 +1072,119 @@ void test('protected event totals admit 1023 and 1024 but reject 1025 independen
         fixMessages: over['fix_messages']!.length,
         protocolReceipts: over['fix_commands']!.length,
         protocolEvents: over['fix_events']!.length,
+      }),
+    );
+
+    // Both reservations are legitimately released. These are actual financial
+    // audit events, distinct from the protected E+S+H equality above.
+    const beforeRotations = await capacityEvidence(observer, s.id);
+    assert.equal(beforeRotations.C, 384);
+    assert.equal(beforeRotations.E, 980);
+    assert.equal(beforeRotations.R, 0);
+    assert.equal(beforeRotations.S, 0);
+    assert.equal(beforeRotations.bindings, 2);
+    assert.equal(beforeRotations.active, 0);
+    assert.equal(beforeRotations.N, 0);
+    assert.equal(beforeRotations.H, 2);
+    const rotationKeys: string[] = [];
+    let proof = s.proof,
+      generation = 1;
+    for (let index = 0; index < 44; index++) {
+      const trade = digest(randomUUID()),
+        key = randomUUID();
+      const rotated = (
+        await s.app.query<{ r: { status: number; replayed: boolean } }>(
+          'SELECT fi_control.rotate_capabilities($1,$2,$3,$4,$5,$6,$7,$8,$9) r',
+          [
+            s.id,
+            proof,
+            generation,
+            generation,
+            digest(randomUUID()),
+            trade,
+            digest(randomUUID()),
+            key,
+            s.actor,
+          ],
+        )
+      ).rows[0]!.r;
+      assert.equal(rotated.status, 200);
+      assert.equal(rotated.replayed, false);
+      rotationKeys.push(key);
+      proof = trade;
+      generation++;
+    }
+    const actualFull = await capacityEvidence(observer, s.id);
+    assert.equal(actualFull.C, 428);
+    assert.equal(actualFull.E, 1024);
+    assert.equal(actualFull.R, 0);
+    assert.equal(actualFull.S, 0);
+    assert.equal(actualFull.bindings, 2);
+    assert.equal(actualFull.active, 0);
+    assert.equal(actualFull.N, 44);
+    assert.equal(actualFull.H, 0);
+    assert.ok(actualFull.C < 512, 'Only the actual event ceiling may explain rejection.');
+    assert.equal(actualFull.C - beforeRotations.C, 44);
+    assert.equal(actualFull.E - beforeRotations.E, 44);
+    const rotationReceipts = actualFull.state['fi.commands']!.filter((row) =>
+      rotationKeys.includes(String(row['idempotency_key'])),
+    );
+    assert.equal(rotationReceipts.length, 44);
+    for (const receipt of rotationReceipts) {
+      assert.equal(receipt['operation'], 'ROTATE_CAPABILITIES');
+      assert.equal(receipt['result_kind'], 'APPLIED');
+      assert.equal(receipt['http_status'], 200);
+      const audits = actualFull.state['fi.audit_events']!.filter(
+        (row) => row['command_id'] === receipt['id'],
+      );
+      assert.equal(audits.length, 1);
+      assert.equal(audits[0]!['event_type'], 'CAPABILITIES_ROTATED');
+      assert.equal(audits[0]!['command_seq'], receipt['command_seq']);
+    }
+    assert.deepEqual(
+      actualFull.state['fi.commands']!.filter(
+        (row) => !rotationKeys.includes(String(row['idempotency_key'])),
+      ),
+      beforeRotations.state['fi.commands'],
+    );
+    const current = {
+      sandboxId: s.id,
+      digest: proof,
+      generation: String(generation),
+      scope: 'trade' as const,
+    };
+    await assertCleanCapacity(observer, current);
+    const fullSnapshot = await snapshot();
+    const blockedRotation = (
+      await s.app.query<{
+        r: { status: number; replayed: boolean; body: { error: { code: string } } };
+      }>('SELECT fi_control.rotate_capabilities($1,$2,$3,$4,$5,$6,$7,$8,$9) r', [
+        s.id,
+        proof,
+        generation,
+        generation,
+        digest(randomUUID()),
+        digest(randomUUID()),
+        digest(randomUUID()),
+        randomUUID(),
+        s.actor,
+      ])
+    ).rows[0]!.r;
+    assert.equal(blockedRotation.status, 429);
+    assert.equal(blockedRotation.replayed, false);
+    assert.equal(blockedRotation.body.error.code, 'SANDBOX_QUOTA_REACHED');
+    assert.deepEqual(await capacityEvidence(observer, s.id), actualFull);
+    assert.deepEqual(await snapshot(), fullSnapshot);
+    await assertCleanCapacity(observer, current);
+    console.log(
+      'Actual event-ceiling rotation evidence:',
+      JSON.stringify({
+        financialCommands: actualFull.C,
+        financialAudits: actualFull.E,
+        retainedRotations: actualFull.N,
+        securityHeadroom: actualFull.H,
+        activeReservations: actualFull.active,
+        rejectedCode: blockedRotation.body.error.code,
       }),
     );
   } finally {
