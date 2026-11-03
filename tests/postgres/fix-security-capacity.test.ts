@@ -753,443 +753,808 @@ void test('distinct-order BIND contenders admit only the final retained slot wit
   }
 });
 
-void test('protected event totals admit 1023 and 1024 but reject 1025 independently of command and binding limits', async () => {
-  const s = await fixture(),
-    cfg = await owner(),
-    observer = await connection('admin');
-  const database = new WorkflowDatabase(cfg.appUrl!);
-  const rfq = new RfqService(database);
-  const binding = { sandboxId: s.id, digest: s.proof, scope: 'trade' as const, generation: '1' };
-  const financialRows = [
-    'orders',
-    'order_states',
-    'executions',
-    'positions',
-    'order_history',
-    'cancellation_requests',
-    'cancellation_outcomes',
-  ] as const;
-  async function snapshot() {
-    const data = await durableFixSnapshot(s.id);
-    for (const table of ['rfqs', 'quotes', 'invitations']) {
-      data[table] = (
-        await observer.query<{ record: Record<string, unknown> }>(
-          `SELECT to_jsonb(t) AS record FROM fi.${table} t WHERE sandbox_id=$1 ORDER BY to_jsonb(t)::text`,
-          [s.id],
-        )
-      ).rows.map((row) => row.record);
-    }
-    assert.equal(Number(data['sandboxes']![0]!['command_count']), data['commands']!.length);
-    assert.equal(Number(data['sandboxes']![0]!['commit_seq']), data['commands']!.length);
-    assert.equal(Number(data['sandboxes']![0]!['event_count']), data['audit_events']!.length);
-    return data;
-  }
-  function budgets(data: Awaited<ReturnType<typeof snapshot>>) {
-    const active = data['fix_reservations']!.filter((row) => row['released_at'] === null);
-    return {
-      commands: Number(data['sandboxes']![0]!['command_count']),
-      events: Number(data['sandboxes']![0]!['event_count']),
-      reservedCommands: active.reduce((sum, row) => sum + Number(row['commands']), 0),
-      reservedEvents: active.reduce((sum, row) => sum + Number(row['events']), 0),
-      retained: data['fix_bindings']!.length,
+void test('protected event totals admit 1023 and 1024 but reject 1025 independently of command and binding limits', async (ciContext) => {
+  // Private diagnostic proposal only. These records contain no command inputs,
+  // SQL, identities, capability proofs, connection strings or exception values.
+  const ciTiming = (() => {
+    type Operation = {
+      sequence: number;
+      ordinal: number;
+      label: string;
+      stage: string;
+      parentSequence: number | null;
+      depth: number;
+      startedNs: bigint;
+      endedNs: bigint | null;
+      outcome: 'pending' | 'fulfilled' | 'rejected';
     };
-  }
-  async function create(input: ReturnType<typeof rfqInput>, key: string) {
-    return rfq.command(binding, 'CREATE_RFQ', input, key, s.actor, () => {});
-  }
-  try {
-    // Supported Phase 2C manual activity: 30 full orders and one seven-fill order.
-    // The fixture's original order stays pristine for FIX binding.
-    for (let index = 0; index < 31; index++) {
-      const order = await s.createOrder();
-      assert.equal(
-        (await s.command('ACK_ORDER', { order_id: order, expected_version: '1' })).status,
-        200,
+    type Stage = {
+      ordinal: number;
+      label: string;
+      startedNs: bigint;
+      endedNs: bigint | null;
+      closure: 'active' | 'next-stage' | 'finally';
+    };
+    const originNs = process.hrtime.bigint();
+    const operations: Operation[] = [];
+    const active: Operation[] = [];
+    const stages: Stage[] = [];
+    const ordinals = new Map<string, number>();
+    let sequence = 0;
+    let omittedOperations = 0;
+    let loggingFailures = 0;
+    function duration(operation: Operation, at: bigint) {
+      return (operation.endedNs ?? at) - operation.startedNs;
+    }
+    function milliseconds(value: bigint) {
+      return Number(value) / 1e6;
+    }
+    function operationView(operation: Operation, at: bigint) {
+      return {
+        sequence: operation.sequence,
+        ordinal: operation.ordinal,
+        label: operation.label,
+        stage: operation.stage,
+        parentSequence: operation.parentSequence,
+        depth: operation.depth,
+        elapsedNs: duration(operation, at).toString(),
+        elapsedMs: milliseconds(duration(operation, at)),
+        startedAfterTestMs: milliseconds(operation.startedNs - originNs),
+        endedAfterTestMs:
+          operation.endedNs === null ? null : milliseconds(operation.endedNs - originNs),
+        outcome: operation.outcome,
+      };
+    }
+    function stageView(stage: Stage, at: bigint) {
+      const endedNs = stage.endedNs ?? at;
+      const intervals = operations
+        .filter((operation) => operation.parentSequence === null)
+        .map((operation) => ({
+          start: operation.startedNs > stage.startedNs ? operation.startedNs : stage.startedNs,
+          end: (operation.endedNs ?? at) < endedNs ? (operation.endedNs ?? at) : endedNs,
+        }))
+        .filter((interval) => interval.end > interval.start)
+        .sort((left, right) => (left.start < right.start ? -1 : left.start > right.start ? 1 : 0));
+      let awaitedNs = 0n;
+      let unionStart = 0n;
+      let unionEnd = 0n;
+      for (const interval of intervals) {
+        if (interval.start > unionEnd) {
+          awaitedNs += unionEnd - unionStart;
+          unionStart = interval.start;
+          unionEnd = interval.end;
+        } else if (interval.end > unionEnd) unionEnd = interval.end;
+      }
+      awaitedNs += unionEnd - unionStart;
+      const wallNs = endedNs - stage.startedNs;
+      return {
+        ordinal: stage.ordinal,
+        label: stage.label,
+        closure: stage.closure,
+        wallNs: wallNs.toString(),
+        wallMs: milliseconds(wallNs),
+        topLevelAwaitedWallMs: milliseconds(awaitedNs),
+        wallOutsideAwaitMs: milliseconds(wallNs - awaitedNs),
+        topLevelAwaitedWallNs: awaitedNs.toString(),
+        wallOutsideAwaitNs: (wallNs - awaitedNs).toString(),
+      };
+    }
+    function flush(reason: string) {
+      const at = process.hrtime.bigint();
+      const labels = [...ordinals.keys()];
+      const operationAggregates = labels.map((label) => {
+        const matching = operations.filter((operation) => operation.label === label);
+        const completed = matching.filter((operation) => operation.endedNs !== null);
+        const samples = completed
+          .map((operation) => duration(operation, at))
+          .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+        const middle = Math.floor(samples.length / 2);
+        const median = samples.length
+          ? samples.length % 2
+            ? samples[middle]!
+            : (samples[middle - 1]! + samples[middle]!) / 2n
+          : null;
+        return {
+          label,
+          count: matching.length,
+          fulfilled: matching.filter((operation) => operation.outcome === 'fulfilled').length,
+          rejected: matching.filter((operation) => operation.outcome === 'rejected').length,
+          pending: matching.filter((operation) => operation.outcome === 'pending').length,
+          completedInclusiveNs: samples.reduce((sum, value) => sum + value, 0n).toString(),
+          completedInclusiveMs: milliseconds(samples.reduce((sum, value) => sum + value, 0n)),
+          minMs: samples.length ? milliseconds(samples[0]!) : null,
+          maxMs: samples.length ? milliseconds(samples.at(-1)!) : null,
+          medianMs: median === null ? null : milliseconds(median),
+          p95NearestRankMs: samples.length
+            ? milliseconds(samples[Math.ceil(samples.length * 0.95) - 1]!)
+            : null,
+          minNs: samples[0]?.toString() ?? null,
+          maxNs: samples.at(-1)?.toString() ?? null,
+          medianNs: median?.toString() ?? null,
+          p95NearestRankNs: samples.length
+            ? samples[Math.ceil(samples.length * 0.95) - 1]!.toString()
+            : null,
+        };
+      });
+      const rotations = operations.filter((operation) => operation.label === 'rotation.query');
+      const completedRotations = rotations.filter((operation) => operation.endedNs !== null);
+      const slowestRotation = completedRotations.reduce<Operation | null>(
+        (slowest, operation) =>
+          slowest === null || duration(operation, at) > duration(slowest, at) ? operation : slowest,
+        null,
       );
-      const fills = index === 30 ? 7 : 8;
-      for (let fill = 0; fill < fills; fill++) {
-        const executed = await s.command('EXECUTE_ORDER', {
-          order_id: order,
-          expected_version: String(fill + 2),
-          par_amount: '12.50',
-          execution_id: randomUUID(),
-          source_event_id: randomUUID(),
-        });
-        assert.equal(executed.status, 201);
-        assert.equal(executed.body.lifecycle.execution_count, fill + 1);
-        assert.equal(executed.body.lifecycle.status, fill === 7 ? 'FILLED' : 'PARTIALLY_FILLED');
+      const summary = {
+        schema: 'tradeflow-private-test-timing-v1',
+        reason,
+        elapsedNs: (at - originNs).toString(),
+        elapsedMs: milliseconds(at - originNs),
+        clock: 'process.hrtime.bigint',
+        retainedOperations: operations.length,
+        maximumRetainedOperations: 2048,
+        omittedOperations,
+        priorLoggingFailures: loggingFailures,
+        interpretation: {
+          stageAwaitedWall:
+            'Union of top-level operation intervals; nested operations are not added twice.',
+          residual:
+            'Wall time outside those intervals includes synchronous work, scheduling and instrumentation; it is not CPU time.',
+          aggregates:
+            'Operation durations are inclusive; do not add parent and child totals as wall time.',
+          rejected:
+            'An operation rejection is not a test-failure classification; expected rejection is checked by the unchanged assert.rejects predicate.',
+          observerEffect:
+            'Diagnostic wrapping adds promise continuations, bookkeeping and bounded synchronous output.',
+        },
+        stages: stages.map((stage) => stageView(stage, at)),
+        operationAggregates,
+        pendingOperations: active.map((operation) => operationView(operation, at)),
+        slowestCompletedOperations: operations
+          .filter((operation) => operation.endedNs !== null)
+          .sort((left, right) =>
+            duration(left, at) > duration(right, at)
+              ? -1
+              : duration(left, at) < duration(right, at)
+                ? 1
+                : 0,
+          )
+          .slice(0, 12)
+          .map((operation) => operationView(operation, at)),
+        rotationProgress: {
+          observed: rotations.length,
+          fulfilled: rotations.filter((operation) => operation.outcome === 'fulfilled').length,
+          rejected: rotations.filter((operation) => operation.outcome === 'rejected').length,
+          pending: rotations.filter((operation) => operation.outcome === 'pending').length,
+        },
+        rotationTimes: rotations.map((operation, index) => ({
+          ...operationView(operation, at),
+          cumulativeObservedMs: milliseconds(
+            rotations.slice(0, index + 1).reduce((sum, row) => sum + duration(row, at), 0n),
+          ),
+        })),
+        slowestCompletedRotation:
+          slowestRotation === null ? null : operationView(slowestRotation, at),
+      };
+      // Only diagnostic serialization/output is caught. Original operations,
+      // assertions, cancellation and cleanup errors are never caught here.
+      try {
+        console.log('Private protected-event timing diagnostics:', JSON.stringify(summary));
+      } catch {
+        loggingFailures++;
       }
     }
-    const targets = [s.order, await s.createOrder(), await s.createOrder()];
-    assert.equal(new Set(targets).size, 3);
-    assert.equal((await create(rfqInput(), randomUUID())).status, 201);
-    const initial = await snapshot();
-    await assertCleanCapacity(observer, binding);
-    assert.deepEqual(budgets(initial), {
-      commands: 382,
-      events: 978,
-      reservedCommands: 0,
-      reservedEvents: 0,
-      retained: 0,
-    });
-    assert.equal(initial['rfqs']!.length, 35);
-    assert.equal(initial['orders']!.length, 34);
-    assert.equal(initial['executions']!.length, 247);
-    assert.equal(initial['order_states']!.filter((row) => row['status'] === 'FILLED').length, 30);
-    assert.equal(
-      initial['order_states']!.filter((row) => row['status'] === 'PARTIALLY_FILLED').length,
-      1,
-    );
-    for (const target of targets) {
-      const state = initial['order_states']!.find((row) => row['order_id'] === target)!;
-      assert.equal(state['status'], 'PENDING_ACK');
-      assert.equal(state['version'], 1);
-      assert.equal(state['execution_count'], 0);
-      assert.equal(state['pending_cancel_id'], null);
+    const abort = () => flush('signal-abort-partial');
+    ciContext.signal.addEventListener('abort', abort, { once: true });
+    return {
+      async measure<T>(label: string, operation: () => PromiseLike<T> | T): Promise<T> {
+        const ordinal = (ordinals.get(label) ?? 0) + 1;
+        ordinals.set(label, ordinal);
+        sequence++;
+        if (operations.length >= 2048) {
+          omittedOperations++;
+          return await operation();
+        }
+        const entry: Operation = {
+          sequence,
+          ordinal,
+          label,
+          stage: stages.at(-1)?.label ?? 'before-first-stage',
+          parentSequence: active.at(-1)?.sequence ?? null,
+          depth: active.length,
+          startedNs: process.hrtime.bigint(),
+          endedNs: null,
+          outcome: 'pending',
+        };
+        operations.push(entry);
+        active.push(entry);
+        let fulfilled = false;
+        try {
+          const result = await operation();
+          fulfilled = true;
+          return result;
+        } finally {
+          entry.endedNs = process.hrtime.bigint();
+          entry.outcome = fulfilled ? 'fulfilled' : 'rejected';
+          const position = active.indexOf(entry);
+          if (position !== -1) active.splice(position, 1);
+        }
+      },
+      stage(label: string) {
+        const at = process.hrtime.bigint();
+        const previous = stages.at(-1);
+        if (previous) {
+          previous.endedNs = at;
+          previous.closure = 'next-stage';
+        }
+        stages.push({
+          ordinal: stages.length + 1,
+          label,
+          startedNs: at,
+          endedNs: null,
+          closure: 'active',
+        });
+      },
+      checkpoint: flush,
+      finish() {
+        ciContext.signal.removeEventListener('abort', abort);
+        const previous = stages.at(-1);
+        if (previous) {
+          previous.endedNs = process.hrtime.bigint();
+          previous.closure = 'finally';
+        }
+        flush('test-callback-finally');
+      },
+    };
+  })();
+  try {
+    ciTiming.stage('01-bootstrap');
+
+    const s = await ciTiming.measure('setup.fixture', () => fixture()),
+      cfg = await ciTiming.measure('setup.owner', () => owner()),
+      observer = await ciTiming.measure('setup.observer', () => connection('admin'));
+    const database = new WorkflowDatabase(cfg.appUrl!);
+    const rfq = new RfqService(database);
+    const binding = {
+      sandboxId: s.id,
+      digest: s.proof,
+      scope: 'trade' as const,
+      generation: '1',
+    };
+    const financialRows = [
+      'orders',
+      'order_states',
+      'executions',
+      'positions',
+      'order_history',
+      'cancellation_requests',
+      'cancellation_outcomes',
+    ] as const;
+    async function snapshot() {
+      const data = await ciTiming.measure('snapshot.durable-fix', () => durableFixSnapshot(s.id));
+      for (const table of ['rfqs', 'quotes', 'invitations']) {
+        data[table] = (
+          await ciTiming.measure('snapshot.observer-query', () =>
+            observer.query<{ record: Record<string, unknown> }>(
+              `SELECT to_jsonb(t) AS record FROM fi.${table} t WHERE sandbox_id=$1 ORDER BY to_jsonb(t)::text`,
+              [s.id],
+            ),
+          )
+        ).rows.map((row) => row.record);
+      }
+      assert.equal(Number(data['sandboxes']![0]!['command_count']), data['commands']!.length);
+      assert.equal(Number(data['sandboxes']![0]!['commit_seq']), data['commands']!.length);
+      assert.equal(Number(data['sandboxes']![0]!['event_count']), data['audit_events']!.length);
+      return data;
     }
-    assert.equal(initial['positions']!.length, 1);
-    assert.equal(Number(initial['positions']![0]!['signed_par']), 3087.5);
-    assert.equal(initial['positions']![0]!['execution_count'], 247);
-    assert.equal(
-      BigInt(String(initial['positions']![0]!['signed_cash_cents'])),
-      -initial['executions']!.reduce(
-        (sum, row) => sum + BigInt(String(row['consideration_cents'])),
-        0n,
-      ),
-    );
+    function budgets(data: Awaited<ReturnType<typeof snapshot>>) {
+      const active = data['fix_reservations']!.filter((row) => row['released_at'] === null);
+      return {
+        commands: Number(data['sandboxes']![0]!['command_count']),
+        events: Number(data['sandboxes']![0]!['event_count']),
+        reservedCommands: active.reduce((sum, row) => sum + Number(row['commands']), 0),
+        reservedEvents: active.reduce((sum, row) => sum + Number(row['events']), 0),
+        retained: data['fix_bindings']!.length,
+      };
+    }
+    async function create(input: ReturnType<typeof rfqInput>, key: string) {
+      return rfq.command(binding, 'CREATE_RFQ', input, key, s.actor, () => {});
+    }
+    try {
+      ciTiming.stage('02-manual-financial-precondition');
+      // Supported Phase 2C manual activity: 30 full orders and one seven-fill order.
+      // The fixture's original order stays pristine for FIX binding.
+      for (let index = 0; index < 31; index++) {
+        const order = await ciTiming.measure('manual.create-order', () => s.createOrder());
+        assert.equal(
+          (
+            await ciTiming.measure('manual.ack-order', () =>
+              s.command('ACK_ORDER', { order_id: order, expected_version: '1' }),
+            )
+          ).status,
+          200,
+        );
+        const fills = index === 30 ? 7 : 8;
+        for (let fill = 0; fill < fills; fill++) {
+          const executed = await ciTiming.measure('manual.execute-order', () =>
+            s.command('EXECUTE_ORDER', {
+              order_id: order,
+              expected_version: String(fill + 2),
+              par_amount: '12.50',
+              execution_id: randomUUID(),
+              source_event_id: randomUUID(),
+            }),
+          );
+          assert.equal(executed.status, 201);
+          assert.equal(executed.body.lifecycle.execution_count, fill + 1);
+          assert.equal(executed.body.lifecycle.status, fill === 7 ? 'FILLED' : 'PARTIALLY_FILLED');
+        }
+      }
+      ciTiming.checkpoint('manual-financial-precondition-complete');
+      ciTiming.stage('03-targets-and-initial-evidence');
+      const targets = [
+        s.order,
+        await ciTiming.measure('targets.create-order', () => s.createOrder()),
+        await ciTiming.measure('targets.create-order', () => s.createOrder()),
+      ];
+      assert.equal(new Set(targets).size, 3);
+      assert.equal(
+        (await ciTiming.measure('rfq.create.initial', () => create(rfqInput(), randomUUID())))
+          .status,
+        201,
+      );
+      const initial = await ciTiming.measure('snapshot', () => snapshot());
+      await ciTiming.measure('oracle.assert-clean-capacity', () =>
+        assertCleanCapacity(observer, binding),
+      );
+      assert.deepEqual(budgets(initial), {
+        commands: 382,
+        events: 978,
+        reservedCommands: 0,
+        reservedEvents: 0,
+        retained: 0,
+      });
+      assert.equal(initial['rfqs']!.length, 35);
+      assert.equal(initial['orders']!.length, 34);
+      assert.equal(initial['executions']!.length, 247);
+      assert.equal(initial['order_states']!.filter((row) => row['status'] === 'FILLED').length, 30);
+      assert.equal(
+        initial['order_states']!.filter((row) => row['status'] === 'PARTIALLY_FILLED').length,
+        1,
+      );
+      for (const target of targets) {
+        const state = initial['order_states']!.find((row) => row['order_id'] === target)!;
+        assert.equal(state['status'], 'PENDING_ACK');
+        assert.equal(state['version'], 1);
+        assert.equal(state['execution_count'], 0);
+        assert.equal(state['pending_cancel_id'], null);
+      }
+      assert.equal(initial['positions']!.length, 1);
+      assert.equal(Number(initial['positions']![0]!['signed_par']), 3087.5);
+      assert.equal(initial['positions']![0]!['execution_count'], 247);
+      assert.equal(
+        BigInt(String(initial['positions']![0]!['signed_cash_cents'])),
+        -initial['executions']!.reduce(
+          (sum, row) => sum + BigInt(String(row['consideration_cents'])),
+          0n,
+        ),
+      );
 
-    const requests = targets.map((order_id) => ({
-      input: { order_id, dealer_id: 'ATLAS', channel_id: randomUUID() },
-      key: randomUUID(),
-    }));
-    assert.ok(382 + 25 + 2 < 512);
-    assert.equal(978 + 43 + 2, 1023);
-    const below = await s.fix('BIND', requests[0]!.input, requests[0]!.key);
-    assert.equal(below.status, 201);
-    assert.equal(below.replayed, false);
-    assert.equal(below.body['financial_applied'], false);
-    const afterBelow = await snapshot();
-    await assertCleanCapacity(observer, binding);
-    assert.deepEqual(budgets(afterBelow), {
-      commands: 382,
-      events: 978,
-      reservedCommands: 25,
-      reservedEvents: 43,
-      retained: 1,
-    });
+      const requests = targets.map((order_id) => ({
+        input: { order_id, dealer_id: 'ATLAS', channel_id: randomUUID() },
+        key: randomUUID(),
+      }));
+      assert.ok(382 + 25 + 2 < 512);
+      assert.equal(978 + 43 + 2, 1023);
+      ciTiming.stage('04-protected-1023-bind');
+      const below = await ciTiming.measure('fix.bind.below', () =>
+        s.fix('BIND', requests[0]!.input, requests[0]!.key),
+      );
+      assert.equal(below.status, 201);
+      assert.equal(below.replayed, false);
+      assert.equal(below.body['financial_applied'], false);
+      const afterBelow = await ciTiming.measure('snapshot', () => snapshot());
+      await ciTiming.measure('oracle.assert-clean-capacity', () =>
+        assertCleanCapacity(observer, binding),
+      );
+      assert.deepEqual(budgets(afterBelow), {
+        commands: 382,
+        events: 978,
+        reservedCommands: 25,
+        reservedEvents: 43,
+        retained: 1,
+      });
 
-    // A real one-event writer fills the last protected slot without hitting C or RFQ limits.
-    const atInput = rfqInput(),
-      atKey = randomUUID();
-    const at = await create(atInput, atKey);
-    assert.equal(at.status, 201);
-    assert.equal(at.replayed, false);
-    const limit = await snapshot();
-    await assertCleanCapacity(observer, binding);
-    assert.deepEqual(budgets(limit), {
-      commands: 383,
-      events: 979,
-      reservedCommands: 25,
-      reservedEvents: 43,
-      retained: 1,
-    });
-    assert.equal(limit['rfqs']!.length, 36);
-    assert.equal(979 + 43 + 2, 1024);
-    const atReplay = await create(atInput, atKey);
-    assert.equal(atReplay.status, 201);
-    assert.equal(atReplay.replayed, true);
-    assert.ok(isDeepStrictEqual(atReplay.body, at.body));
-    assert.ok(
-      isDeepStrictEqual(await snapshot(), limit),
-      'Replay at the event boundary changed state.',
-    );
+      ciTiming.stage('05-protected-1024-writer');
+      // A real one-event writer fills the last protected slot without hitting C or RFQ limits.
+      const atInput = rfqInput(),
+        atKey = randomUUID();
+      const at = await ciTiming.measure('rfq.create.equality', () => create(atInput, atKey));
+      assert.equal(at.status, 201);
+      assert.equal(at.replayed, false);
+      const limit = await ciTiming.measure('snapshot', () => snapshot());
+      await ciTiming.measure('oracle.assert-clean-capacity', () =>
+        assertCleanCapacity(observer, binding),
+      );
+      assert.deepEqual(budgets(limit), {
+        commands: 383,
+        events: 979,
+        reservedCommands: 25,
+        reservedEvents: 43,
+        retained: 1,
+      });
+      assert.equal(limit['rfqs']!.length, 36);
+      assert.equal(979 + 43 + 2, 1024);
+      ciTiming.stage('06-equality-writer-replay');
+      const atReplay = await ciTiming.measure('rfq.create.equality-replay', () =>
+        create(atInput, atKey),
+      );
+      assert.equal(atReplay.status, 201);
+      assert.equal(atReplay.replayed, true);
+      assert.ok(isDeepStrictEqual(atReplay.body, at.body));
+      assert.ok(
+        isDeepStrictEqual(await ciTiming.measure('snapshot', () => snapshot()), limit),
+        'Replay at the event boundary changed state.',
+      );
 
-    const overInput = rfqInput(),
-      overKey = randomUUID();
-    assert.ok(384 + 25 + 2 < 512);
-    assert.equal(980 + 43 + 2, 1025);
-    for (let attempt = 0; attempt < 2; attempt++) {
-      await assert.rejects(
+      ciTiming.stage('07-protected-1025-writer-rejections');
+      const overInput = rfqInput(),
+        overKey = randomUUID();
+      assert.ok(384 + 25 + 2 < 512);
+      assert.equal(980 + 43 + 2, 1025);
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await ciTiming.measure('assert.rejects.protected-financial-capacity', () =>
+          assert.rejects(
+            ciTiming.measure('rfq.create.expected-capacity-rejection', () =>
+              create(overInput, overKey),
+            ),
+            (error: unknown) =>
+              error instanceof DomainError &&
+              error.status === 429 &&
+              error.code === 'PROTECTED_FINANCIAL_CAPACITY',
+          ),
+        );
+        assert.ok(
+          isDeepStrictEqual(await ciTiming.measure('snapshot', () => snapshot()), limit),
+          'Rejected one-event writer left partial financial/RFQ/protocol state.',
+        );
+      }
+      assert.equal(
+        limit['commands']!.filter((row) => row['idempotency_key'] === overKey).length,
+        0,
+      );
+      assert.equal(
+        limit['command_keys']!.filter((row) => row['idempotency_key'] === overKey).length,
+        0,
+      );
+
+      ciTiming.stage('08-first-release-and-evidence');
+      // Legitimate pristine release restores active reservations without erasing retained bindings.
+      assert.equal(
+        (
+          await ciTiming.measure('fix.release.first', () =>
+            s.fix('RELEASE', { order_id: targets[0] }),
+          )
+        ).status,
+        200,
+      );
+      const releasedA = await ciTiming.measure('snapshot', () => snapshot());
+      await ciTiming.measure('oracle.assert-clean-capacity', () =>
+        assertCleanCapacity(observer, binding),
+      );
+      assert.deepEqual(budgets(releasedA), {
+        commands: 383,
+        events: 979,
+        reservedCommands: 0,
+        reservedEvents: 0,
+        retained: 1,
+      });
+      ciTiming.stage('09-protected-1024-bind');
+      const equality = await ciTiming.measure('fix.bind.equality', () =>
+        s.fix('BIND', requests[1]!.input, requests[1]!.key),
+      );
+      assert.equal(equality.status, 201);
+      assert.equal(equality.replayed, false);
+      const exact = await ciTiming.measure('snapshot', () => snapshot());
+      await ciTiming.measure('oracle.assert-clean-capacity', () =>
+        assertCleanCapacity(observer, binding),
+      );
+      assert.deepEqual(budgets(exact), {
+        commands: 383,
+        events: 979,
+        reservedCommands: 25,
+        reservedEvents: 43,
+        retained: 2,
+      });
+      assert.equal(979 + 43 + 2, 1024);
+      ciTiming.stage('10-equality-bind-replay');
+      const equalityReplay = await ciTiming.measure('fix.bind.equality-replay', () =>
+        s.fix('BIND', requests[1]!.input, requests[1]!.key),
+      );
+      assert.equal(equalityReplay.status, 201);
+      assert.equal(equalityReplay.replayed, true);
+      assert.ok(isDeepStrictEqual(equalityReplay.body, equality.body));
+      assert.ok(isDeepStrictEqual(await ciTiming.measure('snapshot', () => snapshot()), exact));
+
+      ciTiming.stage('11-second-release-and-writer-admission');
+      assert.equal(
+        (
+          await ciTiming.measure('fix.release.second', () =>
+            s.fix('RELEASE', { order_id: targets[1] }),
+          )
+        ).status,
+        200,
+      );
+      const retry = await ciTiming.measure('rfq.create.after-release', () =>
         create(overInput, overKey),
-        (error: unknown) =>
-          error instanceof DomainError &&
-          error.status === 429 &&
-          error.code === 'PROTECTED_FINANCIAL_CAPACITY',
+      );
+      assert.equal(retry.status, 201);
+      assert.equal(retry.replayed, false);
+      const over = await ciTiming.measure('snapshot', () => snapshot());
+      await ciTiming.measure('oracle.assert-clean-capacity', () =>
+        assertCleanCapacity(observer, binding),
+      );
+      assert.deepEqual(budgets(over), {
+        commands: 384,
+        events: 980,
+        reservedCommands: 0,
+        reservedEvents: 0,
+        retained: 2,
+      });
+      assert.equal(over['rfqs']!.length, 37);
+      assert.equal(over['rfqs']!.filter((row) => row['id'] === overInput.rfq_id).length, 1);
+      assert.equal(over['commands']!.filter((row) => row['idempotency_key'] === overKey).length, 1);
+      ciTiming.stage('12-protected-1025-bind-rejections');
+      assert.ok(384 + 25 + 2 < 512);
+      assert.ok(over['fix_bindings']!.length < 4);
+      assert.equal(980 + 43 + 2, 1025);
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const rejected = await ciTiming.measure('fix.bind.expected-capacity-response', () =>
+          s.fix('BIND', requests[2]!.input, requests[2]!.key),
+        );
+        assert.equal(rejected.status, 429);
+        assert.equal(rejected.replayed, false);
+        assert.equal((rejected.body['error'] as { code: string }).code, 'FIX_RESERVATION_CAPACITY');
+        assert.ok(
+          isDeepStrictEqual(await ciTiming.measure('snapshot', () => snapshot()), over),
+          'Event-only BIND rejection left a partial binding/reservation/receipt/record.',
+        );
+      }
+      ciTiming.stage('13-conservation-and-original-key-replays');
+      assert.equal(over['fix_channels']!.length, 2);
+      for (const table of ['fix_bindings', 'fix_reservations', 'fix_lanes']) {
+        assert.deepEqual(
+          over[table]!.map((row) => row['order_id']).sort(),
+          targets.slice(0, 2).sort(),
+        );
+      }
+      assert.equal(over['fix_commands']!.length, 4);
+      assert.equal(over['fix_events']!.length, 4);
+      assert.equal(
+        over['fix_commands']!.filter((row) => row['idempotency_key'] === requests[2]!.key).length,
+        0,
+      );
+      assert.equal(
+        over['command_keys']!.filter((row) => row['idempotency_key'] === requests[2]!.key).length,
+        0,
+      );
+      for (const table of [
+        'fix_messages',
+        'fix_attempts',
+        'fix_sequence_slots',
+        'fix_outbox',
+        'fix_dealer_correlations',
+        'fix_cancel_correlations',
+        'fix_work',
+        'fix_prepared',
+        'fix_outcomes',
+      ])
+        assert.equal(over[table]!.length, 0);
+      for (const table of financialRows)
+        assert.ok(
+          isDeepStrictEqual(over[table], initial[table]),
+          `Capacity checks changed ${table}.`,
+        );
+      assert.ok(
+        isDeepStrictEqual(
+          over['commands']!.filter((row) => Number(row['command_seq']) <= 382),
+          initial['commands'],
+        ),
+        'Existing financial receipts changed.',
       );
       assert.ok(
-        isDeepStrictEqual(await snapshot(), limit),
-        'Rejected one-event writer left partial financial/RFQ/protocol state.',
+        isDeepStrictEqual(
+          over['audit_events']!.filter((row) => Number(row['command_seq']) <= 382),
+          initial['audit_events'],
+        ),
+        'Existing financial audit events changed.',
       );
-    }
-    assert.equal(limit['commands']!.filter((row) => row['idempotency_key'] === overKey).length, 0);
-    assert.equal(
-      limit['command_keys']!.filter((row) => row['idempotency_key'] === overKey).length,
-      0,
-    );
-
-    // Legitimate pristine release restores active reservations without erasing retained bindings.
-    assert.equal((await s.fix('RELEASE', { order_id: targets[0] })).status, 200);
-    const releasedA = await snapshot();
-    await assertCleanCapacity(observer, binding);
-    assert.deepEqual(budgets(releasedA), {
-      commands: 383,
-      events: 979,
-      reservedCommands: 0,
-      reservedEvents: 0,
-      retained: 1,
-    });
-    const equality = await s.fix('BIND', requests[1]!.input, requests[1]!.key);
-    assert.equal(equality.status, 201);
-    assert.equal(equality.replayed, false);
-    const exact = await snapshot();
-    await assertCleanCapacity(observer, binding);
-    assert.deepEqual(budgets(exact), {
-      commands: 383,
-      events: 979,
-      reservedCommands: 25,
-      reservedEvents: 43,
-      retained: 2,
-    });
-    assert.equal(979 + 43 + 2, 1024);
-    const equalityReplay = await s.fix('BIND', requests[1]!.input, requests[1]!.key);
-    assert.equal(equalityReplay.status, 201);
-    assert.equal(equalityReplay.replayed, true);
-    assert.ok(isDeepStrictEqual(equalityReplay.body, equality.body));
-    assert.ok(isDeepStrictEqual(await snapshot(), exact));
-
-    assert.equal((await s.fix('RELEASE', { order_id: targets[1] })).status, 200);
-    const retry = await create(overInput, overKey);
-    assert.equal(retry.status, 201);
-    assert.equal(retry.replayed, false);
-    const over = await snapshot();
-    await assertCleanCapacity(observer, binding);
-    assert.deepEqual(budgets(over), {
-      commands: 384,
-      events: 980,
-      reservedCommands: 0,
-      reservedEvents: 0,
-      retained: 2,
-    });
-    assert.equal(over['rfqs']!.length, 37);
-    assert.equal(over['rfqs']!.filter((row) => row['id'] === overInput.rfq_id).length, 1);
-    assert.equal(over['commands']!.filter((row) => row['idempotency_key'] === overKey).length, 1);
-    assert.ok(384 + 25 + 2 < 512);
-    assert.ok(over['fix_bindings']!.length < 4);
-    assert.equal(980 + 43 + 2, 1025);
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const rejected = await s.fix('BIND', requests[2]!.input, requests[2]!.key);
-      assert.equal(rejected.status, 429);
-      assert.equal(rejected.replayed, false);
-      assert.equal((rejected.body['error'] as { code: string }).code, 'FIX_RESERVATION_CAPACITY');
+      const original = await ciTiming.measure('fix.bind.original-key-replay', () =>
+        s.fix('BIND', requests[0]!.input, requests[0]!.key),
+      );
+      assert.equal(original.status, 201);
+      assert.equal(original.replayed, true);
+      assert.ok(isDeepStrictEqual(original.body, below.body));
+      const financialReplay = await ciTiming.measure('rfq.create.accepted-key-replay', () =>
+        create(overInput, overKey),
+      );
+      assert.equal(financialReplay.status, 201);
+      assert.equal(financialReplay.replayed, true);
+      assert.ok(isDeepStrictEqual(financialReplay.body, retry.body));
       assert.ok(
-        isDeepStrictEqual(await snapshot(), over),
-        'Event-only BIND rejection left a partial binding/reservation/receipt/record.',
+        isDeepStrictEqual(await ciTiming.measure('snapshot', () => snapshot()), over),
+        'Closed-binding/original-key replay changed capacity.',
       );
-    }
-    assert.equal(over['fix_channels']!.length, 2);
-    for (const table of ['fix_bindings', 'fix_reservations', 'fix_lanes']) {
+      await ciTiming.measure('oracle.assert-clean-capacity', () =>
+        assertCleanCapacity(observer, binding),
+      );
+      console.log(
+        'Independent event-capacity persisted evidence:',
+        JSON.stringify({
+          initialCommands: 382,
+          initialEvents: 978,
+          belowProtectedEvents: 1023,
+          equalityCommands: 383,
+          equalityEvents: 979,
+          activeReservedCommands: 25,
+          activeReservedEvents: 43,
+          equalityProtectedEvents: 1024,
+          rejectedWriterProjectedCommands: 411,
+          rejectedWriterProjectedEvents: 1025,
+          finalCommands: budgets(over).commands,
+          finalEvents: budgets(over).events,
+          retainedBindings: budgets(over).retained,
+          finalActiveReservations: budgets(over).reservedEvents,
+          rejectedBindProjectedCommands: 411,
+          rejectedBindProjectedEvents: 1025,
+          rfqs: over['rfqs']!.length,
+          orders: over['orders']!.length,
+          manualExecutions: over['executions']!.length,
+          fixMessages: over['fix_messages']!.length,
+          protocolReceipts: over['fix_commands']!.length,
+          protocolEvents: over['fix_events']!.length,
+        }),
+      );
+
+      ciTiming.checkpoint('protected-event-boundaries-complete');
+      ciTiming.stage('14-post-marker-before-rotations');
+      // Both reservations are legitimately released. These are actual financial
+      // audit events, distinct from the protected E+S+H equality above.
+      const beforeRotations = await ciTiming.measure('oracle.capacity-evidence', () =>
+        capacityEvidence(observer, s.id),
+      );
+      assert.equal(beforeRotations.C, 384);
+      assert.equal(beforeRotations.E, 980);
+      assert.equal(beforeRotations.R, 0);
+      assert.equal(beforeRotations.S, 0);
+      assert.equal(beforeRotations.bindings, 2);
+      assert.equal(beforeRotations.active, 0);
+      assert.equal(beforeRotations.N, 0);
+      assert.equal(beforeRotations.H, 2);
+      const rotationKeys: string[] = [];
+      let proof = s.proof,
+        generation = 1;
+      ciTiming.stage('15-capability-rotations-44');
+      for (let index = 0; index < 44; index++) {
+        const trade = digest(randomUUID()),
+          key = randomUUID();
+        const rotated = (
+          await ciTiming.measure('rotation.query', () =>
+            s.app.query<{ r: { status: number; replayed: boolean } }>(
+              'SELECT fi_control.rotate_capabilities($1,$2,$3,$4,$5,$6,$7,$8,$9) r',
+              [
+                s.id,
+                proof,
+                generation,
+                generation,
+                digest(randomUUID()),
+                trade,
+                digest(randomUUID()),
+                key,
+                s.actor,
+              ],
+            ),
+          )
+        ).rows[0]!.r;
+        assert.equal(rotated.status, 200);
+        assert.equal(rotated.replayed, false);
+        rotationKeys.push(key);
+        proof = trade;
+        generation++;
+      }
+      ciTiming.checkpoint('rotation-loop-complete');
+      ciTiming.stage('16-actual-full-capacity-and-receipts');
+      const actualFull = await ciTiming.measure('oracle.capacity-evidence', () =>
+        capacityEvidence(observer, s.id),
+      );
+      assert.equal(actualFull.C, 428);
+      assert.equal(actualFull.E, 1024);
+      assert.equal(actualFull.R, 0);
+      assert.equal(actualFull.S, 0);
+      assert.equal(actualFull.bindings, 2);
+      assert.equal(actualFull.active, 0);
+      assert.equal(actualFull.N, 44);
+      assert.equal(actualFull.H, 0);
+      assert.ok(actualFull.C < 512, 'Only the actual event ceiling may explain rejection.');
+      assert.equal(actualFull.C - beforeRotations.C, 44);
+      assert.equal(actualFull.E - beforeRotations.E, 44);
+      const rotationReceipts = actualFull.state['fi.commands']!.filter((row) =>
+        rotationKeys.includes(String(row['idempotency_key'])),
+      );
+      assert.equal(rotationReceipts.length, 44);
+      for (const receipt of rotationReceipts) {
+        assert.equal(receipt['operation'], 'ROTATE_CAPABILITIES');
+        assert.equal(receipt['result_kind'], 'APPLIED');
+        assert.equal(receipt['http_status'], 200);
+        const audits = actualFull.state['fi.audit_events']!.filter(
+          (row) => row['command_id'] === receipt['id'],
+        );
+        assert.equal(audits.length, 1);
+        assert.equal(audits[0]!['event_type'], 'CAPABILITIES_ROTATED');
+        assert.equal(audits[0]!['command_seq'], receipt['command_seq']);
+      }
       assert.deepEqual(
-        over[table]!.map((row) => row['order_id']).sort(),
-        targets.slice(0, 2).sort(),
+        actualFull.state['fi.commands']!.filter(
+          (row) => !rotationKeys.includes(String(row['idempotency_key'])),
+        ),
+        beforeRotations.state['fi.commands'],
       );
-    }
-    assert.equal(over['fix_commands']!.length, 4);
-    assert.equal(over['fix_events']!.length, 4);
-    assert.equal(
-      over['fix_commands']!.filter((row) => row['idempotency_key'] === requests[2]!.key).length,
-      0,
-    );
-    assert.equal(
-      over['command_keys']!.filter((row) => row['idempotency_key'] === requests[2]!.key).length,
-      0,
-    );
-    for (const table of [
-      'fix_messages',
-      'fix_attempts',
-      'fix_sequence_slots',
-      'fix_outbox',
-      'fix_dealer_correlations',
-      'fix_cancel_correlations',
-      'fix_work',
-      'fix_prepared',
-      'fix_outcomes',
-    ])
-      assert.equal(over[table]!.length, 0);
-    for (const table of financialRows)
-      assert.ok(
-        isDeepStrictEqual(over[table], initial[table]),
-        `Capacity checks changed ${table}.`,
+      const current = {
+        sandboxId: s.id,
+        digest: proof,
+        generation: String(generation),
+        scope: 'trade' as const,
+      };
+      ciTiming.stage('17-post-rotation-clean-verification-and-snapshot');
+      await ciTiming.measure('oracle.assert-clean-capacity', () =>
+        assertCleanCapacity(observer, current),
       );
-    assert.ok(
-      isDeepStrictEqual(
-        over['commands']!.filter((row) => Number(row['command_seq']) <= 382),
-        initial['commands'],
-      ),
-      'Existing financial receipts changed.',
-    );
-    assert.ok(
-      isDeepStrictEqual(
-        over['audit_events']!.filter((row) => Number(row['command_seq']) <= 382),
-        initial['audit_events'],
-      ),
-      'Existing financial audit events changed.',
-    );
-    const original = await s.fix('BIND', requests[0]!.input, requests[0]!.key);
-    assert.equal(original.status, 201);
-    assert.equal(original.replayed, true);
-    assert.ok(isDeepStrictEqual(original.body, below.body));
-    const financialReplay = await create(overInput, overKey);
-    assert.equal(financialReplay.status, 201);
-    assert.equal(financialReplay.replayed, true);
-    assert.ok(isDeepStrictEqual(financialReplay.body, retry.body));
-    assert.ok(
-      isDeepStrictEqual(await snapshot(), over),
-      'Closed-binding/original-key replay changed capacity.',
-    );
-    await assertCleanCapacity(observer, binding);
-    console.log(
-      'Independent event-capacity persisted evidence:',
-      JSON.stringify({
-        initialCommands: 382,
-        initialEvents: 978,
-        belowProtectedEvents: 1023,
-        equalityCommands: 383,
-        equalityEvents: 979,
-        activeReservedCommands: 25,
-        activeReservedEvents: 43,
-        equalityProtectedEvents: 1024,
-        rejectedWriterProjectedCommands: 411,
-        rejectedWriterProjectedEvents: 1025,
-        finalCommands: budgets(over).commands,
-        finalEvents: budgets(over).events,
-        retainedBindings: budgets(over).retained,
-        finalActiveReservations: budgets(over).reservedEvents,
-        rejectedBindProjectedCommands: 411,
-        rejectedBindProjectedEvents: 1025,
-        rfqs: over['rfqs']!.length,
-        orders: over['orders']!.length,
-        manualExecutions: over['executions']!.length,
-        fixMessages: over['fix_messages']!.length,
-        protocolReceipts: over['fix_commands']!.length,
-        protocolEvents: over['fix_events']!.length,
-      }),
-    );
-
-    // Both reservations are legitimately released. These are actual financial
-    // audit events, distinct from the protected E+S+H equality above.
-    const beforeRotations = await capacityEvidence(observer, s.id);
-    assert.equal(beforeRotations.C, 384);
-    assert.equal(beforeRotations.E, 980);
-    assert.equal(beforeRotations.R, 0);
-    assert.equal(beforeRotations.S, 0);
-    assert.equal(beforeRotations.bindings, 2);
-    assert.equal(beforeRotations.active, 0);
-    assert.equal(beforeRotations.N, 0);
-    assert.equal(beforeRotations.H, 2);
-    const rotationKeys: string[] = [];
-    let proof = s.proof,
-      generation = 1;
-    for (let index = 0; index < 44; index++) {
-      const trade = digest(randomUUID()),
-        key = randomUUID();
-      const rotated = (
-        await s.app.query<{ r: { status: number; replayed: boolean } }>(
-          'SELECT fi_control.rotate_capabilities($1,$2,$3,$4,$5,$6,$7,$8,$9) r',
-          [
+      const fullSnapshot = await ciTiming.measure('snapshot', () => snapshot());
+      ciTiming.stage('18-blocked-rotation-and-final-comparisons');
+      const blockedRotation = (
+        await ciTiming.measure('rotation.blocked-query', () =>
+          s.app.query<{
+            r: { status: number; replayed: boolean; body: { error: { code: string } } };
+          }>('SELECT fi_control.rotate_capabilities($1,$2,$3,$4,$5,$6,$7,$8,$9) r', [
             s.id,
             proof,
             generation,
             generation,
             digest(randomUUID()),
-            trade,
             digest(randomUUID()),
-            key,
+            digest(randomUUID()),
+            randomUUID(),
             s.actor,
-          ],
+          ]),
         )
       ).rows[0]!.r;
-      assert.equal(rotated.status, 200);
-      assert.equal(rotated.replayed, false);
-      rotationKeys.push(key);
-      proof = trade;
-      generation++;
-    }
-    const actualFull = await capacityEvidence(observer, s.id);
-    assert.equal(actualFull.C, 428);
-    assert.equal(actualFull.E, 1024);
-    assert.equal(actualFull.R, 0);
-    assert.equal(actualFull.S, 0);
-    assert.equal(actualFull.bindings, 2);
-    assert.equal(actualFull.active, 0);
-    assert.equal(actualFull.N, 44);
-    assert.equal(actualFull.H, 0);
-    assert.ok(actualFull.C < 512, 'Only the actual event ceiling may explain rejection.');
-    assert.equal(actualFull.C - beforeRotations.C, 44);
-    assert.equal(actualFull.E - beforeRotations.E, 44);
-    const rotationReceipts = actualFull.state['fi.commands']!.filter((row) =>
-      rotationKeys.includes(String(row['idempotency_key'])),
-    );
-    assert.equal(rotationReceipts.length, 44);
-    for (const receipt of rotationReceipts) {
-      assert.equal(receipt['operation'], 'ROTATE_CAPABILITIES');
-      assert.equal(receipt['result_kind'], 'APPLIED');
-      assert.equal(receipt['http_status'], 200);
-      const audits = actualFull.state['fi.audit_events']!.filter(
-        (row) => row['command_id'] === receipt['id'],
+      assert.equal(blockedRotation.status, 429);
+      assert.equal(blockedRotation.replayed, false);
+      assert.equal(blockedRotation.body.error.code, 'SANDBOX_QUOTA_REACHED');
+      assert.deepEqual(
+        await ciTiming.measure('oracle.capacity-evidence', () => capacityEvidence(observer, s.id)),
+        actualFull,
       );
-      assert.equal(audits.length, 1);
-      assert.equal(audits[0]!['event_type'], 'CAPABILITIES_ROTATED');
-      assert.equal(audits[0]!['command_seq'], receipt['command_seq']);
+      assert.deepEqual(await ciTiming.measure('snapshot', () => snapshot()), fullSnapshot);
+      await ciTiming.measure('oracle.assert-clean-capacity', () =>
+        assertCleanCapacity(observer, current),
+      );
+      console.log(
+        'Actual event-ceiling rotation evidence:',
+        JSON.stringify({
+          financialCommands: actualFull.C,
+          financialAudits: actualFull.E,
+          retainedRotations: actualFull.N,
+          securityHeadroom: actualFull.H,
+          activeReservations: actualFull.active,
+          rejectedCode: blockedRotation.body.error.code,
+        }),
+      );
+    } finally {
+      ciTiming.stage('19-original-cleanup');
+      await ciTiming.measure('cleanup.database', () => database.close());
+      await ciTiming.measure('cleanup.observer', () => observer.end());
+      await ciTiming.measure('cleanup.fixture', () => s.close());
     }
-    assert.deepEqual(
-      actualFull.state['fi.commands']!.filter(
-        (row) => !rotationKeys.includes(String(row['idempotency_key'])),
-      ),
-      beforeRotations.state['fi.commands'],
-    );
-    const current = {
-      sandboxId: s.id,
-      digest: proof,
-      generation: String(generation),
-      scope: 'trade' as const,
-    };
-    await assertCleanCapacity(observer, current);
-    const fullSnapshot = await snapshot();
-    const blockedRotation = (
-      await s.app.query<{
-        r: { status: number; replayed: boolean; body: { error: { code: string } } };
-      }>('SELECT fi_control.rotate_capabilities($1,$2,$3,$4,$5,$6,$7,$8,$9) r', [
-        s.id,
-        proof,
-        generation,
-        generation,
-        digest(randomUUID()),
-        digest(randomUUID()),
-        digest(randomUUID()),
-        randomUUID(),
-        s.actor,
-      ])
-    ).rows[0]!.r;
-    assert.equal(blockedRotation.status, 429);
-    assert.equal(blockedRotation.replayed, false);
-    assert.equal(blockedRotation.body.error.code, 'SANDBOX_QUOTA_REACHED');
-    assert.deepEqual(await capacityEvidence(observer, s.id), actualFull);
-    assert.deepEqual(await snapshot(), fullSnapshot);
-    await assertCleanCapacity(observer, current);
-    console.log(
-      'Actual event-ceiling rotation evidence:',
-      JSON.stringify({
-        financialCommands: actualFull.C,
-        financialAudits: actualFull.E,
-        retainedRotations: actualFull.N,
-        securityHeadroom: actualFull.H,
-        activeReservations: actualFull.active,
-        rejectedCode: blockedRotation.body.error.code,
-      }),
-    );
   } finally {
-    await database.close();
-    await observer.end();
-    await s.close();
+    ciTiming.finish();
   }
 });
