@@ -61,7 +61,11 @@ reconciliation:
   protocol_profile: fix-foundation-v2
   financial_watermark: maximum committed financial command sequence in snapshot
   protocol_watermark: maximum committed protocol control sequence in snapshot
-  protocol_ingest_watermark: maximum RECORD sequence in snapshot
+  # Successful RECORD receipts and retained INGEST_REJECTED receipts both contribute.
+  # Output is MAX(command_seq) as a numeric string, or '0' when neither exists.
+  # A rejection without a durable ingress receipt, or exact original-key replay,
+  # does not add a receipt/sequence or advance this watermark.
+  protocol_ingest_watermark: maximum retained RECORD or INGEST_REJECTED command_seq in snapshot
   protocol_prepare_watermark: maximum PREPARE sequence in snapshot
   protocol_application_watermark: '0; application unavailable'
   protocol_completeness: NOT_IMPLEMENTED
