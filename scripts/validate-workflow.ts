@@ -95,8 +95,7 @@ const browserSetup = [
 const aggregateCommand =
   [
     'set -euo pipefail',
-    'printf \'first=%s second=%s workflow_cancelled=%s\\n\' "$FIRST_RESULT" "$SECOND_RESULT" "$WORKFLOW_CANCELLED"',
-    'test "$WORKFLOW_CANCELLED" = \'false\'',
+    'printf \'first=%s second=%s\\n\' "$FIRST_RESULT" "$SECOND_RESULT"',
     'test "$FIRST_RESULT" = \'success\'',
     'test "$SECOND_RESULT" = \'success\'',
   ].join('\n') + '\n';
@@ -116,9 +115,13 @@ function aggregateJob(name: string, first: string, second: string) {
         env: {
           FIRST_RESULT: `\${{ needs['${first}'].result }}`,
           SECOND_RESULT: `\${{ needs['${second}'].result }}`,
-          WORKFLOW_CANCELLED: '${{ cancelled() }}',
         },
         run: aggregateCommand,
+      },
+      {
+        if: '${{ cancelled() }}',
+        shell: 'bash',
+        run: 'exit 1',
       },
     ],
   };
@@ -174,7 +177,31 @@ const expectedPersistenceWorkflow = {
   },
 };
 
+const statusFunctionExpression = /\$\{\{[^}]*\b(?:always|cancelled|failure|success)\s*\(/;
+
+function validateStatusFunctionContexts(value: unknown, path: string[] = []): void {
+  if (typeof value === 'string') {
+    if (statusFunctionExpression.test(value)) {
+      const jobIf = path.length === 3 && path[0] === 'jobs' && path[2] === 'if';
+      const stepIf =
+        path.length === 5 && path[0] === 'jobs' && path[2] === 'steps' && path[4] === 'if';
+      assert(jobIf || stepIf, 'Unsupported status-function expression context: ' + path.join('.'));
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => validateStatusFunctionContexts(item, [...path, String(index)]));
+    return;
+  }
+  if (value !== null && typeof value === 'object') {
+    for (const [field, item] of Object.entries(value)) {
+      validateStatusFunctionContexts(item, [...path, field]);
+    }
+  }
+}
+
 export function validatePersistenceWorkflow(input: unknown): void {
+  validateStatusFunctionContexts(input);
   const workflow = persistenceWorkflowSchema.parse(input);
   // Step names are descriptive; every field that can affect execution is compared exactly.
   const normalized = {

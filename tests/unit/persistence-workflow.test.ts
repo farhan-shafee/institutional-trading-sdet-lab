@@ -472,11 +472,29 @@ for (const { id, first, second } of aggregateJobs) {
   rejectMutation(id + ' wrong second needs-result expression', (workflow) => {
     mapping(step(workflow, id, 0).env).SECOND_RESULT = '$' + "{{ needs['" + first + "'].result }}";
   });
-  rejectMutation(id + ' wrong workflow cancellation expression', (workflow) => {
-    mapping(step(workflow, id, 0).env).WORKFLOW_CANCELLED = '$' + '{{ false }}';
+  rejectMutation(id + ' invalid cancelled() expression in step env', (workflow) => {
+    mapping(step(workflow, id, 0).env).WORKFLOW_CANCELLED = '$' + '{{ cancelled() }}';
+  });
+  rejectMutation(id + ' invalid cancelled() expression in step run', (workflow) => {
+    step(workflow, id, 0).run = 'echo "' + '$' + '{{ cancelled() }}' + '"';
+  });
+  rejectMutation(id + ' invalid cancelled() expression in step name', (workflow) => {
+    step(workflow, id, 0).name = '$' + '{{ cancelled() }}';
   });
   rejectMutation(id + ' missing cancellation guard', (workflow) => {
-    replaceRun(workflow, id, 'test "$WORKFLOW_CANCELLED" = \'false\'\n', '');
+    steps(workflow, id).splice(1, 1);
+  });
+  rejectMutation(id + ' modified cancellation guard condition', (workflow) => {
+    step(workflow, id, 1).if = '$' + '{{ success() }}';
+  });
+  rejectMutation(id + ' removed cancellation guard condition', (workflow) => {
+    delete step(workflow, id, 1).if;
+  });
+  rejectMutation(id + ' cancellation guard returns success', (workflow) => {
+    step(workflow, id, 1).run = 'exit 0';
+  });
+  rejectMutation(id + ' cancellation guard has unexpected environment', (workflow) => {
+    step(workflow, id, 1).env = { WORKFLOW_CANCELLED: '$' + '{{ cancelled() }}' };
   });
   for (const result of ['FIRST_RESULT', 'SECOND_RESULT']) {
     for (const accepted of ['skipped', 'failure']) {
@@ -502,6 +520,33 @@ for (const { id, first, second } of aggregateJobs) {
     const target = step(workflow, id, 0);
     assert.equal(typeof target.run, 'string');
     target.run = (target.run as string).trimEnd();
+  });
+}
+
+for (const { id } of aggregateJobs) {
+  void test(id + ' independently rejects cancelled() in step env', () => {
+    const candidate = structuredClone(validWorkflow);
+    mapping(step(candidate, id, 0).env).WORKFLOW_CANCELLED = '$' + '{{ cancelled() }}';
+    assert.throws(
+      () => workflowValidation.validatePersistenceWorkflow(candidate),
+      /Unsupported status-function expression context: jobs\./,
+    );
+  });
+  void test(id + ' independently rejects cancelled() in step run', () => {
+    const candidate = structuredClone(validWorkflow);
+    step(candidate, id, 0).run = 'echo "' + '$' + '{{ cancelled() }}' + '"';
+    assert.throws(
+      () => workflowValidation.validatePersistenceWorkflow(candidate),
+      /Unsupported status-function expression context: jobs\./,
+    );
+  });
+  void test(id + ' independently rejects cancelled() in step name', () => {
+    const candidate = structuredClone(validWorkflow);
+    step(candidate, id, 0).name = '$' + '{{ cancelled() }}';
+    assert.throws(
+      () => workflowValidation.validatePersistenceWorkflow(candidate),
+      /Unsupported status-function expression context: jobs\./,
+    );
   });
 }
 
@@ -546,10 +591,14 @@ for (const { id } of aggregateJobs) {
           JSON.stringify(second) +
           ' cancelled=' +
           JSON.stringify(cancelled);
-        void test(id + ' actual YAML Bash predicate: ' + state, () => {
+        void test(id + ' actual YAML Bash and cancellation policy: ' + state, () => {
           workflowValidation.validatePersistenceWorkflow(validWorkflow);
           const body = step(validWorkflow, id, 0).run;
+          const cancellationStep = step(validWorkflow, id, 1);
           assert.equal(typeof body, 'string');
+          assert.equal(cancellationStep.if, '$' + '{{ cancelled() }}');
+          assert.equal(cancellationStep.shell, 'bash');
+          assert.equal(typeof cancellationStep.run, 'string');
           bash ??= findBash();
           const child = spawnSync(bash, ['--noprofile', '--norc', '-c', body as string], {
             env: {
@@ -561,7 +610,6 @@ for (const { id } of aggregateJobs) {
               ENV: '',
               FIRST_RESULT: first,
               SECOND_RESULT: second,
-              WORKFLOW_CANCELLED: cancelled,
             },
             encoding: 'utf8',
             shell: false,
@@ -571,9 +619,45 @@ for (const { id } of aggregateJobs) {
           });
           assert.equal(child.error, undefined, state);
           assert.equal(child.signal, null, state);
-          const expectedStatus =
-            first === 'success' && second === 'success' && cancelled === 'false' ? 0 : 1;
-          assert.equal(child.status, expectedStatus, state + '\n' + child.stdout + child.stderr);
+          const expectedBashStatus = first === 'success' && second === 'success' ? 0 : 1;
+          assert.equal(
+            child.status,
+            expectedBashStatus,
+            state + '\n' + child.stdout + child.stderr,
+          );
+
+          // GitHub permits cancelled() in step.if, not step.env. This models its
+          // true condition separately from the unconditional upstream-result step.
+          if (cancelled === 'true') {
+            const rejection = spawnSync(
+              bash,
+              ['--noprofile', '--norc', '-c', cancellationStep.run as string],
+              {
+                env: { PATH: process.env.PATH ?? '/usr/bin:/bin' },
+                encoding: 'utf8',
+                shell: false,
+                windowsHide: true,
+                timeout: 2_000,
+                maxBuffer: 16_384,
+              },
+            );
+            assert.equal(rejection.error, undefined, state);
+            assert.equal(rejection.signal, null, state);
+            assert.notEqual(
+              rejection.status,
+              0,
+              'The cancellation step must reject workflow cancellation.',
+            );
+          }
+
+          // Unknown cancellation status is NOT accepted as a release outcome.
+          // This is an offline policy model, not GitHub scheduler attestation.
+          const accepted = child.status === 0 && cancelled === 'false';
+          assert.equal(
+            accepted,
+            first === 'success' && second === 'success' && cancelled === 'false',
+            state,
+          );
         });
       }
     }

@@ -78,13 +78,15 @@ jobs:
         env:
           FIRST_RESULT: ${{ needs['postgres-run-a'].result }}
           SECOND_RESULT: ${{ needs['postgres-run-b'].result }}
-          WORKFLOW_CANCELLED: ${{ cancelled() }}
         run: |
           set -euo pipefail
-          printf 'first=%s second=%s workflow_cancelled=%s\n' "$FIRST_RESULT" "$SECOND_RESULT" "$WORKFLOW_CANCELLED"
-          test "$WORKFLOW_CANCELLED" = 'false'
+          printf 'first=%s second=%s\n' "$FIRST_RESULT" "$SECOND_RESULT"
           test "$FIRST_RESULT" = 'success'
           test "$SECOND_RESULT" = 'success'
+      - name: Reject workflow cancellation
+        if: ${{ cancelled() }}
+        shell: bash
+        run: exit 1
 
   workstation-baseline:
     name: workstation-baseline
@@ -165,13 +167,15 @@ jobs:
         env:
           FIRST_RESULT: ${{ needs['workstation-baseline'].result }}
           SECOND_RESULT: ${{ needs['workstation-repeat'].result }}
-          WORKFLOW_CANCELLED: ${{ cancelled() }}
         run: |
           set -euo pipefail
-          printf 'first=%s second=%s workflow_cancelled=%s\n' "$FIRST_RESULT" "$SECOND_RESULT" "$WORKFLOW_CANCELLED"
-          test "$WORKFLOW_CANCELLED" = 'false'
+          printf 'first=%s second=%s\n' "$FIRST_RESULT" "$SECOND_RESULT"
           test "$FIRST_RESULT" = 'success'
           test "$SECOND_RESULT" = 'success'
+      - name: Reject workflow cancellation
+        if: ${{ cancelled() }}
+        shell: bash
+        run: exit 1
 
   regression:
     runs-on: ubuntu-latest
