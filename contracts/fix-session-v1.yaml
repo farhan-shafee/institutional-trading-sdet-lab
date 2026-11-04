@@ -1,0 +1,85 @@
+standard: FIX.4.4
+version: 1
+profile: tradeflow-fix-session-offline-v1
+claim: offline-conformance-only
+dictionary:
+  revision: aa1985560bfdaef2edc4d2aa51e119c2ff80b164
+  sha256: a82655b54363aa9c6d1b2f21f294f1198c0d7125d7b44c26d93d3179f3358425
+  license_sha256: 04719eefe7adf383d7970d7654caec6f7e542e6427f25d068e7177495fc9b379
+roles:
+  initiator: TF3C_INITIATOR
+  acceptor: TF3C_ACCEPTOR
+limits:
+  manifest_bytes: 131072
+  cases: 64
+  events_before_end: 32
+  unique_fixture_bytes: 262144
+  frame_bytes: 8192
+  fields: 64
+  value_bytes: 256
+wire:
+  header_order: ['8', '9', '35', '49', '56', '34', '43?', '52', '122?']
+  trailer: '10'
+  sequence_min: 1
+  sequence_max: 2147483647
+messages:
+  A:
+    required_body: ['98', '108']
+    optional_body: ['141']
+    bilateral_values:
+      '98': '0'
+      '108': '30'
+      '141': 'absent-or-N'
+  '0':
+    required_body: []
+    optional_body: ['112']
+  '1':
+    required_body: ['112']
+    optional_body: []
+  '5':
+    required_body: []
+    optional_body: ['58']
+classifications:
+  IN_SCOPE_CONFORMANT: [COMPLETE]
+  INVALID:
+    - FRAME_INVALID
+    - COMP_ID_MISMATCH
+    - MESSAGE_TYPE_UNKNOWN
+    - MESSAGE_SCHEMA
+    - STATE_TRANSITION
+    - TEST_REQ_ID_MISMATCH
+    - TEST_REQUEST_ALREADY_PENDING
+    - TEST_REQ_ID_REUSED
+    - AFTER_CLOSED
+    - SEQUENCE_TOO_LOW
+  OUT_OF_SCOPE:
+    - PROFILE_OPTION_UNSUPPORTED
+    - RESET_UNSUPPORTED
+    - RESEND_UNSUPPORTED
+    - SESSION_REJECT_UNSUPPORTED
+    - MESSAGE_UNSUPPORTED
+    - REPLAY_UNSUPPORTED
+    - RECOVERY_REQUIRED
+    - ERROR_LOGOUT_UNSUPPORTED
+    - RECONNECT_UNSUPPORTED
+  INCOMPLETE:
+    - EMPTY_SESSION
+    - LOGON_REPLY_MISSING
+    - TEST_RESPONSE_MISSING
+    - LOGOUT_MISSING
+    - LOGOUT_REPLY_MISSING
+    - CONNECTION_LOST
+claim_limits:
+  offline_conformance_only: true
+  peer_interoperability_verified: false
+  delivery_verified: false
+  financial_application_verified: false
+  external_completeness_verified: false
+not_evaluated:
+  - heartbeat scheduling
+  - elapsed-time thresholds
+  - clock freshness
+  - reconnect and recovery
+  - independent send/arrival concurrency
+  - real delivery and financial effects
+rules: docs/FIX44_SESSION.md
