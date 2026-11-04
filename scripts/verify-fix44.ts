@@ -34,3 +34,9 @@ await run(
     Object.fromEntries(fixtures.map((f) => [f.name, encodeFix44(f.fields).toString('base64')])),
   ),
 );
+// An explicit file target fails if mandatory new tests disappear; glob discovery can pass with zero.
+await run(['-m', 'unittest', 'verification/python/test_fix_session_reference.py', '-v']);
+await run([
+  'verification/python/fix_session_reference.py',
+  'test-data/fix44/session/manifest.json',
+]);

@@ -1,0 +1,1976 @@
+{
+  "version": "tradeflow-fix-session-corpus-v1",
+  "cases": [
+    {
+      "id": "C01_INITIATOR_LOGOUT",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logout_2.fix",
+          "sha256": "cc0147c380aa8c48454a834f155cc3b4bbaa383f1bdfaa1fc3278b3cbd4db28c"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logout_2.fix",
+          "sha256": "776af0ccab7f469f65f5356ed6dffbf21571f4bc17c95c8508c6db831b9dd5a7"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "IN_SCOPE_CONFORMANT",
+        "code": "COMPLETE",
+        "event_index": 4,
+        "state": "CLOSED",
+        "next_i_to_a": 3,
+        "next_a_to_i": 3,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C02_ACCEPTOR_LOGOUT",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logout_2.fix",
+          "sha256": "776af0ccab7f469f65f5356ed6dffbf21571f4bc17c95c8508c6db831b9dd5a7"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logout_2.fix",
+          "sha256": "cc0147c380aa8c48454a834f155cc3b4bbaa383f1bdfaa1fc3278b3cbd4db28c"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "IN_SCOPE_CONFORMANT",
+        "code": "COMPLETE",
+        "event_index": 4,
+        "state": "CLOSED",
+        "next_i_to_a": 3,
+        "next_a_to_i": 3,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C03_ORDINARY_HEARTBEATS",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_heartbeat_2.fix",
+          "sha256": "980a709e037d04038b696ec724c5450d84ebe9c5747cba29f3ed980c35c01299"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_heartbeat_2.fix",
+          "sha256": "d757096c2df98c0467e3b2e3d6c7bbd0fa076c2b770ee23b64690e6b6d0bc548"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logout_3.fix",
+          "sha256": "b365f35ca18bec4b8573a4a063196f064087bdff6970dd24ac99def32112519f"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logout_3.fix",
+          "sha256": "580eb6de330f33f4df084f912471b4f5a0cf509f0b144db877ae47e40eb8d9d7"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "IN_SCOPE_CONFORMANT",
+        "code": "COMPLETE",
+        "event_index": 6,
+        "state": "CLOSED",
+        "next_i_to_a": 4,
+        "next_a_to_i": 4,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C04_INITIATOR_TEST_REQUEST",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_test_req_2.fix",
+          "sha256": "ab3f0c4adf9b201eda09d69a5f10f1b4762c106352405eff500e585cfb94686a"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_echo_i_2.fix",
+          "sha256": "d6b60cea978bdcb7d49b750ce711f493982b0ba05b8b253777602ab54d8d12c7"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logout_3.fix",
+          "sha256": "b365f35ca18bec4b8573a4a063196f064087bdff6970dd24ac99def32112519f"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logout_3.fix",
+          "sha256": "580eb6de330f33f4df084f912471b4f5a0cf509f0b144db877ae47e40eb8d9d7"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "IN_SCOPE_CONFORMANT",
+        "code": "COMPLETE",
+        "event_index": 6,
+        "state": "CLOSED",
+        "next_i_to_a": 4,
+        "next_a_to_i": 4,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C05_ACCEPTOR_TEST_REQUEST",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_test_req_2.fix",
+          "sha256": "58fb6e4d800755b45abf449691c5e89ae1e43fe159aa97f3ed12001aa5330fb4"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_echo_a_2.fix",
+          "sha256": "80177d0c44591936333278d4de18fe6c6e7d0d5ece0cc6efafd1eae33de650aa"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logout_3.fix",
+          "sha256": "580eb6de330f33f4df084f912471b4f5a0cf509f0b144db877ae47e40eb8d9d7"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logout_3.fix",
+          "sha256": "b365f35ca18bec4b8573a4a063196f064087bdff6970dd24ac99def32112519f"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "IN_SCOPE_CONFORMANT",
+        "code": "COMPLETE",
+        "event_index": 6,
+        "state": "CLOSED",
+        "next_i_to_a": 4,
+        "next_a_to_i": 4,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C06_CROSSED_REQUESTS",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_test_req_2.fix",
+          "sha256": "ab3f0c4adf9b201eda09d69a5f10f1b4762c106352405eff500e585cfb94686a"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_test_req_2.fix",
+          "sha256": "58fb6e4d800755b45abf449691c5e89ae1e43fe159aa97f3ed12001aa5330fb4"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_echo_i_3.fix",
+          "sha256": "479e3cf4b0393b9265e0a54bf7a5ff1d826b5ad95561bb5c66cf8b21c72a9b1b"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_echo_a_3.fix",
+          "sha256": "7cde13bb5c98b379b3b36c47fdff68c0d43d29a2df6298b7d0a8a38de23aeb03"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logout_4.fix",
+          "sha256": "7227c650598c5d6df487b32c1180061620eef5cf9abe016d40ab7d339c7dd861"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logout_4.fix",
+          "sha256": "bad2e2654c76bff9828dd5ce8d217cf0188393eb4fbb800277589a086871e2da"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "IN_SCOPE_CONFORMANT",
+        "code": "COMPLETE",
+        "event_index": 8,
+        "state": "CLOSED",
+        "next_i_to_a": 5,
+        "next_a_to_i": 5,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C07_LOGON_REQUIRED_FIELD",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_missing_108.fix",
+          "sha256": "d43bc4737f0bdd2302c6917127027a89f7d0a0bad5da6f016a8dce4c4a0a60ef"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "MESSAGE_SCHEMA",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C07_LOGON_MALFORMED_INTEGER",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_bad_108.fix",
+          "sha256": "7e48163c339d2a8fdfec78d2007fbcef1240122c0eb3c056c4d37853a1a17c81"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "MESSAGE_SCHEMA",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C08_EARLY_HEARTBEAT_ID",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_early_echo.fix",
+          "sha256": "49f81ff8b6ebacb20079379f2635011eaa318b38ccbbf149c9cafb060d41e9c9"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "STATE_TRANSITION",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C09_ACCEPTOR_STARTS",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "STATE_TRANSITION",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C10_DUPLICATE_LOGON",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_2.fix",
+          "sha256": "e63f4507fa69dd1f0cd9c685e4b1ea41cad55690591962dd5079f782ed756ad0"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "STATE_TRANSITION",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C11_COMP_ID",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_bad_comp_id.fix",
+          "sha256": "d74b3e7d70ec9ce705eae6b0afbfcb66a715de970b717f3aab4d575d1cb5a83a"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "COMP_ID_MISMATCH",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C12_SEQUENCE_GAP",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_heartbeat_3.fix",
+          "sha256": "242b08a24bd4886f877d5d6bd9832f15a87aadff9ed28ea0f537ccd55db2da33"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "OUT_OF_SCOPE",
+        "code": "RECOVERY_REQUIRED",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C13_SEQUENCE_TOO_LOW",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_heartbeat_1.fix",
+          "sha256": "e7fe0103af2a7cc9a5e1bf8df70ad55902ce5d28b38b6a277a8255f2b8f0fa73"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "SEQUENCE_TOO_LOW",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C14_MARKED_REPLAY",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_replay_2.fix",
+          "sha256": "24696640a87c5f13cefd3095df4d62427280234283fb2b1804b51ee689d09b3c"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "OUT_OF_SCOPE",
+        "code": "REPLAY_UNSUPPORTED",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C15_REPLAY_MISSING_ORIGINAL",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_resend_no_orig.fix",
+          "sha256": "70ee61de3ffb24da8eb32b64479f7f9758b51827adbbc8908d711125a7dd5a6b"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "FRAME_INVALID",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C16_REPLAY_REVERSED_TIME",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_replay_reversed.fix",
+          "sha256": "7cf4050129b25fa37fa7a79e0a8e6b2400f96f9b4e92cdcbb38423f6645927fb"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "FRAME_INVALID",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C16_ORIGINAL_WITHOUT_FLAG",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_original_no_flag.fix",
+          "sha256": "b1b25b642d9fd52e8f12d69ad3a08e0cd9e05d80bac7d046f847d70d43b120fd"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "FRAME_INVALID",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C17_RESEND_REQUEST",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_resend_2.fix",
+          "sha256": "67419b455227898f8d8d890d3192e545fc39116c0139124219061a5b18a736c2"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "OUT_OF_SCOPE",
+        "code": "RESEND_UNSUPPORTED",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C18_SEQUENCE_RESET",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_seq_reset_2.fix",
+          "sha256": "bf5cb19335dceea02c1a224733b88ec7491096e35099e44b4c3595f8b1c78678"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "OUT_OF_SCOPE",
+        "code": "RESET_UNSUPPORTED",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C18_LOGON_RESET",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_reset_logon.fix",
+          "sha256": "41a90d3d91d945f263ea5c2be4ce1e7f140198b1c4c04bc8cbf1cc8102525393"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "OUT_OF_SCOPE",
+        "code": "RESET_UNSUPPORTED",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C19_SESSION_REJECT",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_reject_2.fix",
+          "sha256": "d10fd5830a48e81dfcbe1128eab6a3f387db1458e86ac6222e520fb3a98c13eb"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "OUT_OF_SCOPE",
+        "code": "SESSION_REJECT_UNSUPPORTED",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C20_APPLICATION_ORDER",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_application_d.fix",
+          "sha256": "e3aa4b09bfb631d9a36cb470699763152b214ac754984994b2170207151595c1"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "OUT_OF_SCOPE",
+        "code": "MESSAGE_UNSUPPORTED",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C20_APPLICATION_EXECUTION",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_application_8.fix",
+          "sha256": "1ed95179a3ef46d5bf489602e15fe7d4b4e6733b1380c55778b30212ff4731a2"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "OUT_OF_SCOPE",
+        "code": "MESSAGE_UNSUPPORTED",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C20_APPLICATION_CANCEL",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_application_f.fix",
+          "sha256": "a19b272b25ff251f7c56ee0f5d0d5475106bc96241e1fd483344c03c95ccb4e0"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "OUT_OF_SCOPE",
+        "code": "MESSAGE_UNSUPPORTED",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C20_APPLICATION_CANCEL_REJECT",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_application_9.fix",
+          "sha256": "3e9f6758bd916b49661c0c3465603dd23a593985562064ac74757a13d2585dab"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "OUT_OF_SCOPE",
+        "code": "MESSAGE_UNSUPPORTED",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C21_TEST_ID_MISMATCH",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_test_req_2.fix",
+          "sha256": "ab3f0c4adf9b201eda09d69a5f10f1b4762c106352405eff500e585cfb94686a"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_wrong_echo.fix",
+          "sha256": "03568554419f6addfdf359b8b5b87fca5ef1e627aca1b32a8e81fcf3d70ed93a"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "TEST_REQ_ID_MISMATCH",
+        "event_index": 3,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 3,
+        "next_a_to_i": 2,
+        "pending_i": "REQ_I",
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C22_TEST_RESPONSE_MISSING",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_test_req_2.fix",
+          "sha256": "ab3f0c4adf9b201eda09d69a5f10f1b4762c106352405eff500e585cfb94686a"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INCOMPLETE",
+        "code": "TEST_RESPONSE_MISSING",
+        "event_index": 3,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 3,
+        "next_a_to_i": 2,
+        "pending_i": "REQ_I",
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C23_LOGON_REPLY_MISSING",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INCOMPLETE",
+        "code": "LOGON_REPLY_MISSING",
+        "event_index": 1,
+        "state": "LOGON_PENDING",
+        "next_i_to_a": 2,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C24_LOGOUT_REPLY_MISSING",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logout_2.fix",
+          "sha256": "cc0147c380aa8c48454a834f155cc3b4bbaa383f1bdfaa1fc3278b3cbd4db28c"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INCOMPLETE",
+        "code": "LOGOUT_REPLY_MISSING",
+        "event_index": 3,
+        "state": "LOGOUT_PENDING_I",
+        "next_i_to_a": 3,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C25_AFTER_CLOSED_SEQUENCE_PRIORITY",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logout_2.fix",
+          "sha256": "cc0147c380aa8c48454a834f155cc3b4bbaa383f1bdfaa1fc3278b3cbd4db28c"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logout_2.fix",
+          "sha256": "776af0ccab7f469f65f5356ed6dffbf21571f4bc17c95c8508c6db831b9dd5a7"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_post_close_heartbeat.fix",
+          "sha256": "e7fe0103af2a7cc9a5e1bf8df70ad55902ce5d28b38b6a277a8255f2b8f0fa73"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "AFTER_CLOSED",
+        "event_index": 4,
+        "state": "CLOSED",
+        "next_i_to_a": 3,
+        "next_a_to_i": 3,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C25_RECONNECT_AFTER_CLOSED",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logout_2.fix",
+          "sha256": "cc0147c380aa8c48454a834f155cc3b4bbaa383f1bdfaa1fc3278b3cbd4db28c"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logout_2.fix",
+          "sha256": "776af0ccab7f469f65f5356ed6dffbf21571f4bc17c95c8508c6db831b9dd5a7"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "OUT_OF_SCOPE",
+        "code": "RECONNECT_UNSUPPORTED",
+        "event_index": 4,
+        "state": "CLOSED",
+        "next_i_to_a": 3,
+        "next_a_to_i": 3,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C25_RECONNECT_OBSERVATION",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "RECONNECT_ATTEMPT"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "OUT_OF_SCOPE",
+        "code": "RECONNECT_UNSUPPORTED",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C26_CHECKSUM_BEFORE_UNSUPPORTED",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_bad_checksum_type.fix",
+          "sha256": "f94d7dfe27b051d15401544a3ffbe51143a3de9b6d538db1c8bdf5e4529f0ec8"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "FRAME_INVALID",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C26_DUPLICATE_FIELD",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_duplicate_108.fix",
+          "sha256": "82e707ea9471def4a5a878f61b95d06a36b0e46ad232eb4bbd8a4320822c2b12"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "FRAME_INVALID",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C26_BAD_CALENDAR",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_bad_calendar.fix",
+          "sha256": "56e8f17419f589128d4c67dfd93df81063ec930c30d53650ceb40421cf83473a"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "FRAME_INVALID",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C26_TRUNCATED",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_truncated.fix",
+          "sha256": "959d6e79e01628dfd3ed3bd19c998e8bdf15c7d4b2b428ff4ae185af28588b74"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "FRAME_INVALID",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C27_UNKNOWN_BODY_TAG",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_unknown_tag.fix",
+          "sha256": "dd47530e97a0a6c5526914d1e59c8c2857d78bca8f064b2b306721357a1a48cb"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "MESSAGE_SCHEMA",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C27_KNOWN_EXCLUDED_FIELD",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_next_expected.fix",
+          "sha256": "4cbc19067542823b9ae045bd00402d773ca32646dcf9f2678d5bb1b1a39ed756"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "OUT_OF_SCOPE",
+        "code": "PROFILE_OPTION_UNSUPPORTED",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C27_MALFORMED_EXCLUDED_FIELD",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_bad_next_expected.fix",
+          "sha256": "1c747ed877b46779d8fee6c5a378e98e82e59efe3c2395c185f4d4d5d74a8ec5"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "MESSAGE_SCHEMA",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C27_WRONG_MESSAGE_MEMBER",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_side_on_logon.fix",
+          "sha256": "618be0127cb205e145b66198ded332e97dfe02c4efc1ae6d9cc32ab577b705fd"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "MESSAGE_SCHEMA",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C27_EXCLUDED_HEADER",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_header_sub_id.fix",
+          "sha256": "a0df66453eff90ce07ff951f6ccb9f6ee09c7e9282eb9ff1f2166e4758fc6140"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "OUT_OF_SCOPE",
+        "code": "PROFILE_OPTION_UNSUPPORTED",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C27_BAD_EXCLUDED_HEADER",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_bad_poss_resend.fix",
+          "sha256": "66fd956af9b0f21d6bf805ffc77221b2c3a338d54b85749e959d825f3791146c"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "FRAME_INVALID",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C27_GROUP_EXCLUDED",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_group_logon.fix",
+          "sha256": "a08ced5209dda99b372a85d0d1e2ae02300a8d253208d45377aeca895df062ad"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "OUT_OF_SCOPE",
+        "code": "PROFILE_OPTION_UNSUPPORTED",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C27_GROUP_MEMBER_WITHOUT_COUNT",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_group_missing_count.fix",
+          "sha256": "941e7ecf8c88e21ded1b792e67c7589b817ddb8a2828ac82734d791719664333"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "MESSAGE_SCHEMA",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C28_SEQUENCE_RANGE",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_large_sequence.fix",
+          "sha256": "4115ff49dd76b9be2497ef4c6e883d5410a22ce6f23f10fafb7ce33703ef00cc"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "FRAME_INVALID",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C28_SEQUENCE_LEADING_ZERO",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_zero_sequence.fix",
+          "sha256": "c5f3661043ae2e27eca077b42a514c210e8e5731623579378bf28882937a7e8a"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "FRAME_INVALID",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C28_VALUE_LIMIT",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_large_value.fix",
+          "sha256": "91c48d0acbc9705a5f21bb213d5a813106934ca685119308a0d8a0a2bcd7180d"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "FRAME_INVALID",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C29_TEST_ID_REUSE",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_test_req_2.fix",
+          "sha256": "ab3f0c4adf9b201eda09d69a5f10f1b4762c106352405eff500e585cfb94686a"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_echo_i_2.fix",
+          "sha256": "d6b60cea978bdcb7d49b750ce711f493982b0ba05b8b253777602ab54d8d12c7"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_reuse_req_3.fix",
+          "sha256": "e06b36be70d870aa928d30aa64067a8213cd59ab4de302654d34c9d4d9cc9093"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "TEST_REQ_ID_REUSED",
+        "event_index": 4,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 3,
+        "next_a_to_i": 3,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C29_PENDING_BEFORE_REUSE",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_test_req_2.fix",
+          "sha256": "ab3f0c4adf9b201eda09d69a5f10f1b4762c106352405eff500e585cfb94686a"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_pending_req_3.fix",
+          "sha256": "e06b36be70d870aa928d30aa64067a8213cd59ab4de302654d34c9d4d9cc9093"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "TEST_REQUEST_ALREADY_PENDING",
+        "event_index": 3,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 3,
+        "next_a_to_i": 2,
+        "pending_i": "REQ_I",
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C30_LOGOUT_WITH_REQUEST",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_test_req_2.fix",
+          "sha256": "ab3f0c4adf9b201eda09d69a5f10f1b4762c106352405eff500e585cfb94686a"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logout_3.fix",
+          "sha256": "b365f35ca18bec4b8573a4a063196f064087bdff6970dd24ac99def32112519f"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "OUT_OF_SCOPE",
+        "code": "ERROR_LOGOUT_UNSUPPORTED",
+        "event_index": 3,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 3,
+        "next_a_to_i": 2,
+        "pending_i": "REQ_I",
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C30_BAD_TEST_ID",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_invalid_test_id.fix",
+          "sha256": "790674b5064cdf9b43d87d71a099028cdf243ec70b550deb83e8dcb703024539"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "MESSAGE_SCHEMA",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C30_BAD_LOGOUT_TEXT",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_bad_logout_text.fix",
+          "sha256": "9dfba0869f659410bd122ddd9fd47d81bd77d257a826ecc44b68fb686d18ff01"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "MESSAGE_SCHEMA",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C31_UNKNOWN_MESSAGE",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_unknown_message.fix",
+          "sha256": "a180490e53855d6009a4864569db65a301833043657490ed10fa21a5ee6969f2"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "MESSAGE_TYPE_UNKNOWN",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C31_PERIODIC_DOES_NOT_CLEAR",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_test_req_2.fix",
+          "sha256": "ab3f0c4adf9b201eda09d69a5f10f1b4762c106352405eff500e585cfb94686a"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_heartbeat_2.fix",
+          "sha256": "d757096c2df98c0467e3b2e3d6c7bbd0fa076c2b770ee23b64690e6b6d0bc548"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INCOMPLETE",
+        "code": "TEST_RESPONSE_MISSING",
+        "event_index": 4,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 3,
+        "next_a_to_i": 3,
+        "pending_i": "REQ_I",
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C32_EMPTY_SESSION",
+      "events": [
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INCOMPLETE",
+        "code": "EMPTY_SESSION",
+        "event_index": 0,
+        "state": "NEW",
+        "next_i_to_a": 1,
+        "next_a_to_i": 1,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C32_LOGOUT_MISSING",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INCOMPLETE",
+        "code": "LOGOUT_MISSING",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C32_CONNECTION_LOST",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "CONNECTION_LOST"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INCOMPLETE",
+        "code": "CONNECTION_LOST",
+        "event_index": 2,
+        "state": "ESTABLISHED",
+        "next_i_to_a": 2,
+        "next_a_to_i": 2,
+        "pending_i": null,
+        "pending_a": null
+      }
+    },
+    {
+      "id": "C32_LOSS_AFTER_CLOSED",
+      "events": [
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logon_1.fix",
+          "sha256": "667f9b8d4fc9eac3b69461e5a6bfd77c4967995ac73b04d7087eaaf972ed6b7d"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logon_1.fix",
+          "sha256": "19db7da1ffc2b1ece06251d2818e930b873ab37a290ce5116809963f45d2cde0"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "I_TO_A",
+          "file": "i_logout_2.fix",
+          "sha256": "cc0147c380aa8c48454a834f155cc3b4bbaa383f1bdfaa1fc3278b3cbd4db28c"
+        },
+        {
+          "kind": "FRAME",
+          "direction": "A_TO_I",
+          "file": "a_logout_2.fix",
+          "sha256": "776af0ccab7f469f65f5356ed6dffbf21571f4bc17c95c8508c6db831b9dd5a7"
+        },
+        {
+          "kind": "CONNECTION_LOST"
+        },
+        {
+          "kind": "END"
+        }
+      ],
+      "expected": {
+        "classification": "INVALID",
+        "code": "AFTER_CLOSED",
+        "event_index": 4,
+        "state": "CLOSED",
+        "next_i_to_a": 3,
+        "next_a_to_i": 3,
+        "pending_i": null,
+        "pending_a": null
+      }
+    }
+  ]
+}
