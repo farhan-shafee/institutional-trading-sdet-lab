@@ -4,11 +4,38 @@ import { readFile } from 'node:fs/promises';
 import { DomainError } from '../../domain/errors.js';
 import type { Binding } from '../fixed-income-workflow/bindings.js';
 import type { VerificationDatabase } from '../reconciliation/database.js';
+// Historical source is immutable provenance, never a fallback for schema8.
+// VerificationDatabase independently requires the exact current migration inventory.
+export const foundationVerificationSources = {
+  historical: {
+    file: 'fix_foundation.sql',
+    sha256: '6d7141817bb414de9ed957ee4c32c55112620f4bf786a182f2e253d5ac008b73',
+    profile: 'fix-foundation-v1',
+    schema: 6,
+  },
+  current: {
+    file: 'fix_foundation_v2.sql',
+    sha256: '076e401fa696f81c1b733dc718b0eab21114914cf10685bbe53cc4b0e69566cd',
+    profile: 'fix-foundation-v2',
+    schema: 8,
+  },
+} as const;
+
+async function pinnedSource(source: { readonly file: string; readonly sha256: string }) {
+  const sql = await readFile(
+    new URL('../../../verification/sql/' + source.file, import.meta.url),
+    'utf8',
+  );
+  if (createHash('sha256').update(sql).digest('hex') !== source.sha256)
+    throw new DomainError(503, 'VERIFICATION_SOURCE_CHANGED', 'Protocol verifier source changed.');
+  return sql;
+}
+
 const watermark = z.string().regex(/^[0-9]{1,4}$/);
 const reportSchema = z
   .object({
-    profile: z.literal('fix-foundation-v1'),
-    physical_schema_revision: z.literal(6),
+    profile: z.literal(foundationVerificationSources.current.profile),
+    physical_schema_revision: z.literal(foundationVerificationSources.current.schema),
     snapshot_id: z
       .string()
       .regex(/^[0-9]+:[0-9]+:[0-9,]*$/)
@@ -35,6 +62,15 @@ const reportSchema = z
     total_findings: z.number().int().min(0).max(100000),
   })
   .strict();
+/** Shared pinned SQL/parser only; callers retain their own authorization and transaction. */
+export async function loadFoundationVerificationSource() {
+  await pinnedSource(foundationVerificationSources.historical);
+  return {
+    sql: await pinnedSource(foundationVerificationSources.current),
+    source: foundationVerificationSources.current,
+    parse: (record: unknown) => reportSchema.parse(record),
+  };
+}
 export async function verifyFixFoundation(
   database: VerificationDatabase,
   binding: Binding,
@@ -43,24 +79,16 @@ export async function verifyFixFoundation(
 ) {
   if (!enabled)
     throw new DomainError(503, 'FIX_FOUNDATION_DISABLED', 'FIX foundation is disabled.');
-  const sql = await readFile(
-    new URL('../../../verification/sql/fix_foundation.sql', import.meta.url),
-    'utf8',
-  );
-  if (
-    createHash('sha256').update(sql).digest('hex') !==
-    '6d7141817bb414de9ed957ee4c32c55112620f4bf786a182f2e253d5ac008b73'
-  )
-    throw new DomainError(503, 'VERIFICATION_SOURCE_CHANGED', 'Protocol verifier source changed.');
+  const foundation = await loadFoundationVerificationSource();
   return database.transaction(true, verify, async (db) => {
     const a = await db.query<{ allowed: boolean }>(
       'SELECT fi_control.fix_snapshot_access($1,$2,$3,$4) AS allowed',
       [binding.sandboxId, binding.digest, binding.scope, binding.generation],
     );
     if (!a.rows[0]?.allowed) throw new DomainError(404, 'SANDBOX_NOT_FOUND', 'Sandbox not found.');
-    const r = await db.query<Record<string, unknown>>(sql, [binding.sandboxId]);
+    const r = await db.query<Record<string, unknown>>(foundation.sql, [binding.sandboxId]);
     return {
-      ...reportSchema.parse(r.rows[0]),
+      ...foundation.parse(r.rows[0]),
       complete: false,
       verified_scope: 'PROTOCOL_METADATA_ONLY',
     };

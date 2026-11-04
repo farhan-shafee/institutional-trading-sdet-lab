@@ -1,4 +1,5 @@
-import { verifyOwned } from '../../scripts/owned-postgres.js';
+import { startOwnedPostgres, verifyOwned } from '../../scripts/owned-postgres.js';
+import { bootstrap, migrate, readOwner } from '../../scripts/workflow-database.js';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual, promisify } from 'node:util';
@@ -7,6 +8,7 @@ import { durableFixSnapshot } from './fix-recovery-evidence.js';
 import { encodeFix44, decodeFix44 } from '../../app/protocol/fix44/index.js';
 import { test } from 'node:test';
 import { fixture, report, record } from './fix-fixture.js';
+import { applicationFixture } from './fix-application-fixture.js';
 import { connection, owner } from './harness.js';
 import { VerificationDatabase } from '../../app/server/reconciliation/database.js';
 import { verifyFixFoundation } from '../../app/server/fix/reconciliation.js';
@@ -20,6 +22,8 @@ void test('independent read-only SQL reconstructs protocol evidence and distinct
     await record(s, await report(s));
     const binding = { sandboxId: s.id, digest: s.proof, scope: 'trade' as const, generation: '1' };
     const r = await verifyFixFoundation(db, binding, () => {}, true);
+    assert.equal(r.profile, 'fix-foundation-v2');
+    assert.equal(r.physical_schema_revision, 8);
     assert.equal(r['foundation_assessment'], 'FOUNDATION_CONSISTENT');
     assert.equal(r['financial_ledger_consistency'], 'NOT_EVALUATED');
     assert.equal(r['protocol_completeness'], 'NOT_IMPLEMENTED');
@@ -615,7 +619,7 @@ void test('FIX verification stays default OFF and rejects altered SQL before aut
       'tsx',
       '--input-type=module',
       '-e',
-      "\nimport assert from 'node:assert/strict';\nimport {mock} from 'node:test';\nimport * as fs from 'node:fs/promises';\nimport {pathToFileURL} from 'node:url';\nconst url=pathToFileURL(process.cwd()+'/verification/sql/fix_foundation.sql');\nconst sql=await fs.readFile(url,'utf8');\nlet reads=0,transactions=0,authorizations=0;\nmock.module('node:fs/promises',{exports:{...fs,readFile:async(file,...args)=>{\n if(file instanceof URL && file.href===url.href){reads++;return sql+'\\n-- unauthorized verifier edit\\n';}\n return fs.readFile(file,...args);\n}}});\nconst {verifyFixFoundation}=await import('./app/server/fix/reconciliation.ts');\nconst {DomainError}=await import('./app/domain/errors.ts');\nconst database={transaction(){transactions++;throw new Error('Guard reached database.');}};\nconst binding={sandboxId:'00000000-0000-4000-8000-000000000001',digest:'not-a-credential',scope:'trade',generation:'1'};\nconst verify=()=>{authorizations++;};\nawait assert.rejects(verifyFixFoundation(database,binding,verify),e=>e instanceof DomainError&&e.status===503&&e.code==='FIX_FOUNDATION_DISABLED');\nassert.equal(reads,0);\nawait assert.rejects(verifyFixFoundation(database,binding,verify,true),e=>e instanceof DomainError&&e.status===503&&e.code==='VERIFICATION_SOURCE_CHANGED');\nassert.equal(reads,1);assert.equal(transactions,0);assert.equal(authorizations,0);\nconsole.log(JSON.stringify({defaultOff:true,sourceChangeRejected:true,reads,transactions,authorizations}));\n",
+      "\nimport assert from 'node:assert/strict';\nimport {mock} from 'node:test';\nimport * as fs from 'node:fs/promises';\nimport {pathToFileURL} from 'node:url';\nconst url=pathToFileURL(process.cwd()+'/verification/sql/fix_foundation_v2.sql');\nconst sql=await fs.readFile(url,'utf8');\nlet reads=0,transactions=0,authorizations=0;\nmock.module('node:fs/promises',{exports:{...fs,readFile:async(file,...args)=>{\n if(file instanceof URL && file.href===url.href){reads++;return sql+'\\n-- unauthorized verifier edit\\n';}\n return fs.readFile(file,...args);\n}}});\nconst {verifyFixFoundation}=await import('./app/server/fix/reconciliation.ts');\nconst {DomainError}=await import('./app/domain/errors.ts');\nconst database={transaction(){transactions++;throw new Error('Guard reached database.');}};\nconst binding={sandboxId:'00000000-0000-4000-8000-000000000001',digest:'not-a-credential',scope:'trade',generation:'1'};\nconst verify=()=>{authorizations++;};\nawait assert.rejects(verifyFixFoundation(database,binding,verify),e=>e instanceof DomainError&&e.status===503&&e.code==='FIX_FOUNDATION_DISABLED');\nassert.equal(reads,0);\nawait assert.rejects(verifyFixFoundation(database,binding,verify,true),e=>e instanceof DomainError&&e.status===503&&e.code==='VERIFICATION_SOURCE_CHANGED');\nassert.equal(reads,1);assert.equal(transactions,0);assert.equal(authorizations,0);\nconsole.log(JSON.stringify({defaultOff:true,sourceChangeRejected:true,reads,transactions,authorizations}));\n",
     ],
     { cwd: process.cwd(), env: { ...process.env, TF_DB_OWNER_FILE: '' }, maxBuffer: 64 * 1024 },
   );
@@ -1763,7 +1767,7 @@ void test('reverse sequence and attempt evidence rejects missing, wrong-channel,
   );
 });
 
-void test('successful RECORD receipts require exact retained message, attempt, order, hashes and original canonical request', async () => {
+{
   const mutations: {
     name: string;
     field?: string;
@@ -1800,116 +1804,125 @@ void test('successful RECORD receipts require exact retained message, attempt, o
   ] as const)
     mutations.push({ name: 'whole body ' + kind, value, whole: true });
   for (const mutation of mutations)
-    await withContractSandbox(async (context) => {
-      const { s, admin, database, binding } = context,
-        base = await report(s),
-        key = randomUUID(),
-        attempt = randomUUID(),
-        first = await record(s, base, key, attempt),
-        sibling = await record(s, {
-          ...base,
-          '43': 'Y',
-          '122': base['52'],
-          '52': '20261030-12:01:00.000',
-        }),
-        outgoing = await record(s, outboundFields(base));
-      assert.equal(first.status, 201);
-      assert.equal(sibling.status, 201);
-      assert.equal(outgoing.status, 201);
-      assert.equal(sibling.body['message_id'], first.body['message_id']);
-      assert.notEqual(sibling.body['attempt_id'], attempt);
-      const otherOrder = mutation.name === 'different order' ? await s.createOrder() : undefined,
-        original = await durableFixSnapshot(s.id),
-        receiptRow = original['fix_commands']!.find((c) => c['idempotency_key'] === key)!,
-        receipt = String(receiptRow['id']),
-        body = { ...(receiptRow['response_body'] as Record<string, unknown>) },
-        healthy = await verifyFixFoundation(database, binding, () => {}, true);
-      assert.equal(healthy.foundation_assessment, 'FOUNDATION_CONSISTENT');
-      assert.deepEqual(healthy.findings, []);
-      const auditMismatch =
-        mutation.whole || mutation.field === 'order_id' || mutation.name === 'different order';
-      let changedTables = ['fix_commands', 'fix_events'];
-      if (
-        mutation.name === 'different original request hash' ||
-        mutation.name === 'non-201 successful status'
-      ) {
-        const column =
-          mutation.name === 'different original request hash' ? 'request_hash' : 'http_status';
-        await corruptOutbox(
-          admin,
-          'UPDATE fi.fix_commands SET ' + column + '=$3 WHERE sandbox_id=$1 AND id=$2',
-          [s.id, receipt, column === 'request_hash' ? '0'.repeat(64) : 200],
-        );
-        changedTables = ['fix_commands'];
-      } else {
-        if (mutation.name === 'different message') body['message_id'] = outgoing.body['message_id'];
-        else if (mutation.name === 'different attempt')
-          body['attempt_id'] = sibling.body['attempt_id'];
-        else if (mutation.name === 'different order') body['order_id'] = otherOrder;
-        else if (mutation.name === 'different raw hash') body['raw_hash'] = '0'.repeat(64);
-        else if (mutation.name === 'different semantic hash')
-          body['semantic_hash'] = '0'.repeat(64);
-        else if (mutation.name === 'coherent redirect to surviving attempt')
-          for (const field of ['attempt_id', 'raw_hash', 'semantic_hash'])
-            body[field] = sibling.body[field];
-        else if (mutation.field) {
-          if (mutation.omit) delete body[mutation.field];
-          else body[mutation.field] = mutation.value;
-        }
-        await rewriteRecordReceipt(context, receipt, mutation.whole ? mutation.value : body);
-        const damagedReceipt = (await durableFixSnapshot(s.id))['fix_commands']!.find(
-          (c) => c['id'] === receipt,
-        )!;
-        assert.equal(
-          damagedReceipt['request_hash'],
-          receiptRow['request_hash'],
-          'Receipt corruption must preserve the original request fingerprint.',
-        );
-        if (mutation.whole) changedTables = ['fix_commands'];
-      }
-      const expected = [{ code: 'RECORD_EVIDENCE', record_id: receipt }];
-      if (auditMismatch) expected.push({ code: 'AUDIT_CORRESPONDENCE', record_id: receipt });
-      // Losing the earlier message observation also invalidates the later logical-duplicate claim.
-      // Redirecting to the sibling attempt likewise makes its retained physical-duplicate flag false.
-      if (
-        mutation.whole ||
-        mutation.field === 'message_id' ||
-        mutation.name === 'different message' ||
-        mutation.name === 'different attempt' ||
-        mutation.name === 'coherent redirect to surviving attempt'
-      ) {
-        const siblingReceipt = original['fix_commands']!.find(
-          (c) =>
-            c['operation'] === 'RECORD' &&
-            (c['response_body'] as Record<string, unknown>)['attempt_id'] ===
-              sibling.body['attempt_id'],
-        )!;
-        expected.push({ code: 'RECORD_EVIDENCE', record_id: String(siblingReceipt['id']) });
-      }
-      if (mutation.name === 'different message') {
-        const outgoingReceipt = original['fix_commands']!.find(
-          (c) =>
-            c['operation'] === 'RECORD' &&
-            (c['response_body'] as Record<string, unknown>)['attempt_id'] ===
-              outgoing.body['attempt_id'],
-        )!;
-        expected.push({ code: 'RECORD_EVIDENCE', record_id: String(outgoingReceipt['id']) });
-      }
-      // The original physical observation has no matching receipt after its attempt reference is lost.
-      if (
-        mutation.whole ||
-        mutation.field === 'attempt_id' ||
-        mutation.name === 'different attempt' ||
-        mutation.name === 'coherent redirect to surviving attempt'
-      )
-        expected.push({ code: 'MISSING_RECORD_RECEIPT', record_id: attempt });
-      await assertReverseEvidence(context, original, healthy, expected, changedTables);
-    });
-  console.log(
-    'Exact RECORD receipt corruption matrix:',
-    JSON.stringify({ cases: mutations.map((m) => m.name) }),
-  );
-});
+    void test(
+      'successful RECORD receipts require exact retained message, attempt, order, hashes and original canonical request: ' +
+        mutation.name,
+      async () => {
+        await withContractSandbox(async (context) => {
+          const { s, admin, database, binding } = context,
+            base = await report(s),
+            key = randomUUID(),
+            attempt = randomUUID(),
+            first = await record(s, base, key, attempt),
+            sibling = await record(s, {
+              ...base,
+              '43': 'Y',
+              '122': base['52'],
+              '52': '20261030-12:01:00.000',
+            }),
+            outgoing = await record(s, outboundFields(base));
+          assert.equal(first.status, 201);
+          assert.equal(sibling.status, 201);
+          assert.equal(outgoing.status, 201);
+          assert.equal(sibling.body['message_id'], first.body['message_id']);
+          assert.notEqual(sibling.body['attempt_id'], attempt);
+          const otherOrder =
+              mutation.name === 'different order' ? await s.createOrder() : undefined,
+            original = await durableFixSnapshot(s.id),
+            receiptRow = original['fix_commands']!.find((c) => c['idempotency_key'] === key)!,
+            receipt = String(receiptRow['id']),
+            body = { ...(receiptRow['response_body'] as Record<string, unknown>) },
+            healthy = await verifyFixFoundation(database, binding, () => {}, true);
+          assert.equal(healthy.foundation_assessment, 'FOUNDATION_CONSISTENT');
+          assert.deepEqual(healthy.findings, []);
+          const auditMismatch =
+            mutation.whole || mutation.field === 'order_id' || mutation.name === 'different order';
+          let changedTables = ['fix_commands', 'fix_events'];
+          if (
+            mutation.name === 'different original request hash' ||
+            mutation.name === 'non-201 successful status'
+          ) {
+            const column =
+              mutation.name === 'different original request hash' ? 'request_hash' : 'http_status';
+            await corruptOutbox(
+              admin,
+              'UPDATE fi.fix_commands SET ' + column + '=$3 WHERE sandbox_id=$1 AND id=$2',
+              [s.id, receipt, column === 'request_hash' ? '0'.repeat(64) : 200],
+            );
+            changedTables = ['fix_commands'];
+          } else {
+            if (mutation.name === 'different message')
+              body['message_id'] = outgoing.body['message_id'];
+            else if (mutation.name === 'different attempt')
+              body['attempt_id'] = sibling.body['attempt_id'];
+            else if (mutation.name === 'different order') body['order_id'] = otherOrder;
+            else if (mutation.name === 'different raw hash') body['raw_hash'] = '0'.repeat(64);
+            else if (mutation.name === 'different semantic hash')
+              body['semantic_hash'] = '0'.repeat(64);
+            else if (mutation.name === 'coherent redirect to surviving attempt')
+              for (const field of ['attempt_id', 'raw_hash', 'semantic_hash'])
+                body[field] = sibling.body[field];
+            else if (mutation.field) {
+              if (mutation.omit) delete body[mutation.field];
+              else body[mutation.field] = mutation.value;
+            }
+            await rewriteRecordReceipt(context, receipt, mutation.whole ? mutation.value : body);
+            const damagedReceipt = (await durableFixSnapshot(s.id))['fix_commands']!.find(
+              (c) => c['id'] === receipt,
+            )!;
+            assert.equal(
+              damagedReceipt['request_hash'],
+              receiptRow['request_hash'],
+              'Receipt corruption must preserve the original request fingerprint.',
+            );
+            if (mutation.whole) changedTables = ['fix_commands'];
+          }
+          const expected = [{ code: 'RECORD_EVIDENCE', record_id: receipt }];
+          if (auditMismatch) expected.push({ code: 'AUDIT_CORRESPONDENCE', record_id: receipt });
+          // Losing the earlier message observation also invalidates the later logical-duplicate claim.
+          // Redirecting to the sibling attempt likewise makes its retained physical-duplicate flag false.
+          if (
+            mutation.whole ||
+            mutation.field === 'message_id' ||
+            mutation.name === 'different message' ||
+            mutation.name === 'different attempt' ||
+            mutation.name === 'coherent redirect to surviving attempt'
+          ) {
+            const siblingReceipt = original['fix_commands']!.find(
+              (c) =>
+                c['operation'] === 'RECORD' &&
+                (c['response_body'] as Record<string, unknown>)['attempt_id'] ===
+                  sibling.body['attempt_id'],
+            )!;
+            expected.push({ code: 'RECORD_EVIDENCE', record_id: String(siblingReceipt['id']) });
+          }
+          if (mutation.name === 'different message') {
+            const outgoingReceipt = original['fix_commands']!.find(
+              (c) =>
+                c['operation'] === 'RECORD' &&
+                (c['response_body'] as Record<string, unknown>)['attempt_id'] ===
+                  outgoing.body['attempt_id'],
+            )!;
+            expected.push({ code: 'RECORD_EVIDENCE', record_id: String(outgoingReceipt['id']) });
+          }
+          // The original physical observation has no matching receipt after its attempt reference is lost.
+          if (
+            mutation.whole ||
+            mutation.field === 'attempt_id' ||
+            mutation.name === 'different attempt' ||
+            mutation.name === 'coherent redirect to surviving attempt'
+          )
+            expected.push({ code: 'MISSING_RECORD_RECEIPT', record_id: attempt });
+          await assertReverseEvidence(context, original, healthy, expected, changedTables);
+        });
+        if (mutation === mutations.at(-1))
+          console.log(
+            'Exact RECORD receipt corruption matrix:',
+            JSON.stringify({ cases: mutations.map((m) => m.name) }),
+          );
+      },
+    );
+}
 
 void test('foreign RECORD body references cannot borrow physical evidence from another sandbox or mutate it', async () => {
   await withContractSandbox(async (context) => {
@@ -2203,6 +2216,8 @@ async function assertIntegrityFinding(
 async function healthyIntegrity(context: ContractContext) {
   const before = await durableFixSnapshot(context.s.id),
     result = await verifyFixFoundation(context.database, context.binding, () => {}, true);
+  assert.equal(result.profile, 'fix-foundation-v2');
+  assert.equal(result.physical_schema_revision, 8);
   assert.equal(result.foundation_assessment, 'FOUNDATION_CONSISTENT');
   assert.deepEqual(result.findings, []);
   assert.equal(result.total_findings, 0);
@@ -2484,6 +2499,9 @@ void test('every retained operation effect requires its own successful receipt e
           original['fix_commands']!.length,
           'Remove the tail, not a detectable sequence gap.',
         );
+        // A retained binding also requires its unique original BIND receipt/audit witness.
+        if (operation === 'BIND')
+          expected.push({ code: 'CAPACITY_EPOCH_PROVENANCE', record_id: s.id });
         if (operation === 'CLAIM') expected.push({ code: 'LANE_LINEAGE', record_id: s.order });
         else {
           const code =
@@ -2526,91 +2544,104 @@ void test('every retained operation effect requires its own successful receipt e
             protocol_prepare_watermark: maximum('PREPARE'),
           },
         );
-      });
-});
-
-void test('non-RECORD receipts retain exact operation bodies and original request fingerprints despite coherent audit rewrites', async () => {
-  for (const operation of integrityOperations.filter((op) => op !== 'RECORD'))
-    for (const corruption of [
-      'wrong-value',
-      'unexpected-payload',
-      'nonobject',
-      'request-hash',
-    ] as const)
-      await withContractSandbox(async (context) => {
-        const { s } = context,
-          evidence = await operationEvidence(context, operation),
-          original = await durableFixSnapshot(s.id),
-          healthy = await healthyIntegrity(context),
-          receipt = String(evidence.receipt['id']),
-          body = { ...(evidence.receipt['response_body'] as Record<string, unknown>) },
-          expected: EvidenceFinding[] = [{ code: operation + '_EVIDENCE', record_id: receipt }];
-        if (corruption === 'request-hash') {
-          await guardedIntegrityCorruption(
-            context,
-            'UPDATE fi.fix_commands SET request_hash=$3 WHERE sandbox_id=$1 AND id=$2',
-            [s.id, receipt, '0'.repeat(64)],
-          );
-        } else {
-          if (corruption === 'wrong-value') {
-            if (operation === 'BIND') body['reserved_commands'] = 26;
-            else if (operation === 'CLAIM') body['fence'] = '999';
-            else if (operation === 'QUEUE') body['lane_seq'] = 99;
-            else if (operation === 'PREPARE') body['financial_key'] = randomUUID();
-            else if (operation === 'RESOLVE_METADATA') body['outcome'] = 'APPLIED';
-            else body['released'] = false;
-          } else if (corruption === 'unexpected-payload') {
-            if (operation === 'PREPARE') body['unexpected'] = { synthetic: true };
-            else body['payload'] = { unexpected: 'synthetic' };
-          }
-          const modified = corruption === 'nonobject' ? [] : body;
-          // Verify ordinary roles cannot make the same receipt rewrite.
-          const reconciler = await connection('reconciler');
-          try {
-            for (const client of [s.app, reconciler])
-              await assert.rejects(
-                client.query(
-                  'UPDATE fi.fix_commands SET response_body=$3::jsonb WHERE sandbox_id=$1 AND id=$2',
-                  [s.id, receipt, JSON.stringify(modified)],
-                ),
-                { code: '42501' },
-              );
-          } finally {
-            await reconciler.end();
-          }
-          assert.ok(isDeepStrictEqual(await durableFixSnapshot(s.id), original));
-          await rewriteRecordReceipt(context, receipt, modified);
-          if (corruption === 'nonobject') {
-            expected.push({ code: 'AUDIT_CORRESPONDENCE', record_id: receipt });
-            if (operation === 'RELEASE')
-              expected.push(
-                { code: 'LANE_LINEAGE', record_id: s.order },
-                { code: 'LANE_RETIREMENT', record_id: s.order },
-              );
-            if (operation !== 'CLAIM')
-              expected.push({
-                code:
-                  operation === 'RESOLVE_METADATA'
-                    ? 'MISSING_RESOLVE_RECEIPT'
-                    : 'MISSING_' + operation + '_RECEIPT',
-                record_id:
-                  operation === 'BIND' || operation === 'RELEASE' ? s.order : evidence.work,
-              });
-          }
-          if (operation === 'CLAIM' && corruption === 'nonobject')
-            expected.push({ code: 'LANE_LINEAGE', record_id: s.order });
-        }
-        await assertIntegrityFinding(
-          context,
-          original,
-          healthy,
-          expected,
-          corruption === 'request-hash' || corruption === 'nonobject'
-            ? ['fix_commands']
-            : ['fix_commands', 'fix_events'],
+        console.log(
+          'Exact finding scenario complete:',
+          JSON.stringify({ matrix: 'tail-receipt', operation, keepKey }),
         );
       });
 });
+
+for (const operation of integrityOperations.filter((op) => op !== 'RECORD'))
+  for (const corruption of [
+    'wrong-value',
+    'unexpected-payload',
+    'nonobject',
+    'request-hash',
+  ] as const)
+    void test(
+      'non-RECORD receipts retain exact operation bodies and original request fingerprints despite coherent audit rewrites: ' +
+        operation +
+        ' / ' +
+        corruption,
+      async () => {
+        await withContractSandbox(async (context) => {
+          const { s } = context,
+            evidence = await operationEvidence(context, operation),
+            original = await durableFixSnapshot(s.id),
+            healthy = await healthyIntegrity(context),
+            receipt = String(evidence.receipt['id']),
+            body = { ...(evidence.receipt['response_body'] as Record<string, unknown>) },
+            expected: EvidenceFinding[] = [{ code: operation + '_EVIDENCE', record_id: receipt }];
+          // Each BIND mutation below invalidates its exact receipt/audit association.
+          if (operation === 'BIND')
+            expected.push({ code: 'CAPACITY_EPOCH_PROVENANCE', record_id: s.id });
+          if (corruption === 'request-hash') {
+            await guardedIntegrityCorruption(
+              context,
+              'UPDATE fi.fix_commands SET request_hash=$3 WHERE sandbox_id=$1 AND id=$2',
+              [s.id, receipt, '0'.repeat(64)],
+            );
+          } else {
+            if (corruption === 'wrong-value') {
+              if (operation === 'BIND') body['reserved_commands'] = 26;
+              else if (operation === 'CLAIM') body['fence'] = '999';
+              else if (operation === 'QUEUE') body['lane_seq'] = 99;
+              else if (operation === 'PREPARE') body['financial_key'] = randomUUID();
+              else if (operation === 'RESOLVE_METADATA') body['outcome'] = 'APPLIED';
+              else body['released'] = false;
+            } else if (corruption === 'unexpected-payload') {
+              if (operation === 'PREPARE') body['unexpected'] = { synthetic: true };
+              else body['payload'] = { unexpected: 'synthetic' };
+            }
+            const modified = corruption === 'nonobject' ? [] : body;
+            // Verify ordinary roles cannot make the same receipt rewrite.
+            const reconciler = await connection('reconciler');
+            try {
+              for (const client of [s.app, reconciler])
+                await assert.rejects(
+                  client.query(
+                    'UPDATE fi.fix_commands SET response_body=$3::jsonb WHERE sandbox_id=$1 AND id=$2',
+                    [s.id, receipt, JSON.stringify(modified)],
+                  ),
+                  { code: '42501' },
+                );
+            } finally {
+              await reconciler.end();
+            }
+            assert.ok(isDeepStrictEqual(await durableFixSnapshot(s.id), original));
+            await rewriteRecordReceipt(context, receipt, modified);
+            if (corruption === 'nonobject') {
+              expected.push({ code: 'AUDIT_CORRESPONDENCE', record_id: receipt });
+              if (operation === 'RELEASE')
+                expected.push(
+                  { code: 'LANE_LINEAGE', record_id: s.order },
+                  { code: 'LANE_RETIREMENT', record_id: s.order },
+                );
+              if (operation !== 'CLAIM')
+                expected.push({
+                  code:
+                    operation === 'RESOLVE_METADATA'
+                      ? 'MISSING_RESOLVE_RECEIPT'
+                      : 'MISSING_' + operation + '_RECEIPT',
+                  record_id:
+                    operation === 'BIND' || operation === 'RELEASE' ? s.order : evidence.work,
+                });
+            }
+            if (operation === 'CLAIM' && corruption === 'nonobject')
+              expected.push({ code: 'LANE_LINEAGE', record_id: s.order });
+          }
+          await assertIntegrityFinding(
+            context,
+            original,
+            healthy,
+            expected,
+            corruption === 'request-hash' || corruption === 'nonobject'
+              ? ['fix_commands']
+              : ['fix_commands', 'fix_events'],
+          );
+        });
+      },
+    );
 
 void test('command registries and audit rows cannot borrow the wrong domain or survive without their owning effect', async () => {
   for (const corruption of [
@@ -2669,10 +2700,15 @@ void test('command registries and audit rows cannot borrow the wrong domain or s
           { code: 'MISSING_BIND_RECEIPT', record_id: s.order },
           { code: 'COMMAND_KEY', record_id: integrityUuid(evidence.receipt['idempotency_key']) },
         );
+        expected.push({ code: 'CAPACITY_EPOCH_PROVENANCE', record_id: s.id });
         scopeChanges = { protocol_watermark: '0' };
       }
       await guardedIntegrityCorruption(context, sql, parameters);
       await assertIntegrityFinding(context, original, healthy, expected, changed, scopeChanges);
+      console.log(
+        'Exact finding scenario complete:',
+        JSON.stringify({ matrix: 'registry', corruption }),
+      );
     });
 });
 
@@ -2934,7 +2970,7 @@ async function swapIntegrityReceipts(
   ];
   await guardedIntegrityCorruption(
     context,
-    "WITH changed AS (UPDATE fi.fix_commands c SET operation=x.operation,request_hash=x.request_hash,http_status=x.http_status,response_body=x.response_body,actor_id=x.actor_id FROM jsonb_to_recordset($2::jsonb) x(id uuid,operation text,request_hash text,http_status integer,response_body jsonb,actor_id uuid) WHERE c.sandbox_id=$1 AND c.id=x.id RETURNING c.command_seq,c.operation,c.response_body) UPDATE fi.fix_events e SET event_type=c.operation,payload=jsonb_build_object('financial_applied',false,'record',c.response_body-'payload') FROM changed c WHERE e.sandbox_id=$1 AND e.command_seq=c.command_seq",
+    "WITH changed AS (UPDATE fi.fix_commands c SET operation=x.operation,request_hash=x.request_hash,http_status=x.http_status,response_body=x.response_body,actor_id=x.actor_id FROM jsonb_to_recordset($2::jsonb) x(id uuid,operation text,request_hash text,http_status integer,response_body jsonb,actor_id uuid) WHERE c.sandbox_id=$1 AND c.id=x.id RETURNING c.command_seq,c.operation,c.response_body) UPDATE fi.fix_events e SET event_type=c.operation,payload=jsonb_build_object('financial_applied',COALESCE(c.response_body->'financial_applied','false'::jsonb),'record',c.response_body-'payload') FROM changed c WHERE e.sandbox_id=$1 AND e.command_seq=c.command_seq",
     [context.s.id, JSON.stringify(replacement)],
     2,
   );
@@ -2953,6 +2989,9 @@ void test('single-effect operations reject coherent duplicate receipts while pre
           { code: 'DUPLICATE_EFFECT_RECEIPT', record_id: String(evidence.receipt['id']) },
           { code: 'DUPLICATE_EFFECT_RECEIPT', record_id: duplicateId },
         ];
+      // Two exact BIND receipt/audit candidates cannot authenticate one unique epoch.
+      if (operation === 'BIND')
+        expected.push({ code: 'CAPACITY_EPOCH_PROVENANCE', record_id: s.id });
       if (operation === 'QUEUE')
         expected.push({ code: 'OPERATION_ORDERING', record_id: duplicateId });
       if (operation === 'RELEASE')
@@ -2982,6 +3021,10 @@ void test('single-effect operations reject coherent duplicate receipts while pre
             : {}),
         },
       );
+      console.log(
+        'Exact finding scenario complete:',
+        JSON.stringify({ matrix: 'duplicate-effect', operation }),
+      );
     });
 });
 
@@ -2993,28 +3036,37 @@ void test('receipt chronology rejects binding, message, preparation and prior-he
     'later-prepare-before-prior-resolve',
   ] as const)
     await withContractSandbox(async (context) => {
-      const { s } = context,
-        evidence = await operationEvidence(
-          context,
-          corruption === 'bind-after-record'
-            ? 'RECORD'
-            : corruption === 'queue-before-record'
-              ? 'QUEUE'
-              : corruption === 'later-prepare-before-prior-resolve'
-                ? 'PREPARE'
-                : 'RESOLVE_METADATA',
-          corruption === 'later-prepare-before-prior-resolve',
-        );
+      const { s } = context;
+      if (corruption === 'later-prepare-before-prior-resolve') {
+        // Schema8 financial application needs the legitimate original outbound order intent.
+        assert.equal((await record(s, outboundFields(await report(s)))).status, 201);
+      }
+      const evidence = await operationEvidence(
+        context,
+        corruption === 'bind-after-record'
+          ? 'RECORD'
+          : corruption === 'queue-before-record'
+            ? 'QUEUE'
+            : corruption === 'later-prepare-before-prior-resolve'
+              ? 'PREPARE'
+              : 'RESOLVE_METADATA',
+      );
       let secondWork = '';
       if (corruption === 'later-prepare-before-prior-resolve') {
-        const fields = await report(s, {
-            '150': '6',
-            '39': '6',
-            '11': randomUUID(),
-            '41': s.order,
-            '34': '2',
-          }),
-          recorded = await record(s, fields);
+        const price = evidence.fields!['44'],
+          recorded = await record(
+            s,
+            await report(s, {
+              '34': '2',
+              '150': 'F',
+              '39': '1',
+              '14': '40.00',
+              '151': '60.00',
+              '32': '40.00',
+              '31': price,
+              '6': price,
+            }),
+          );
         assert.equal(recorded.status, 201);
         secondWork = randomUUID();
         assert.equal(
@@ -3027,28 +3079,44 @@ void test('receipt chronology rejects binding, message, preparation and prior-he
           ).status,
           201,
         );
-        const resolved = await s.fix('RESOLVE_METADATA', {
+        // Apply the first real ACK; the later partial trade is retained/prepared metadata only.
+        const applied = (
+          await s.app.query<{ r: { status: number; body: Record<string, unknown> } }>(
+            'SELECT fi_control.apply_fix($1,$2,1,$3,$4,$5) r',
+            [
+              s.id,
+              s.proof,
+              JSON.stringify({
+                order_id: s.order,
+                owner_id: evidence.ownerId,
+                fence: evidence.fence,
+                work_id: evidence.work,
+              }),
+              randomUUID(),
+              s.actor,
+            ],
+          )
+        ).rows[0]!.r;
+        assert.equal(applied.status, 200);
+        assert.equal(applied.body['financial_applied'], true);
+        const prepared = await s.fix('PREPARE', {
           order_id: s.order,
           owner_id: evidence.ownerId,
           fence: evidence.fence,
-          work_id: evidence.work,
+          work_id: secondWork,
+          financial_key: randomUUID(),
         });
-        assert.equal(resolved.status, 200);
-        assert.equal(resolved.body['outcome'], 'METADATA_ONLY');
+        assert.equal(prepared.status, 201);
         assert.equal(
-          (
-            await s.fix('PREPARE', {
-              order_id: s.order,
-              owner_id: evidence.ownerId,
-              fence: evidence.fence,
-              work_id: secondWork,
-              financial_key: randomUUID(),
-            })
-          ).status,
-          201,
+          (prepared.body['payload'] as Record<string, unknown>)['expected_version'],
+          '2',
         );
       }
       const original = await durableFixSnapshot(s.id),
+        originalSchema8 =
+          corruption === 'later-prepare-before-prior-resolve'
+            ? await schema8Snapshot(context)
+            : undefined,
         healthy = await healthyIntegrity(context),
         commands = original['fix_commands']!,
         first = commands.find(
@@ -3060,7 +3128,7 @@ void test('receipt chronology rejects binding, message, preparation and prior-he
                 ? 'RECORD'
                 : corruption === 'resolve-before-prepare'
                   ? 'PREPARE'
-                  : 'RESOLVE_METADATA'),
+                  : 'APPLY'),
         )!,
         second = commands.find(
           (c) =>
@@ -3093,11 +3161,38 @@ void test('receipt chronology rejects binding, message, preparation and prior-he
             c['operation'] === 'QUEUE' &&
             (c['response_body'] as Record<string, unknown>)['work_id'] === secondWork,
         )!;
-        assert.equal(first['command_seq'], 8);
-        assert.equal(second['command_seq'], 9);
-        assert.equal(secondQueue['command_seq'], 7);
+        assert.ok(Number(secondQueue['command_seq']) < Number(first['command_seq']));
+        assert.ok(Number(first['command_seq']) < Number(second['command_seq']));
+        assert.equal(originalSchema8!['fix_applications']!.length, 1);
+        assert.equal(
+          originalSchema8!['fix_applications']![0]!['protocol_command_seq'],
+          first['command_seq'],
+        );
       }
       await swapIntegrityReceipts(context, first, second);
+      if (corruption === 'later-prepare-before-prior-resolve') {
+        // Follow the moved APPLY receipt without forging/removing an economic effect.
+        await guardedIntegrityCorruption(
+          context,
+          'UPDATE fi.fix_applications SET protocol_command_seq=$3 WHERE sandbox_id=$1 AND work_id=$2',
+          [s.id, evidence.work, second['command_seq']],
+        );
+        const damagedSchema8 = await schema8Snapshot(context);
+        assert.ok(
+          isDeepStrictEqual(damagedSchema8['fix_applications'], [
+            {
+              ...originalSchema8!['fix_applications']![0]!,
+              protocol_command_seq: second['command_seq'],
+            },
+          ]),
+        );
+        for (const table of Object.keys(originalSchema8!))
+          if (!['fix_commands', 'fix_events', 'fix_applications'].includes(table))
+            assert.ok(
+              isDeepStrictEqual(damagedSchema8[table], originalSchema8![table]),
+              'Chronology corruption changed unrelated retained evidence: ' + table,
+            );
+      }
       await assertIntegrityFinding(
         context,
         original,
@@ -3109,10 +3204,21 @@ void test('receipt chronology rejects binding, message, preparation and prior-he
           ...(corruption === 'queue-before-record' ? { protocol_ingest_watermark: '3' } : {}),
           ...(corruption === 'resolve-before-prepare' ? { protocol_prepare_watermark: '6' } : {}),
           ...(corruption === 'later-prepare-before-prior-resolve'
-            ? { protocol_prepare_watermark: '8' }
+            ? { protocol_prepare_watermark: String(first['command_seq']) }
             : {}),
         },
       );
+      if (corruption === 'later-prepare-before-prior-resolve') {
+        const damagedSchema8 = await schema8Snapshot(context);
+        const repeated = await verifyFixFoundation(
+          context.database,
+          context.binding,
+          () => {},
+          true,
+        );
+        assert.deepEqual(repeated.findings, expected);
+        assert.ok(isDeepStrictEqual(await schema8Snapshot(context), damagedSchema8));
+      }
     });
 });
 
@@ -3202,6 +3308,7 @@ void test('RECORD duplicate flags, stored first-observation fields, and control 
           [s.id, receiptId],
         );
         expected.push({ code: 'BIND_EVIDENCE', record_id: receiptId });
+        expected.push({ code: 'CAPACITY_EPOCH_PROVENANCE', record_id: s.id });
         changed = ['fix_commands'];
       } else if (corruption === 'unknown-operation') {
         await guardedIntegrityCorruption(
@@ -3214,6 +3321,7 @@ void test('RECORD duplicate flags, stored first-observation fields, and control 
           { code: 'MISSING_BIND_RECEIPT', record_id: s.order },
           { code: 'OPERATION_ORDERING', record_id: receiptId },
         );
+        expected.push({ code: 'CAPACITY_EPOCH_PROVENANCE', record_id: s.id });
         changed = ['fix_commands', 'fix_events'];
       } else {
         const body = { ...(receipt['response_body'] as Record<string, unknown>) },
@@ -3224,6 +3332,10 @@ void test('RECORD duplicate flags, stored first-observation fields, and control 
         changed = ['fix_commands', 'fix_events'];
       }
       await assertIntegrityFinding(context, original, healthy, expected, changed);
+      console.log(
+        'Exact finding scenario complete:',
+        JSON.stringify({ matrix: 'record-control', corruption }),
+      );
     });
 });
 
@@ -3756,4 +3868,943 @@ void test('the maximum admitted wire graph and 1024 retained receipts remain ver
       }),
     );
   });
+});
+
+type Schema8Context = Omit<ContractContext, 's'> & {
+  s: Awaited<ReturnType<typeof applicationFixture>>;
+};
+async function withSchema8Sandbox(run: (context: Schema8Context) => Promise<void>) {
+  const s = await applicationFixture(),
+    cfg = await owner(),
+    admin = await connection('admin'),
+    database = new VerificationDatabase(cfg.reconcilerUrl!);
+  try {
+    await run({
+      s,
+      admin,
+      database,
+      binding: { sandboxId: s.id, digest: s.proof, scope: 'trade', generation: '1' },
+    });
+  } finally {
+    await admin.query('ROLLBACK');
+    await database.close();
+    await admin.end();
+    await s.close();
+  }
+}
+async function schema8Snapshot(context: ContractContext) {
+  const original = await durableFixSnapshot(context.s.id),
+    additional = await context.database.transaction(
+      true,
+      () => {},
+      async (db) => {
+        const access = await db.query<{ allowed: boolean }>(
+          'SELECT fi_control.fix_snapshot_access($1,$2,$3,$4) AS allowed',
+          [
+            context.binding.sandboxId,
+            context.binding.digest,
+            context.binding.scope,
+            context.binding.generation,
+          ],
+        );
+        assert.equal(access.rows[0]!.allowed, true);
+        const result: IntegritySnapshot = {};
+        for (const table of [
+          'fix_applications',
+          'fix_consumptions',
+          'fix_protocol_observations',
+          'fix_unresolved_ingest',
+        ] as const) {
+          const rows = await db.query<{ record: Record<string, unknown> }>(
+            'SELECT to_jsonb(t) AS record FROM fi.' +
+              table +
+              ' t WHERE sandbox_id=$1 ORDER BY to_jsonb(t)::text',
+            [context.s.id],
+          );
+          result[table] = rows.rows.map((row) => row.record);
+        }
+        return result;
+      },
+    );
+  return { ...original, ...additional };
+}
+async function healthySchema8(context: ContractContext) {
+  const snapshot = await schema8Snapshot(context),
+    assessment = await healthyIntegrity(context);
+  assert.ok(
+    isDeepStrictEqual(await schema8Snapshot(context), snapshot),
+    'Foundation verification must also preserve the application, consumption and observation evidence.',
+  );
+  return { snapshot, assessment };
+}
+async function currentSchema8Command(
+  context: Schema8Context,
+  action: string,
+  input: Record<string, unknown>,
+  key = randomUUID(),
+) {
+  return (
+    await context.s.app.query<{ r: Awaited<ReturnType<typeof context.s.fix>> }>(
+      'SELECT fi_control.fix_command($1,$2,$3,$4,$5,$6,$7) r',
+      [
+        context.s.id,
+        context.binding.digest,
+        context.binding.generation,
+        action,
+        JSON.stringify(input),
+        key,
+        context.s.actor,
+      ],
+    )
+  ).rows[0]!.r;
+}
+async function currentSchema8Apply(
+  context: Schema8Context,
+  input: Record<string, unknown>,
+  key = randomUUID(),
+) {
+  return (
+    await context.s.app.query<{ r: Awaited<ReturnType<typeof context.s.apply>> }>(
+      'SELECT fi_control.apply_fix($1,$2,$3,$4,$5,$6) r',
+      [
+        context.s.id,
+        context.binding.digest,
+        context.binding.generation,
+        JSON.stringify(input),
+        key,
+        context.s.actor,
+      ],
+    )
+  ).rows[0]!.r;
+}
+
+void test('schema8 foundation remains metadata-only after actual acknowledgment, later partial/full applications and original-key promotion', async () => {
+  await withSchema8Sandbox(async (context) => {
+    const { s } = context,
+      initial = await healthySchema8(context);
+    assert.equal(initial.assessment.financial_watermark, '4');
+    assert.equal(initial.assessment.protocol_watermark, '3');
+    const acknowledgment = await s.prepare();
+    assert.equal(
+      (acknowledgment.prepared['payload'] as Record<string, unknown>)['expected_version'],
+      '1',
+    );
+    const waiting = await healthySchema8(context);
+    assert.equal(waiting.assessment.unresolved_work_count, 1);
+    assert.equal(
+      waiting.snapshot['command_keys']!.find(
+        (row) => row['idempotency_key'] === acknowledgment.financialKey,
+      )!['domain'],
+      'FIX_PREPARED',
+    );
+    const acknowledged = await s.apply(acknowledgment.work);
+    assert.equal(acknowledged.status, 200);
+    assert.equal(acknowledged.body['financial_applied'], true);
+    assert.equal(acknowledged.body['delivery_verified'], false);
+    const afterAcknowledgment = await healthySchema8(context);
+    assert.equal(afterAcknowledgment.assessment.unresolved_work_count, 0);
+    assert.equal(afterAcknowledgment.assessment.financial_watermark, '5');
+    assert.equal(afterAcknowledgment.snapshot['order_states']![0]!['status'], 'NEW');
+    assert.equal(
+      afterAcknowledgment.snapshot['command_keys']!.find(
+        (row) => row['idempotency_key'] === acknowledgment.financialKey,
+      )!['domain'],
+      'FINANCIAL',
+    );
+    const price = acknowledgment.f['44']!,
+      partial = await s.prepare({
+        '150': 'F',
+        '39': '1',
+        '14': '40.00',
+        '151': '60.00',
+        '32': '40.00',
+        '31': price,
+        '6': price,
+      });
+    assert.equal((partial.prepared['payload'] as Record<string, unknown>)['expected_version'], '2');
+    const waitingPartial = await healthySchema8(context);
+    assert.equal(waitingPartial.assessment.unresolved_work_count, 1);
+    const partiallyApplied = await s.apply(partial.work);
+    assert.equal(partiallyApplied.status, 200);
+    assert.equal(partiallyApplied.body['financial_applied'], true);
+    assert.equal(partiallyApplied.body['delivery_verified'], false);
+    const afterPartial = await healthySchema8(context);
+    assert.equal(afterPartial.assessment.unresolved_work_count, 0);
+    assert.equal(afterPartial.snapshot['executions']!.length, 1);
+    assert.equal(afterPartial.snapshot['order_states']![0]!['status'], 'PARTIALLY_FILLED');
+    const full = await s.prepare({
+      '150': 'F',
+      '39': '2',
+      '14': '100.00',
+      '151': '0.00',
+      '32': '60.00',
+      '31': price,
+      '6': price,
+    });
+    assert.equal((full.prepared['payload'] as Record<string, unknown>)['expected_version'], '3');
+    assert.equal((await healthySchema8(context)).assessment.unresolved_work_count, 1);
+    const fullyApplied = await s.apply(full.work);
+    assert.equal(fullyApplied.status, 200);
+    assert.equal(fullyApplied.body['financial_applied'], true);
+    assert.equal(fullyApplied.body['delivery_verified'], false);
+    const final = await healthySchema8(context);
+    assert.equal(final.assessment.financial_watermark, '7');
+    assert.equal(final.assessment.protocol_watermark, '15');
+    assert.equal(final.assessment.protocol_ingest_watermark, '12');
+    assert.equal(final.assessment.protocol_prepare_watermark, '14');
+    assert.equal(final.assessment.unresolved_work_count, 0);
+    assert.equal(final.snapshot['fix_applications']!.length, 3);
+    assert.equal(final.snapshot['fix_consumptions']!.length, 3);
+    assert.equal(final.snapshot['fix_outcomes']!.length, 0);
+    assert.equal(final.snapshot['executions']!.length, 2);
+    assert.equal(final.snapshot['positions']![0]!['signed_par'], 100);
+    assert.equal(final.snapshot['order_states']![0]!['status'], 'FILLED');
+    for (const retained of [acknowledgment, partial, full]) {
+      assert.equal(
+        final.snapshot['command_keys']!.find(
+          (row) => row['idempotency_key'] === retained.financialKey,
+        )!['domain'],
+        'FINANCIAL',
+      );
+      const receipt = final.snapshot['fix_commands']!.find(
+        (row) =>
+          row['operation'] === 'PREPARE' &&
+          (row['response_body'] as Record<string, unknown>)['work_id'] === retained.work,
+      )!;
+      assert.deepEqual(receipt['response_body'], retained.prepared);
+      assert.equal(retained.prepared['application_state'], 'NOT_IMPLEMENTED');
+      assert.equal(retained.prepared['financial_applied'], false);
+    }
+  });
+});
+
+void test('schema8 foundation recognizes a validated pending-cancel metadata APPLY as completion before later financial work', async () => {
+  await withSchema8Sandbox(async (context) => {
+    const { s } = context,
+      acknowledgment = await s.prepare(),
+      acknowledged = await s.apply(acknowledgment.work);
+    assert.equal(acknowledged.status, 200);
+    assert.equal(acknowledged.body['financial_applied'], true);
+    const cancel = randomUUID(),
+      cancellation = await s.prepare({
+        '35': 'F',
+        '49': 'TRADEFLOW',
+        '56': 'ATLAS',
+        '11': cancel,
+        '41': s.order,
+      }),
+      requested = await s.apply(cancellation.work);
+    assert.equal(requested.status, 200);
+    assert.equal(requested.body['financial_applied'], true);
+    const pending = await s.prepare({
+      '150': '6',
+      '39': '6',
+      '11': cancel,
+      '41': s.order,
+    });
+    assert.equal((pending.prepared['payload'] as Record<string, unknown>)['expected_version'], '3');
+    const beforeObservation = await healthySchema8(context),
+      applied = await s.apply(pending.work);
+    assert.equal(beforeObservation.assessment.unresolved_work_count, 1);
+    assert.equal(applied.status, 200);
+    assert.deepEqual(applied.body, {
+      order_id: s.order,
+      work_id: pending.work,
+      financial_applied: false,
+      delivery_verified: false,
+      outcome: 'METADATA_ONLY',
+      validated_pending_cancel: true,
+    });
+    const afterObservation = await healthySchema8(context);
+    assert.equal(afterObservation.assessment.unresolved_work_count, 0);
+    assert.equal(afterObservation.assessment.financial_watermark, '6');
+    assert.equal(afterObservation.assessment.protocol_watermark, '15');
+    assert.equal(afterObservation.assessment.protocol_prepare_watermark, '14');
+    for (const table of [
+      'commands',
+      'audit_events',
+      'orders',
+      'order_states',
+      'executions',
+      'positions',
+      'cancellation_requests',
+      'cancellation_outcomes',
+      'order_history',
+      'sandboxes',
+      'fix_applications',
+      'fix_consumptions',
+    ])
+      assert.ok(
+        isDeepStrictEqual(afterObservation.snapshot[table], beforeObservation.snapshot[table]),
+        'Protocol-only APPLY changed financial evidence: ' + table,
+      );
+    const observation = afterObservation.snapshot['fix_protocol_observations']![0]!;
+    assert.equal(afterObservation.snapshot['fix_protocol_observations']!.length, 1);
+    assert.equal(observation['work_id'], pending.work);
+    assert.equal(observation['cancel_id'], cancel);
+    assert.equal(observation['financial_version'], 3);
+    assert.equal(observation['filled_par'], 0);
+    assert.equal(observation['remaining_par'], 100);
+    assert.equal(afterObservation.snapshot['fix_outcomes']![0]!['work_id'], pending.work);
+    assert.equal(afterObservation.snapshot['fix_outcomes']![0]!['outcome'], 'METADATA_ONLY');
+    assert.equal(
+      afterObservation.snapshot['command_keys']!.find(
+        (row) => row['idempotency_key'] === pending.financialKey,
+      )!['domain'],
+      'FIX_PREPARED',
+    );
+    const price = acknowledgment.f['44']!,
+      later = await s.prepare({
+        '150': 'F',
+        '39': '6',
+        '14': '40.00',
+        '151': '60.00',
+        '32': '40.00',
+        '31': price,
+        '6': price,
+      });
+    assert.equal((later.prepared['payload'] as Record<string, unknown>)['expected_version'], '3');
+    assert.equal((await healthySchema8(context)).assessment.unresolved_work_count, 1);
+    const traded = await s.apply(later.work);
+    assert.equal(traded.status, 200);
+    assert.equal(traded.body['financial_applied'], true);
+    assert.equal(traded.body['delivery_verified'], false);
+    const final = await healthySchema8(context);
+    assert.equal(final.assessment.financial_watermark, '7');
+    assert.equal(final.assessment.protocol_watermark, '19');
+    assert.equal(final.assessment.protocol_ingest_watermark, '16');
+    assert.equal(final.assessment.protocol_prepare_watermark, '18');
+    assert.equal(final.assessment.unresolved_work_count, 0);
+    assert.equal(final.snapshot['fix_applications']!.length, 3);
+    assert.equal(final.snapshot['fix_consumptions']!.length, 3);
+    assert.equal(final.snapshot['executions']!.length, 1);
+    assert.equal(final.snapshot['order_states']![0]!['pending_cancel_id'], cancel);
+    assert.ok(
+      isDeepStrictEqual(
+        final.snapshot['fix_protocol_observations'],
+        afterObservation.snapshot['fix_protocol_observations'],
+      ),
+    );
+  });
+});
+
+void test('schema8 foundation preserves historical preparation through legitimate expired-owner reclaim, capability rotation and current-owner application', async () => {
+  await withSchema8Sandbox(async (context) => {
+    const { s, admin } = context,
+      prepared = await s.prepare(),
+      original = await healthySchema8(context),
+      nextOwner = randomUUID();
+    assert.equal(original.snapshot['fix_prepared']![0]!['prepared_generation'], 1);
+    assert.equal(original.snapshot['fix_prepared']![0]!['prepared_fence'], 1);
+    assert.equal(
+      (
+        await admin.query(
+          "UPDATE fi.fix_lanes SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE sandbox_id=$1 AND order_id=$2",
+          [s.id, s.order],
+        )
+      ).rowCount,
+      1,
+    );
+    const reclaimed = await s.fix('CLAIM', { order_id: s.order, owner_id: nextOwner });
+    assert.equal(reclaimed.status, 200);
+    assert.equal(reclaimed.body['fence'], '2');
+    await healthySchema8(context);
+    const proof = createHash('sha256').update(randomUUID()).digest('hex'),
+      rotated = (
+        await s.app.query<{ r: { status: number } }>(
+          'SELECT fi_control.rotate_capabilities($1,$2,1,1,$3,$4,$5,$6,$7) r',
+          [
+            s.id,
+            s.proof,
+            createHash('sha256').update(randomUUID()).digest('hex'),
+            proof,
+            createHash('sha256').update('schema8-foundation-rotation').digest('hex'),
+            randomUUID(),
+            s.actor,
+          ],
+        )
+      ).rows[0]!.r;
+    assert.equal(rotated.status, 200);
+    const previousBinding = context.binding;
+    context.binding = { ...previousBinding, digest: proof, generation: '2' };
+    await healthySchema8(context);
+    await assert.rejects(
+      verifyFixFoundation(context.database, previousBinding, () => {}, true),
+      { code: 'SANDBOX_NOT_FOUND' },
+    );
+    const current = await currentSchema8Command(context, 'CLAIM', {
+      order_id: s.order,
+      owner_id: nextOwner,
+    });
+    assert.equal(current.status, 200);
+    assert.equal(current.body['fence'], '3');
+    const beforeApply = await healthySchema8(context),
+      savedPrepare = beforeApply.snapshot['fix_commands']!.find(
+        (row) =>
+          row['operation'] === 'PREPARE' &&
+          (row['response_body'] as Record<string, unknown>)['work_id'] === prepared.work,
+      )!,
+      replay = await currentSchema8Command(
+        context,
+        'PREPARE',
+        {
+          order_id: s.order,
+          owner_id: s.owner,
+          fence: '1',
+          work_id: prepared.work,
+          financial_key: prepared.financialKey,
+        },
+        integrityUuid(savedPrepare['idempotency_key']),
+      );
+    assert.equal(replay.status, 201);
+    assert.equal(replay.replayed, true);
+    assert.deepEqual(replay.body, prepared.prepared);
+    assert.ok(isDeepStrictEqual(await schema8Snapshot(context), beforeApply.snapshot));
+    const applied = await currentSchema8Apply(context, {
+      order_id: s.order,
+      owner_id: nextOwner,
+      fence: '3',
+      work_id: prepared.work,
+    });
+    assert.equal(applied.status, 200);
+    assert.equal(applied.body['financial_applied'], true);
+    assert.equal(applied.body['delivery_verified'], false);
+    const final = await healthySchema8(context);
+    assert.equal(final.assessment.financial_watermark, '6');
+    assert.equal(final.assessment.protocol_watermark, '9');
+    assert.equal(final.assessment.protocol_ingest_watermark, '4');
+    assert.equal(final.assessment.protocol_prepare_watermark, '6');
+    assert.equal(final.assessment.unresolved_work_count, 0);
+    assert.equal(final.snapshot['sandboxes']![0]!['generation'], 2);
+    assert.equal(final.snapshot['fix_lanes']![0]!['capability_generation'], 2);
+    assert.equal(final.snapshot['fix_lanes']![0]!['fence'], 3);
+    assert.equal(final.snapshot['fix_applications']![0]!['applied_generation'], 2);
+    assert.equal(final.snapshot['fix_applications']![0]!['applied_fence'], 3);
+    assert.ok(isDeepStrictEqual(final.snapshot['fix_prepared'], original.snapshot['fix_prepared']));
+    assert.deepEqual(
+      final.snapshot['fix_commands']!.find((row) => row['id'] === savedPrepare['id'])![
+        'response_body'
+      ],
+      prepared.prepared,
+    );
+  });
+});
+
+void test('schema8 foundation keeps one applied execution across post-APPLY retransmissions, physical reuse and original-key replays', async () => {
+  await withSchema8Sandbox(async (context) => {
+    const { s } = context,
+      acknowledgment = await s.prepare(),
+      acknowledged = await s.apply(acknowledgment.work);
+    assert.equal(acknowledged.status, 200);
+    assert.equal(acknowledged.body['financial_applied'], true);
+    const price = acknowledgment.f['44']!,
+      full = await s.prepare({
+        '150': 'F',
+        '39': '2',
+        '14': '100.00',
+        '151': '0.00',
+        '32': '100.00',
+        '31': price,
+        '6': price,
+      }),
+      applyKey = randomUUID(),
+      applied = await s.apply(full.work, applyKey);
+    assert.equal(applied.status, 200);
+    assert.equal(applied.body['financial_applied'], true);
+    assert.equal(applied.body['delivery_verified'], false);
+    const original = await healthySchema8(context),
+      recordReceipt = original.snapshot['fix_commands']!.find(
+        (row) =>
+          row['operation'] === 'RECORD' &&
+          (row['response_body'] as Record<string, unknown>)['message_id'] === full.message,
+      )!,
+      originalBody = recordReceipt['response_body'] as Record<string, unknown>,
+      attempt = integrityUuid(originalBody['attempt_id']),
+      originalKey = integrityUuid(recordReceipt['idempotency_key']),
+      recordReplay = await record(s, full.f, originalKey, attempt),
+      applyReplay = await s.apply(full.work, applyKey),
+      recovered = await s.apply(full.work);
+    assert.equal(recordReplay.status, 201);
+    assert.equal(recordReplay.replayed, true);
+    assert.deepEqual(recordReplay.body, originalBody);
+    for (const replay of [applyReplay, recovered]) {
+      assert.equal(replay.status, 200);
+      assert.equal(replay.replayed, true);
+      assert.deepEqual(replay.body, applied.body);
+    }
+    assert.ok(isDeepStrictEqual(await schema8Snapshot(context), original.snapshot));
+    const reused = await record(s, full.f, randomUUID(), attempt);
+    assert.equal(reused.status, 201);
+    assert.equal(reused.body['message_id'], full.message);
+    assert.equal(reused.body['logical_duplicate'], true);
+    assert.equal(reused.body['physical_duplicate'], true);
+    assert.equal(reused.body['financial_applied'], false);
+    const sameSequence = await record(s, {
+        ...full.f,
+        '43': 'Y',
+        '122': full.f['52']!,
+        '52': '20261030-12:01:00.000',
+      }),
+      newSequence = await record(s, {
+        ...full.f,
+        '34': String(Number(full.f['34']) + 1),
+        '43': 'Y',
+        '122': full.f['52']!,
+        '52': '20261030-12:02:00.000',
+      });
+    for (const observed of [sameSequence, newSequence]) {
+      assert.equal(observed.status, 201);
+      assert.equal(observed.body['message_id'], full.message);
+      assert.equal(observed.body['logical_duplicate'], true);
+      assert.equal(observed.body['physical_duplicate'], false);
+      assert.equal(observed.body['financial_applied'], false);
+      assert.equal(observed.body['delivery_state'], 'NOT_IMPLEMENTED');
+    }
+    const final = await healthySchema8(context);
+    assert.equal(final.assessment.financial_watermark, '6');
+    assert.equal(final.assessment.protocol_watermark, '14');
+    assert.equal(final.assessment.protocol_ingest_watermark, '14');
+    assert.equal(final.assessment.protocol_prepare_watermark, '10');
+    assert.equal(final.assessment.unresolved_work_count, 0);
+    assert.equal(final.snapshot['fix_messages']!.length, 3);
+    assert.equal(final.snapshot['fix_attempts']!.length, 5);
+    assert.equal(final.snapshot['fix_sequence_slots']!.length, 4);
+    assert.equal(final.snapshot['fix_outbox']!.length, 1);
+    assert.equal(final.snapshot['fix_applications']!.length, 2);
+    assert.equal(final.snapshot['executions']!.length, 1);
+    for (const table of Object.keys(original.snapshot))
+      if (
+        ![
+          'fix_commands',
+          'fix_events',
+          'command_keys',
+          'fix_attempts',
+          'fix_sequence_slots',
+        ].includes(table)
+      )
+        assert.ok(
+          isDeepStrictEqual(final.snapshot[table], original.snapshot[table]),
+          'Post-APPLY observations or recovery changed retained effects: ' + table,
+        );
+    const afterReplays = await s.apply(full.work, applyKey);
+    assert.equal(afterReplays.replayed, true);
+    assert.deepEqual(afterReplays.body, applied.body);
+    assert.ok(isDeepStrictEqual(await schema8Snapshot(context), final.snapshot));
+  });
+});
+
+void test('schema8 foundation rejects a coherently stale pending preparation version after an earlier financial application', async () => {
+  await withSchema8Sandbox(async (context) => {
+    const { s } = context,
+      acknowledgment = await s.prepare(),
+      acknowledged = await s.apply(acknowledgment.work);
+    assert.equal(acknowledged.status, 200);
+    assert.equal(acknowledged.body['financial_applied'], true);
+    const price = acknowledgment.f['44']!,
+      pending = await s.prepare({
+        '150': 'F',
+        '39': '1',
+        '14': '40.00',
+        '151': '60.00',
+        '32': '40.00',
+        '31': price,
+        '6': price,
+      });
+    assert.equal((pending.prepared['payload'] as Record<string, unknown>)['expected_version'], '2');
+    const before = await healthySchema8(context),
+      original = await durableFixSnapshot(s.id),
+      preparedBefore = before.snapshot['fix_prepared']!.find(
+        (row) => row['work_id'] === pending.work,
+      )!,
+      receiptBefore = before.snapshot['fix_commands']!.find(
+        (row) =>
+          row['operation'] === 'PREPARE' &&
+          (row['response_body'] as Record<string, unknown>)['work_id'] === pending.work,
+      )!;
+    assert.equal(before.assessment.unresolved_work_count, 1);
+    assert.equal(before.snapshot['fix_applications']!.length, 1);
+    assert.equal(before.snapshot['fix_consumptions']!.length, 1);
+    assert.equal(before.snapshot['executions']!.length, 0);
+    await guardedIntegrityCorruption(
+      context,
+      "WITH changed AS (UPDATE fi.fix_prepared SET payload=jsonb_set(payload,'{expected_version}','\"1\"'),request_hash=encode(sha256(convert_to(jsonb_set(payload,'{expected_version}','\"1\"')::text,'UTF8')),'hex') WHERE sandbox_id=$1 AND work_id=$2 RETURNING sandbox_id,work_id,payload),receipt AS (UPDATE fi.fix_commands c SET response_body=jsonb_set(c.response_body,'{payload}',p.payload) FROM changed p WHERE c.sandbox_id=p.sandbox_id AND c.operation='PREPARE' AND c.response_body->>'work_id'=p.work_id::text RETURNING c.sandbox_id,c.command_seq,c.response_body) UPDATE fi.fix_events e SET payload=jsonb_build_object('financial_applied',false,'record',c.response_body-'payload') FROM receipt c WHERE(e.sandbox_id,e.command_seq)=(c.sandbox_id,c.command_seq)",
+      [s.id, pending.work],
+    );
+    const damaged = await schema8Snapshot(context),
+      preparedAfter = damaged['fix_prepared']!.find((row) => row['work_id'] === pending.work)!,
+      receiptAfter = damaged['fix_commands']!.find((row) => row['id'] === receiptBefore['id'])!;
+    assert.deepEqual(preparedAfter['payload'], {
+      ...(preparedBefore['payload'] as Record<string, unknown>),
+      expected_version: '1',
+    });
+    assert.equal(
+      preparedAfter['request_hash'],
+      createHash('sha256').update(String(preparedAfter['payload_text'])).digest('hex'),
+    );
+    assert.equal(preparedAfter['financial_key'], preparedBefore['financial_key']);
+    assert.equal(preparedAfter['operation'], preparedBefore['operation']);
+    assert.equal(receiptAfter['request_hash'], receiptBefore['request_hash']);
+    assert.equal(receiptAfter['idempotency_key'], receiptBefore['idempotency_key']);
+    assert.equal(receiptAfter['operation'], receiptBefore['operation']);
+    assert.deepEqual(receiptAfter['response_body'], {
+      ...(receiptBefore['response_body'] as Record<string, unknown>),
+      payload: preparedAfter['payload'],
+    });
+    for (const table of Object.keys(before.snapshot))
+      if (!['fix_prepared', 'fix_commands', 'fix_events'].includes(table))
+        assert.ok(
+          isDeepStrictEqual(damaged[table], before.snapshot[table]),
+          'Coherent pending-version corruption changed unrelated retained evidence: ' + table,
+        );
+    const expected = [{ code: 'PREPARED_ORDERING', record_id: pending.work }];
+    await assertIntegrityFinding(context, original, before.assessment, expected, [
+      'fix_prepared',
+      'fix_commands',
+      'fix_events',
+    ]);
+    assert.ok(
+      isDeepStrictEqual(await schema8Snapshot(context), damaged),
+      'Repeated verification changed the coherent pending-version corruption.',
+    );
+  });
+});
+
+void test('schema8 foundation rejects a pending-cancel observation whose historical financial version became ineligible', async () => {
+  await withSchema8Sandbox(async (context) => {
+    const { s } = context,
+      acknowledgment = await s.prepare(),
+      acknowledged = await s.apply(acknowledgment.work);
+    assert.equal(acknowledged.status, 200);
+    assert.equal(acknowledged.body['financial_applied'], true);
+    const cancel = randomUUID(),
+      cancellation = await s.prepare({
+        '35': 'F',
+        '49': 'TRADEFLOW',
+        '56': 'ATLAS',
+        '11': cancel,
+        '41': s.order,
+      }),
+      requested = await s.apply(cancellation.work);
+    assert.equal(requested.status, 200);
+    assert.equal(requested.body['financial_applied'], true);
+    const pending = await s.prepare({
+        '150': '6',
+        '39': '6',
+        '11': cancel,
+        '41': s.order,
+      }),
+      applied = await s.apply(pending.work);
+    assert.equal(applied.status, 200);
+    assert.deepEqual(applied.body, {
+      order_id: s.order,
+      work_id: pending.work,
+      financial_applied: false,
+      delivery_verified: false,
+      outcome: 'METADATA_ONLY',
+      validated_pending_cancel: true,
+    });
+    const before = await healthySchema8(context),
+      original = await durableFixSnapshot(s.id),
+      observation = before.snapshot['fix_protocol_observations']!.find(
+        (row) => row['work_id'] === pending.work,
+      )!,
+      history = before.snapshot['order_history']!.find(
+        (row) => row['order_id'] === s.order && row['version'] === observation['financial_version'],
+      )!,
+      receipt = before.snapshot['fix_commands']!.find(
+        (row) =>
+          row['operation'] === 'APPLY' &&
+          (row['response_body'] as Record<string, unknown>)['work_id'] === pending.work,
+      )!;
+    assert.equal(before.assessment.unresolved_work_count, 0);
+    assert.equal(before.snapshot['fix_protocol_observations']!.length, 1);
+    assert.equal(before.snapshot['order_states']![0]!['status'], 'NEW');
+    assert.equal((history['state'] as Record<string, unknown>)['status'], 'NEW');
+    assert.equal(
+      before.snapshot['fix_commands']!.filter(
+        (row) =>
+          row['operation'] === 'RESOLVE_METADATA' &&
+          (row['response_body'] as Record<string, unknown>)['work_id'] === pending.work,
+      ).length,
+      0,
+    );
+    await guardedIntegrityCorruption(
+      context,
+      "UPDATE fi.order_history SET state=jsonb_set(state,'{status}','\"FILLED\"') WHERE sandbox_id=$1 AND order_id=$2 AND version=$3",
+      [s.id, s.order, observation['financial_version']],
+    );
+    const damaged = await schema8Snapshot(context);
+    assert.deepEqual(
+      damaged['order_history']!.find(
+        (row) => row['order_id'] === s.order && row['version'] === observation['financial_version'],
+      )!['state'],
+      { ...(history['state'] as Record<string, unknown>), status: 'FILLED' },
+    );
+    for (const table of Object.keys(before.snapshot))
+      if (table !== 'order_history')
+        assert.ok(
+          isDeepStrictEqual(damaged[table], before.snapshot[table]),
+          'Historical observation-eligibility corruption changed unrelated evidence: ' + table,
+        );
+    const expected = [
+      { code: 'APPLY_EVIDENCE', record_id: String(receipt['id']) },
+      { code: 'MISSING_RESOLVE_RECEIPT', record_id: pending.work },
+      { code: 'OBSERVATION_REFERENCE', record_id: pending.work },
+    ];
+    await assertIntegrityFinding(context, original, before.assessment, expected, ['order_history']);
+    assert.ok(
+      isDeepStrictEqual(await schema8Snapshot(context), damaged),
+      'Repeated foundation verification changed the historical eligibility evidence.',
+    );
+  });
+});
+
+void test('schema8 foundation preserves legitimate pre007 metadata completion and later preparation across the owned schema6 upgrade', async () => {
+  const instance = await startOwnedPostgres(process.env.TF_PG_BIN),
+    previousOwnerFile = process.env.TF_DB_OWNER_FILE,
+    owned = await verifyOwned(instance.path);
+  let s: Awaited<ReturnType<typeof fixture>> | undefined,
+    admin: Awaited<ReturnType<typeof connection>> | undefined,
+    database: VerificationDatabase | undefined;
+  try {
+    await bootstrap(instance.path, 6);
+    const cfg = await readOwner(instance.path);
+    process.env.TF_DB_OWNER_FILE = instance.path;
+    admin = await connection('admin');
+    s = await fixture();
+    assert.equal((await s.bind()).status, 201);
+    const ownerId = randomUUID(),
+      firstWork = randomUUID(),
+      firstFinancialKey = randomUUID(),
+      firstPrepareKey = randomUUID(),
+      pending = await record(
+        s,
+        await report(s, {
+          '150': '6',
+          '39': '6',
+          '11': randomUUID(),
+          '41': s.order,
+        }),
+      );
+    assert.equal(pending.status, 201);
+    assert.equal(
+      (
+        await s.fix('QUEUE', {
+          order_id: s.order,
+          message_id: pending.body['message_id'],
+          work_id: firstWork,
+        })
+      ).status,
+      201,
+    );
+    const claim = await s.fix('CLAIM', { order_id: s.order, owner_id: ownerId });
+    assert.equal(claim.status, 200);
+    assert.equal(claim.body['fence'], '1');
+    const firstInput = {
+        order_id: s.order,
+        owner_id: ownerId,
+        fence: '1',
+        work_id: firstWork,
+        financial_key: firstFinancialKey,
+      },
+      firstPrepared = await s.fix('PREPARE', firstInput, firstPrepareKey);
+    assert.equal(firstPrepared.status, 201);
+    assert.equal(
+      (firstPrepared.body['payload'] as Record<string, unknown>)['expected_version'],
+      '1',
+    );
+    const resolved = await s.fix('RESOLVE_METADATA', {
+      order_id: s.order,
+      owner_id: ownerId,
+      fence: '1',
+      work_id: firstWork,
+    });
+    assert.equal(resolved.status, 200);
+    assert.deepEqual(resolved.body, {
+      order_id: s.order,
+      work_id: firstWork,
+      outcome: 'METADATA_ONLY',
+      financial_applied: false,
+    });
+    // This continuation was admitted under006, before validated observations existed.
+    const secondWork = randomUUID(),
+      secondFinancialKey = randomUUID(),
+      secondPrepareKey = randomUUID(),
+      acknowledgment = await record(s, await report(s, { '34': '2' }));
+    assert.equal(acknowledgment.status, 201);
+    assert.equal(
+      (
+        await s.fix('QUEUE', {
+          order_id: s.order,
+          message_id: acknowledgment.body['message_id'],
+          work_id: secondWork,
+        })
+      ).status,
+      201,
+    );
+    const secondInput = {
+        order_id: s.order,
+        owner_id: ownerId,
+        fence: '1',
+        work_id: secondWork,
+        financial_key: secondFinancialKey,
+      },
+      secondPrepared = await s.fix('PREPARE', secondInput, secondPrepareKey);
+    assert.equal(secondPrepared.status, 201);
+    assert.equal(
+      (secondPrepared.body['payload'] as Record<string, unknown>)['expected_version'],
+      '1',
+    );
+    const original = await durableFixSnapshot(s.id),
+      migrations = (
+        await admin.query(
+          'SELECT version,checksum,applied_at FROM fi_control.schema_migrations ORDER BY version',
+        )
+      ).rows,
+      financialSource = (
+        await admin.query('SELECT financial_source FROM fi_control.compatibility WHERE singleton')
+      ).rows,
+      instruments = (
+        await admin.query(
+          'SELECT to_jsonb(v) AS record FROM fi.instrument_versions v ORDER BY to_jsonb(v)::text',
+        )
+      ).rows,
+      kernel = (
+        await admin.query(
+          "SELECT prosrc,oid::text FROM pg_proc WHERE oid='fi_control.order_command_kernel(uuid,text,bigint,text,jsonb,text,text,uuid)'::regprocedure",
+        )
+      ).rows;
+    assert.equal(original['order_states']![0]!['status'], 'PENDING_ACK');
+    assert.equal(original['fix_prepared']!.length, 2);
+    assert.equal(original['fix_outcomes']!.length, 1);
+    assert.equal(original['executions']!.length, 0);
+    assert.equal(migrations.length, 6);
+    await migrate(cfg);
+    assert.deepEqual(await durableFixSnapshot(s.id), original);
+    assert.deepEqual(
+      (
+        await admin.query(
+          'SELECT version,checksum,applied_at FROM fi_control.schema_migrations WHERE version<=6 ORDER BY version',
+        )
+      ).rows,
+      migrations,
+    );
+    assert.equal(
+      (
+        await admin.query<{ version: number }>(
+          'SELECT max(version)::int AS version FROM fi_control.schema_migrations',
+        )
+      ).rows[0]!.version,
+      8,
+    );
+    assert.deepEqual(
+      (await admin.query('SELECT financial_source FROM fi_control.compatibility WHERE singleton'))
+        .rows,
+      financialSource,
+    );
+    assert.deepEqual(
+      (
+        await admin.query(
+          'SELECT to_jsonb(v) AS record FROM fi.instrument_versions v ORDER BY to_jsonb(v)::text',
+        )
+      ).rows,
+      instruments,
+    );
+    assert.deepEqual(
+      (
+        await admin.query(
+          "SELECT prosrc,oid::text FROM pg_proc WHERE oid='fi_control.order_command_kernel(uuid,text,bigint,text,jsonb,text,text,uuid)'::regprocedure",
+        )
+      ).rows,
+      kernel,
+    );
+    const epochEvidence = (
+      await admin.query<{
+        work_id: string;
+        preparation_before007: boolean;
+        receipt_event_before007: boolean;
+      }>(
+        "SELECT p.work_id,p.prepared_at<m.applied_at AS preparation_before007,e.recorded_at<m.applied_at AS receipt_event_before007 FROM fi.fix_prepared p JOIN fi.fix_commands c ON c.sandbox_id=p.sandbox_id AND c.operation='PREPARE' AND c.response_body->>'work_id'=p.work_id::text JOIN fi.fix_events e ON(e.sandbox_id,e.command_seq)=(c.sandbox_id,c.command_seq) CROSS JOIN fi_control.schema_migrations m WHERE p.sandbox_id=$1 AND m.version=7 ORDER BY p.work_id",
+        [s.id],
+      )
+    ).rows;
+    assert.equal(epochEvidence.length, 2);
+    assert.deepEqual(
+      epochEvidence.map((row) => row.work_id).sort(),
+      [firstWork, secondWork].sort(),
+    );
+    for (const row of epochEvidence) {
+      assert.equal(row.preparation_before007, true);
+      assert.equal(row.receipt_event_before007, true);
+    }
+    database = new VerificationDatabase(cfg.reconcilerUrl!);
+    const context: ContractContext = {
+        s,
+        admin,
+        database,
+        binding: { sandboxId: s.id, digest: s.proof, scope: 'trade', generation: '1' },
+      },
+      current = await healthySchema8(context);
+    assert.equal(current.assessment.profile, 'fix-foundation-v2');
+    assert.equal(current.assessment.physical_schema_revision, 8);
+    assert.equal(current.assessment.financial_watermark, '4');
+    assert.equal(current.assessment.protocol_watermark, '9');
+    assert.equal(current.assessment.protocol_ingest_watermark, '7');
+    assert.equal(current.assessment.protocol_prepare_watermark, '9');
+    assert.equal(current.assessment.unresolved_work_count, 1);
+    for (const table of [
+      'fix_applications',
+      'fix_consumptions',
+      'fix_protocol_observations',
+      'fix_unresolved_ingest',
+    ])
+      assert.deepEqual(current.snapshot[table], [], table);
+    for (const [input, key, saved] of [
+      [firstInput, firstPrepareKey, firstPrepared],
+      [secondInput, secondPrepareKey, secondPrepared],
+    ] as const) {
+      const replay = await s.fix('PREPARE', input, key);
+      assert.equal(replay.status, 201);
+      assert.equal(replay.replayed, true);
+      assert.deepEqual(replay.body, saved.body);
+    }
+    assert.ok(isDeepStrictEqual(await schema8Snapshot(context), current.snapshot));
+    assert.deepEqual(await durableFixSnapshot(s.id), original);
+    await healthySchema8(context);
+  } finally {
+    try {
+      const closed = await Promise.allSettled([database?.close(), s?.close()]);
+      if (admin) {
+        const cleanup = (
+          await admin.query<{ retained_count: number; sandbox_count: number }>(
+            'SELECT retained_count,(SELECT count(*)::int FROM fi.sandboxes) AS sandbox_count FROM fi_control.service_capacity WHERE singleton',
+          )
+        ).rows[0]!;
+        console.log(
+          'Historical schema6 upgrade cleanup:',
+          JSON.stringify({
+            ...cleanup,
+            directory: owned.directory,
+            kind: owned.kind,
+            container: owned.container ?? null,
+            volume: owned.volume ?? null,
+          }),
+        );
+        assert.deepEqual(cleanup, { retained_count: 0, sandbox_count: 0 });
+      }
+      assert.equal(
+        closed.filter((result) => result.status === 'rejected').length,
+        0,
+        'Historical-upgrade fixture cleanup failed.',
+      );
+    } finally {
+      try {
+        await admin?.end();
+      } finally {
+        if (previousOwnerFile === undefined) delete process.env.TF_DB_OWNER_FILE;
+        else process.env.TF_DB_OWNER_FILE = previousOwnerFile;
+        await instance.stop();
+      }
+    }
+  }
 });

@@ -1,0 +1,46 @@
+profile: fix-application-v1
+schema_revision: 7
+activation: explicit internal local/CI opt-in; default OFF; no HTTP route
+transport: NONE
+delivery_verified: false
+apply:
+  function: fi_control.apply_fix(uuid,text,bigint,jsonb,text,uuid)
+  payload: { order_id: UUID, owner_id: UUID, fence: positive decimal string, work_id: UUID }
+  ownership: current trade proof, capability generation, session verification before transaction and COMMIT
+  ordering: sandbox then lane then authoritative order state then shared key; unresolved lane head blocks later work
+  idempotency: original protocol key/request replay; immutable prepared financial key is promoted in-place only on kernel receipt insertion
+  hashes:
+    prepared: SHA256(PostgreSQL canonical JSONB payload UTF8)
+    financial: SHA256(compact ordered OrderService version1 POST envelope)
+  financial_effect: unchanged private order_command_kernel in the same transaction
+  capacity: 1 command plus actual 1 audit event or 3 execution events; immutable deferred-effect-backed consumption
+  statuses: [200, 400, 403, 404, 409, 429, 503]
+messages:
+  D: stage exact existing order; no new economic order
+  '8/0': ACK_ORDER
+  '8/8': REJECT_ORDER only definitive synthetic99 reason; duplicate6 unresolved
+  '8/F': EXECUTE_ORDER; explicit LastQty/LastPx and exact post-kernel totals
+  '8/6': validated pending-cancel protocol metadata only
+  '8/4': ACK_CANCEL only matching pending cancel and exact ledger totals
+  F: REQUEST_CANCEL; staging alone does not mutate lifecycle
+  '9': REJECT_CANCEL;99 ordinary or0 too late with FILLED state; unknown-order unsupported
+outcomes:
+  historical: immutable METADATA_ONLY rows remain unchanged
+  applied: separate immutable fi.fix_applications with receipt, prepared work, audit, fence and consumed-capacity references
+recovery: retain original message, prepared payload/key and candidate IDs; authoritative receipt recovery under sandbox/lane locks; no replacement commands
+reconciliation:
+  profile: fix-application-v1
+  independent_sql: verification/sql/fix_application.sql
+  snapshot: repeatable-read read-only; same snapshot for financial verifiers
+  protocol_completeness: observed transcript only; no inference about unobserved messages
+  delivery_verified: false
+unsupported:
+  [
+    network delivery,
+    FIX sessions,
+    replacement,
+    trade corrections,
+    busts,
+    settlement,
+    external counterparties,
+  ]
