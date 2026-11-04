@@ -1,5 +1,7 @@
 # Phase 2B: dealer RFQs and atomic quotation acceptance
 
+> Current milestone/release map: [CURRENT_STATE.md](CURRENT_STATE.md). Later accepted local/CI source and the separately pinned public demo have different scopes.
+
 This unmerged candidate extends the Phase 2A ownership foundation, starting exactly at `c57471079774b32c82150b9a133b2a6911b8c138`. It is a synthetic institutional workflow, available only in the explicitly enabled local/ephemeral PostgreSQL mode. Feature OFF preserves the existing equity session model and stateless Phase 1 analytics without a database. No deployment or hosted infrastructure is included.
 
 The lifecycle ends at a persistent **PENDING_ACK** order. There are no acknowledgments, executions, partial fills, positions, FIX messages, settlement processing, live data, brokerage links or external model/AI trading decisions.

@@ -1,6 +1,6 @@
 # TradeFlow Lab implementation plan
 
-> **Historical deployment context** - This record retains its original milestone, source revisions, measured results and approval boundaries. Earlier hosting/source-visibility/pending-release statements are dated history. Use [the current production documentation](RAILWAY_PRODUCTION.md) for the October 24-25 Railway topology, release state and remaining closeout.
+> **Historical deployment context** - This record retains its original milestone, source revisions, measured results and approval boundaries. Earlier hosting/source-visibility/pending-release statements are dated history. Use [the current source/release index](CURRENT_STATE.md) for accepted milestones and [production documentation](RAILWAY_PRODUCTION.md) for the separately pinned Railway demo.
 
 Interview and learning lab only. All users, instruments, orders, positions and credentials are synthetic. The user's supplied brief is the scope and acceptance specification.
 

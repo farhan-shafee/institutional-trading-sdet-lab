@@ -1,5 +1,7 @@
 # Test strategy
 
+> Current milestone/release map: [CURRENT_STATE.md](CURRENT_STATE.md). Later accepted local/CI source and the separately pinned public demo have different scopes.
+
 The highest risks are accepting invalid input, allowing an unauthorized mutation, permitting an invalid status transition, leaking state between sessions, and displaying stale or malformed server state. Coverage follows those risks before adding browser permutations.
 
 ## Layers and their oracles

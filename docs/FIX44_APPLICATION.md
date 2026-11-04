@@ -1,6 +1,8 @@
 # Controlled FIX application (Phase3B2)
 
-This candidate branch applies explicitly authenticated, synthetic local/CI FIX transcripts through the existing financial kernel. It is not a FIX gateway, session engine, network endpoint or regulated trading venue. Delivery and external completeness are always unverified. The feature defaults OFF; no HTTP route, automatic process or environment flag activates it. Existing public hosting, equity sessions and financial conventions are unchanged.
+> Current milestone/release map: [CURRENT_STATE.md](CURRENT_STATE.md). Later accepted local/CI source and the separately pinned public demo have different scopes.
+
+This opt-in local/CI SDK applies explicitly authenticated, synthetic local/CI FIX transcripts through the existing financial kernel. It is not a FIX gateway, session engine, network endpoint or regulated trading venue. Delivery and external completeness are always unverified. The feature defaults OFF; no HTTP route, automatic process or environment flag activates it. Existing public hosting, equity sessions and financial conventions are unchanged.
 
 ## Boundaries and transaction
 

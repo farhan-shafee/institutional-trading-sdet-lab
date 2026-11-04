@@ -1,6 +1,14 @@
 # CI/CD and quality gates
 
+> Current milestone/release map: [CURRENT_STATE.md](CURRENT_STATE.md). Later accepted local/CI source and the separately pinned public demo have different scopes.
+
 Read `.github/workflows/quality.yml` with `package.json` and `playwright.config.ts`. The workflow expresses a quality gate for a synthetic lab; it validates the synthetic lab and does not deploy real trading infrastructure. Public hosting uses Railway and Cloudflare Tunnel with a pinned application release; CI success alone does not change that source pin. See [current production deployment](RAILWAY_PRODUCTION.md). Review the [validation record](VALIDATION.md) to distinguish local execution from an actual hosted Actions run.
+
+## Both mandatory workflows
+
+`quality.yml` runs full audits/static checks, independent financial/FIX verification, native artifact smoke, and normal/repeated legacy browser tests. `persistence.yml` runs two fresh PostgreSQL executions, baseline/repeated three-browser RFQ workstation checks, their mandatory aggregates, and a full legacy regression job. The eight main job names are `quality`, `postgres-run-a`, `postgres-run-b`, `postgres`, `workstation-baseline`, `workstation-repeat`, `workstation`, and `regression`.
+
+The accepted checkpoint's exact counts and links are in [CURRENT_STATE.md](CURRENT_STATE.md). PostgreSQL/workstation tests use zero test retries; 30-second tests and 15-minute jobs remain unchanged. The legacy Playwright diagnostic retry still fails the gate for flaky results. Missing/skipped/cancelled mandatory executions are not accepted. Both workflows must be complete; a green aggregate is not a substitute for inspecting its required executions.
 
 ## Pipeline
 
@@ -31,7 +39,7 @@ Normal authenticated suites disable traces to exclude bearer headers and browser
 | Failure evidence   | On job failure, if files exist                  | 7 days                 | Failed screenshots, retained videos, result attachments; no authenticated traces |
 | Demo reports       | Local explicit demo only                        | Local generated output | Intentional failure evidence excluded from the CI gate                           |
 
-The configuration limits routine evidence: trace on first retry, screenshot only on failure, video retained on failure. Artifacts may be absent if installation or an earlier static gate failed before any browser test. GitHub's [artifact documentation](https://docs.github.com/en/actions/tutorials/store-and-share-data) explains upload/download and finite retention.
+Normal authenticated suites keep traces off, screenshots only on failure and video retained only on failure; the RFQ gate disables screenshots/video too. Intentional demo traces remain separate. Artifacts may be absent if installation or an earlier static gate failed before any browser test. GitHub's [artifact documentation](https://docs.github.com/en/actions/tutorials/store-and-share-data) explains upload/download and finite retention.
 
 ## Local equivalents
 
