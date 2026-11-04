@@ -1,6 +1,8 @@
 # Phase 3C plan and remaining TradeFlow roadmap through Phase 4F
 
-Status: **3C0 sections 10 and 17 approved for offline implementation and an unmerged draft PR on 2026-11-04. All later roadmap contracts remain DRAFT; no merge or deployment is authorized.**
+Status: **Phase 3C0 is implemented, accepted and merged via PR #29 on November 4, 2026; protected-main checkpoint f31f6e2 passed all eight post-merge checks on attempt 1. Later roadmap contracts remain DRAFT and no later-phase implementation or production deployment is authorized.**
+
+> This document retains its planning/recovery history. Earlier future-approval wording describes that earlier stage. Use [the current source/release index](../CURRENT_STATE.md) for the completed 3C0 milestone and its exact evidence.
 
 Prepared 2026-11-04. Repository: `farhan-shafee/institutional-trading-sdet-lab`.
 
@@ -440,11 +442,11 @@ Diagnostic-precedence cases combine faults and pin the intended first result: ma
 
 Implementation remains the M0-M4 sequence in section 7, with these concrete exits:
 
-- [ ] M0: owner approves section 17; create an isolated checkout from verified accepted-B2 ancestry and copy only the reviewed plan. Freeze hashes of existing migrations, dictionary/license, 14 goldens and financial sources.
-- [ ] M1: write YAML, guide, manifest, raw files and literal expected reports for the inventory. Independently inspect manually constructed bytes and classifications before checker implementation.
-- [ ] M2: write failing tests for the specified Python API, verdicts, precedence, discovery and bounded failure behavior; implement only the offline evaluator; retain first RED evidence and exact GREEN outputs. TypeScript checks static contracts/fixtures and existing decoder exclusions.
-- [ ] M3: append new independent test discovery and corpus invocation after the existing FIX checks. Preserve all original invocations and the 60-second child deadline, with nonzero/termination propagation and no skip/filter bypass.
-- [ ] M4: execute relevant targeted gates, independent review and the existing complete final acceptance from section 8 on the exact candidate. Report observed counts, exact source/tree and original first failures. A corpus run that matches expected INVALID/OUT_OF_SCOPE cases cannot be reported as runtime session interoperability.
+- [x] M0: owner approves section 17; create an isolated checkout from verified accepted-B2 ancestry and copy only the reviewed plan. Freeze hashes of existing migrations, dictionary/license, 14 goldens and financial sources.
+- [x] M1: write YAML, guide, manifest, raw files and literal expected reports for the inventory. Independently inspect manually constructed bytes and classifications before checker implementation.
+- [x] M2: write failing tests for the specified Python API, verdicts, precedence, discovery and bounded failure behavior; implement only the offline evaluator; retain first RED evidence and exact GREEN outputs. TypeScript checks static contracts/fixtures and existing decoder exclusions.
+- [x] M3: append new independent test discovery and corpus invocation after the existing FIX checks. Preserve all original invocations and the 60-second child deadline, with nonzero/termination propagation and no skip/filter bypass.
+- [x] M4: execute relevant targeted gates, independent review and the existing complete final acceptance from section 8 on the exact candidate. Report observed counts, exact source/tree and original first failures. A corpus run that matches expected INVALID/OUT_OF_SCOPE cases cannot be reported as runtime session interoperability.
 
 The standard's later errata and a peer engine remain explicitly outside any claim of full standard/peer compliance. Before the later engine milestone, retrieve and pin the then-approved session-standard edition and test matrix, assess errata against this limited pack and review changes; no broadened compliance claim is inherited from 3C0.
 

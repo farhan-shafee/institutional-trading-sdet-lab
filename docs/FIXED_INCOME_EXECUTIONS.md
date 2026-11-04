@@ -1,5 +1,7 @@
 # Phase 2C: order lifecycle, execution ledger and derived positions
 
+> Current milestone/release map: [CURRENT_STATE.md](CURRENT_STATE.md). Later accepted local/CI source and the separately pinned public demo have different scopes.
+
 Candidate source only. Synthetic local simulator, feature default OFF. No production, hosted database, FIX, brokerage, settlement, clearing, P&L, available cash balance or deployment capability is added. Existing equity endpoints and session books remain separate.
 
 ## Economic contracts and records

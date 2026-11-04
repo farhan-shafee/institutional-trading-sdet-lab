@@ -1,5 +1,7 @@
 # TradeFlow FIX 4.4 bilateral profile v1
 
+> Current milestone/release map: [CURRENT_STATE.md](CURRENT_STATE.md). Later accepted local/CI source and the separately pinned public demo have different scopes.
+
 This module is a **bounded application-message byte codec**. It encodes and validates standalone synthetic FIX messages. It does not send messages, authorize financial commands, create orders/executions, maintain sessions or implement a FIX gateway. No application HTTP route imports it. The existing optional workflow remains OFF by default.
 
 The independently authored executable contract is [fix44-profile-v1.yaml](../contracts/fix44-profile-v1.yaml). Its field matrix distinguishes base FIX requirements from TradeFlow's additional bilateral requirements. Unsupported FIX messages may be valid in the standard and still be rejected by this profile.

@@ -1,5 +1,7 @@
 # Durable synthetic reconciliation — Phase 2D
 
+> Current milestone/release map: [CURRENT_STATE.md](CURRENT_STATE.md). Later accepted local/CI source and the separately pinned public demo have different scopes.
+
 This opt-in local/ephemeral-CI simulator independently assesses retained fixed-income records. It is not a venue, broker, clearing system, settlement service or financial repair tool. Earlier phase contracts and migrations 001–004 remain unchanged. The existing workflow flag defaults OFF; without it there is no PostgreSQL requirement or equity/session change. No production infrastructure is changed.
 
 ## Boundaries and files

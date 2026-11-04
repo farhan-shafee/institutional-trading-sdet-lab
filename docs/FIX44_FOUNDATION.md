@@ -1,5 +1,7 @@
 # FIX4.4 adapter foundation — Phase3B1
 
+> Current milestone/release map: [CURRENT_STATE.md](CURRENT_STATE.md). Later accepted local/CI source and the separately pinned public demo have different scopes.
+
 This is local/ephemeral-CI **metadata infrastructure**, disabled by default. There is no FIX delivery or financial application entry point. A decoded report is not a trade, and a prepared financial identity is not a committed execution. Existing public HTTP routes and the workstation do not import or enable this module.
 
 ## Verified integration preflight

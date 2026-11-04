@@ -1,8 +1,10 @@
 # TradeFlow Railway production topology
 
-Reviewed October 25, 2026. [Live synthetic workstation](https://tradeflow.farhan-shafee.com) · [Health](https://tradeflow.farhan-shafee.com/health) · [Public source](https://github.com/farhan-shafee/institutional-trading-sdet-lab).
+Topology/release reviewed October 25; source pin and provider state rechecked November 4, 2026. [Live synthetic workstation](https://tradeflow.farhan-shafee.com) · [Health](https://tradeflow.farhan-shafee.com/health) · [Public source](https://github.com/farhan-shafee/institutional-trading-sdet-lab).
 
-TradeFlow runs on Railway independently of the owner's computer. A separate Railway cloudflared service connects the public Cloudflare hostname to the app over the private network. It has no application database, persistent volume or backup requirement.
+The separately pinned public equities demo runs on Railway independently of the owner's computer. A separate Railway cloudflared service connects the public Cloudflare hostname to the app over the private network. It has no application database, persistent volume or backup requirement.
+
+> GitHub main has later accepted local PostgreSQL/FIX milestones, including Phase 3C0. They are mapped in [CURRENT_STATE.md](CURRENT_STATE.md); their merges did not update this application pin.
 
 ```mermaid
 flowchart TD

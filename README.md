@@ -2,15 +2,28 @@
 
 **Synthetic Institutional-Trading SDET Lab**
 
-A small trading workstation built to make quality engineering inspectable: **Playwright, strict TypeScript, UI + API + contract + integration tests, test-scoped fixtures, parallel execution, Chromium / Firefox / WebKit, OpenAPI/runtime validation, failure tracing, GitHub Actions, and human-reviewed AI assistance.** This is an interview and learning project, not a production trading platform.
+A synthetic trading workflow and verification lab: **Playwright/TypeScript UI, API and contract testing; opt-in PostgreSQL financial workflows; independent Python/SQL verification; and bounded offline FIX conformance.** Test-owned records, three-browser execution, runtime/OpenAPI validation and human-reviewed evidence make the engineering inspectable. This is a personal interview and learning project, not a production trading platform.
 
-[Live synthetic demo](https://tradeflow.farhan-shafee.com) · [Main CI](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/workflows/quality.yml?query=branch%3Amain)
+[Current source and release index](docs/CURRENT_STATE.md) · [Portfolio case study](https://farhan-shafee.com/work/tradeflow) · [Persistence CI](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/workflows/persistence.yml?query=branch%3Amain) · [Live synthetic demo](https://tradeflow.farhan-shafee.com) · [Main CI](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/workflows/quality.yml?query=branch%3Amain)
 
 Every user, credential, order, position, and quote is synthetic. There are no brokerage connections, live feeds, real trades, employer systems, proprietary code, or customer data. Familiar instrument symbols do not make invented prices market data.
 
-## Phase 1 fixed-income analytics (candidate source)
+## Current source and public demo
 
-An additive, read-only analytics panel calculates fictional USD regular-coupon bonds: schedules, Actual/Actual ICMA versus US30/360 accrued interest, clean/dirty price, inverse yield, duration, convexity and dollar DV01. See the [complete financial contract](docs/FIXED_INCOME_CONVENTIONS.md). This source addition does not change the pinned public deployment or implement RFQ, FIX, fills, persistence, curves or settlement.
+Reviewed November 4, 2026. **Phase 3C0 is merged and accepted on GitHub; the public demo remains a separately pinned equities slice.**
+
+| Surface                 | Scope and exact evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Accepted implementation | [PR #29](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/29), checkpoint [`f31f6e2`](https://github.com/farhan-shafee/institutional-trading-sdet-lab/commit/f31f6e28ea07c4927537c43d797dae8e11b1b85c), GitHub Verified. [Main quality](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/41914340404) and [main persistence](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/41914340173) completed on attempt 1; 8/8 jobs passed. |
+| Public demo             | Railway app pinned to `265c9e0`, rechecked November 4. Ephemeral session-owned equities books; no application database. Later source milestones were not deployed by their merge operations.                                                                                                                                                                                                                                                                                                                    |
+
+That accepted checkpoint passed **966 Node units, 117 financial Python tests, 78 session Python tests and 59 reviewed transcript expectations**. API/browser runs passed **230 baseline and 460 repeated cases**. Both post-merge PostgreSQL executions passed **455/455**, preserving **247 executions and 44 rotations per run**; workstation gates passed **99/198**, with retained capacity zero. These are revision-specific results, not an uptime or full-interoperability claim; documentation-only commits may follow the checkpoint.
+
+The [current state index](docs/CURRENT_STATE.md) maps the implemented [PostgreSQL foundation](docs/FIXED_INCOME_PERSISTENCE.md), [RFQ workstation](docs/FIXED_INCOME_RFQ.md), [execution ledger](docs/FIXED_INCOME_EXECUTIONS.md), [reconciliation](docs/FIXED_INCOME_RECONCILIATION.md), [FIX bytes](docs/FIX44_PROFILE.md), [controlled FIX application](docs/FIX44_APPLICATION.md) and [offline session conformance](docs/FIX44_SESSION.md). Workflow persistence defaults OFF. A running FIX session engine, transport, durable session state and real peer interoperability remain separate future work.
+
+## Fixed-income analytics in the accepted source
+
+An additive, read-only analytics panel calculates fictional USD regular-coupon bonds: schedules, Actual/Actual ICMA versus US30/360 accrued interest, clean/dirty price, inverse yield, duration, convexity and dollar DV01. See the [complete financial contract](docs/FIXED_INCOME_CONVENTIONS.md). This analytics panel is read-only. The separate opt-in workflows below implement synthetic RFQ, executions, persistence and FIX application; the pinned public demo is unchanged. Curves and settlement remain outside this analytics contract.
 
 Open **Fixed-income analytics** after signing in; supply a yield **or** a clean price. Both synthetic roles may calculate. Existing four-tab keyboard navigation and session-owned equity books are retained.
 
@@ -22,7 +35,7 @@ Requires Python3.12+ (`python3` on Unix, `python` on Windows; `PYTHON` can name 
 
 ## Run locally
 
-Phase 2B candidate source extends the **optional local-only persistent sandbox foundation**, default OFF, with explicitly invited fictional dealers and atomic quotation acceptance through one PENDING_ACK order. Existing development and the public deployment need no database. See [ownership/recovery](docs/FIXED_INCOME_PERSISTENCE.md) and the [RFQ contracts, exact prices, browser boundary and local/CI gates](docs/FIXED_INCOME_RFQ.md). Phase 2C candidate source adds a separate controlled order lifecycle, immutable executions, pending cancellation requests/outcomes and execution-derived signed positions/cash. See [execution contracts and financial verification](docs/FIXED_INCOME_EXECUTIONS.md). FIX and settlement remain outside this milestone. `npm run test:postgres` and `npm run test:workflow-browser` are required real-PostgreSQL gates. No production deployment or merge is implied.
+The optional local PostgreSQL workflow defaults OFF. Main includes synthetic dealer RFQ acceptance, controlled order/execution/cancel workflows, historical reconciliation and an explicitly opted-in FIX application SDK. Use the [current source/capability map](docs/CURRENT_STATE.md) and its guides for ownership, recovery, exact prices, role boundaries and owned-instance prerequisites. Ordinary development and the separately pinned public demo need no database. `npm run test:postgres` and `npm run test:workflow-browser` are real PostgreSQL gates; they do not target a hosted database.
 
 Use Node.js 24 and npm. From the repository root:
 
@@ -41,7 +54,7 @@ Open [TradeFlow](http://127.0.0.1:3000).
 
 Each login creates an isolated order book. **Stop the manual server with Ctrl+C before tests.** Playwright starts its own server on port 3000 with `reuseExistingServer: false`; a stale manual process cannot supply results.
 
-Current hosting (October 25, 2026): Railway runs the Node.js app and a separate cloudflared service behind the [canonical Cloudflare hostname](https://tradeflow.farhan-shafee.com). The public demo does not depend on the owner's computer. No database or persistent volume is used; synthetic sessions/orders reset on app restart. The app remains pinned to reviewed source. See [current production architecture and operating boundaries](docs/RAILWAY_PRODUCTION.md); [deployment readiness](docs/PUBLIC_DEPLOYMENT_READINESS.md) preserves the earlier preparation evidence.
+Public hosting (October 25 release, provider pin rechecked November 4, 2026): Railway runs the Node.js app and a separate cloudflared service behind the [canonical Cloudflare hostname](https://tradeflow.farhan-shafee.com). The public demo does not depend on the owner's computer. No database or persistent volume is used; synthetic sessions/orders reset on app restart. The app remains pinned to reviewed source. See [current production architecture and operating boundaries](docs/RAILWAY_PRODUCTION.md); [deployment readiness](docs/PUBLIC_DEPLOYMENT_READINESS.md) preserves the earlier preparation evidence.
 
 ```sh
 npm run validate
@@ -49,7 +62,7 @@ npm test -- --repeat-each=2
 npm run report
 ```
 
-## The workstation
+## The default equities workstation
 
 Orders is the default view. Four lightweight, keyboard-accessible tabs keep the product small:
 
@@ -101,9 +114,14 @@ API/contract and hosted-boundary tests run once in the browser-free `service` pr
 
 ## Evidence
 
+Use [CURRENT_STATE.md](docs/CURRENT_STATE.md) for the accepted Phase 3C0 checkpoint, both main workflows, database/workstation evidence and public-demo boundary. Counts below are retained historical records.
+
+<details>
+<summary>Historical equities/productization evidence</summary>
+
 `main` is the canonical portfolio branch; productization and the hostile-audit fixes are merged. Check [main-branch Actions runs](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/workflows/quality.yml?query=branch%3Amain) for the exact latest SHA and its hosted report. The revision-specific results below retain their original provenance.
 
-The merged canonical `main` passed [hosted Ubuntu CI, run 37021360984](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/37021360984) at `4c8ddbc250a6ff638a5140170ebfc03e107bd6e3`: **34 unit checks and 205 Playwright executions**. The breakdown is **42 API, 22 contract, Chromium 47, Firefox 47, and WebKit 47**, with **44 UI + 3 integration** per browser and **0 failed, 0 flaky, 0 skipped, and 0 retries**. The downloaded [HTML artifact](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/37021360984/artifacts/11234132159) independently confirms the same SHA and results. This record was added after the validated merge revision; use the main workflow link above for subsequent revisions.
+The historical productization `main` passed [hosted Ubuntu CI, run 37021360984](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/37021360984) at `4c8ddbc250a6ff638a5140170ebfc03e107bd6e3`: **34 unit checks and 205 Playwright executions**. The breakdown is **42 API, 22 contract, Chromium 47, Firefox 47, and WebKit 47**, with **44 UI + 3 integration** per browser and **0 failed, 0 flaky, 0 skipped, and 0 retries**. The downloaded [HTML artifact](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/37021360984/artifacts/11234132159) independently confirms the same SHA and results. This record was added after the validated merge revision; use the main workflow link above for subsequent revisions.
 
 **Historical local productization evidence:** runs passed **34 unit checks, 205 normal Playwright executions, and 410 repeated executions**, with zero failed, flaky, skipped, or retried normal tests. The arithmetic is `42 API + 22 contract + 3 × (44 UI + 3 integration) = 205`. See [productization evidence](docs/PRODUCTIZATION.md) for commands, actual captures, review findings, and limits.
 
@@ -119,7 +137,9 @@ Historical evidence remains in [validation](docs/VALIDATION.md), the [hostile au
 
 The [October 25 dependency-maintenance record](docs/SECURITY_MAINTENANCE_2026-10-25.md) documents the compatible Zod, Undici and fast-uri updates, blocking audit gates and release verification. The patch `265c9e0` passed [hosted CI run 40214510996](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/40214510996) with 54 unit checks and 211 Playwright executions; the local repeated suite passed 422. The exact patch was released on Railway and passed 20 public acceptance checks. The record retains the earlier local Firefox timeout and its subsequent clean runs. A dated zero-finding audit is not a guarantee against unknown or later vulnerabilities.
 
-## Five-minute screen-share
+</details>
+
+## Five-minute public-demo screen-share
 
 1. Sign in as trader. Show the synthetic label, Overview, Orders, Positions, and Activity. Filter AAPL; explain why Overview uses the whole book. Submit a LIMIT order, inspect its exact ID, then cancel. Activity records observed actions; positions remain static.
 2. Sign out and use `qa.viewer`. Show visible disabled controls and the API 403 regression. Stop the manual server.
@@ -157,7 +177,7 @@ Start with [test strategy](docs/TEST_STRATEGY.md), [fixtures](docs/FIXTURES.md),
 
 ## Deliberate limits and publication
 
-One loopback process holds in-memory state. Restarting it deletes sessions/orders. There is no matching engine, execution simulation, persistence, reconciliation, real identity provider, production security, P&L, or capacity claim. Lifecycle is a state projection; Activity is a browser observation list. Cross-browser/repeated results establish evidence for checked scenarios, not an absence-of-defects guarantee.
+The default equities slice uses process-local session books; restarting it deletes those sessions/orders. The separately opted-in local PostgreSQL workflow retains controlled synthetic RFQ, execution and reconciliation records. Public-demo positions are static and Activity is browser-observed. There is no live venue, matching engine, settlement, real-money P&L, production identity, capacity or regulated-trading claim. Cross-browser/repeated results establish evidence for checked scenarios, not an absence-of-defects guarantee.
 
 Demo credentials are intentionally public synthetic fixtures. Reports, browser auth files, environment files, logs, and machine artifacts are ignored. `package.json` keeps `"private": true` to prevent accidental npm publication; GitHub repository visibility is controlled separately in repository settings.
 
@@ -165,6 +185,8 @@ Demo credentials are intentionally public synthetic fixtures. Reports, browser a
 
 This project is licensed under the [MIT License](LICENSE).
 
-Phase 2D candidate: [durable reconciliation and exception investigation](docs/FIXED_INCOME_RECONCILIATION.md), opt-in local/ephemeral CI only. Completed results are historical snapshot assessments; no financial repair or production rollout is included.
+Implemented Phase 2D: [durable reconciliation and exception investigation](docs/FIXED_INCOME_RECONCILIATION.md), opt-in local/ephemeral CI only. Completed results are historical snapshot assessments; no financial repair or production rollout is included.
 
-Phase 3A candidate: [bounded FIX4.4 codec and bilateral profile](docs/FIX44_PROFILE.md), standalone synthetic bytes only. No FIX financial adapter, transport, session engine or deployment. `npm run test:fix44` independently checks raw bytes and the pinned base FIX4.4 dictionary.
+Implemented Phase 3A: [bounded FIX4.4 codec and bilateral profile](docs/FIX44_PROFILE.md), standalone synthetic bytes only. No FIX financial adapter, transport, session engine or deployment. `npm run test:fix44` independently checks raw bytes and the pinned base FIX4.4 dictionary.
+
+Phase 3C0 is implemented: [offline FIX session contract and transcript conformance](docs/FIX44_SESSION.md). [Later roadmap entries](docs/plans/PHASE3C.md) remain proposed; no session engine or production rollout is implied.
