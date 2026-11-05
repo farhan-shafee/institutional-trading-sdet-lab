@@ -153,7 +153,11 @@ const expectedPersistenceWorkflow = {
     'workstation-baseline': {
       name: 'workstation-baseline',
       ...executionEnvironment,
-      steps: [...browserSetup, { run: 'npm run test:workflow-browser' }],
+      steps: [
+        ...browserSetup,
+        { run: 'npm run test:workflow-browser' },
+        { run: 'npm run interview:verify' },
+      ],
     },
     'workstation-repeat': {
       name: 'workstation-repeat',

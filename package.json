@@ -39,7 +39,9 @@
     "db:local": "node --import tsx scripts/workflow-local.ts",
     "sandbox:client": "node --import tsx scripts/sandbox-client.ts",
     "reconcile:local": "node --import tsx scripts/reconcile.ts",
-    "test:fix44": "node --import tsx scripts/verify-fix44.ts"
+    "test:fix44": "node --import tsx scripts/verify-fix44.ts",
+    "interview:verify": "npm run build:ui && node --import tsx scripts/interview.ts --verify",
+    "interview:demo": "npm run build:ui && node --import tsx scripts/interview.ts --manual"
   },
   "dependencies": {
     "decimal.js": "10.6.0",

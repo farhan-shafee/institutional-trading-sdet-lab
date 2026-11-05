@@ -21,6 +21,21 @@ That accepted checkpoint passed **966 Node units, 117 financial Python tests, 78
 
 The [current state index](docs/CURRENT_STATE.md) maps the implemented [PostgreSQL foundation](docs/FIXED_INCOME_PERSISTENCE.md), [RFQ workstation](docs/FIXED_INCOME_RFQ.md), [execution ledger](docs/FIXED_INCOME_EXECUTIONS.md), [reconciliation](docs/FIXED_INCOME_RECONCILIATION.md), [FIX bytes](docs/FIX44_PROFILE.md), [controlled FIX application](docs/FIX44_APPLICATION.md) and [offline session conformance](docs/FIX44_SESSION.md). Workflow persistence defaults OFF. A running FIX session engine, transport, durable session state and real peer interoperability remain separate future work.
 
+## Institutional SDET interview rehearsal
+
+The [institutional walkthrough](docs/INTERVIEW_DEMO.md), [Linux/WSL setup and cleanup](docs/INTERVIEW_SETUP.md), [Tradeweb requirement matrix](docs/TRADEWEB_SDET_MATRIX.md) and [study guide](docs/INTERVIEW_STUDY_GUIDE.md) distinguish actual UI, API, native and offline capabilities. New interview tooling is a reviewable candidate until its PR is approved; it does not deploy or expand the financial application.
+
+After the documented Node 24/Python/Docker/browser setup:
+
+```sh
+npm run build:ui
+npm run interview:verify
+# Optional graphical rehearsal, outside CI; Resume Inspector checkpoints, then finish for cleanup.
+npm run interview:demo
+```
+
+The bounded verification runs the actual workflow in a fresh descriptor-owned PostgreSQL instance and Chromium, with private browser captures disabled. Interactive debugging is not an acceptance result. [The setup guide](docs/INTERVIEW_SETUP.md) explains interruption/recovery and the separate complete gate commands.
+
 ## Fixed-income analytics in the accepted source
 
 An additive, read-only analytics panel calculates fictional USD regular-coupon bonds: schedules, Actual/Actual ICMA versus US30/360 accrued interest, clean/dirty price, inverse yield, duration, convexity and dollar DV01. See the [complete financial contract](docs/FIXED_INCOME_CONVENTIONS.md). This analytics panel is read-only. The separate opt-in workflows below implement synthetic RFQ, executions, persistence and FIX application; the pinned public demo is unchanged. Curves and settlement remain outside this analytics contract.

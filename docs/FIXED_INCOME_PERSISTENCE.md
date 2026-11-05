@@ -4,7 +4,7 @@
 
 Phase 2B extends this foundation with [dealer RFQs and atomic quote acceptance](FIXED_INCOME_RFQ.md). The sections below retain the Phase 2A ownership contract; its command-only audit cursor has been extended to the unique command/event pair, and retention cleanup now includes the new owned records. The feature remains default OFF and local/CI-only.
 
-This candidate adds persistent synthetic bond **sandbox ownership**, not bond trading. RFQs, dealer quotations, orders, executions, positions, FIX and settlement remain unimplemented. The existing equity lab and Phase 1 analytics retain their current behavior. Nothing in this milestone deploys to Railway or changes Cloudflare.
+Phase 2A adds persistent synthetic bond **sandbox ownership**. Its component contract below predates the accepted RFQ, execution, reconciliation and bounded FIX extensions mapped in [CURRENT_STATE.md](CURRENT_STATE.md); those later capabilities are implemented separately. Settlement remains outside scope. The existing equity lab and Phase 1 analytics retain their current behavior. Nothing in this milestone deploys to Railway or changes Cloudflare.
 
 ## Enablement and isolation
 
@@ -135,4 +135,4 @@ Required evidence includes actual role/RLS checks, pooled context reset on commi
 
 No browser ownership UI, public durable login, external integration, throughput capacity, production backup/restore, regulatory audit retention or high-availability claim is made. There is no production release in Phase 2A. Rollback means disable the workflow and use a reviewed compatible artifact while retaining the database; do not delete data or edit migrations that have been released. Any future schema/model writer upgrade requires explicit compatibility review.
 
-Phase 2B requires separate approval for RFQs, synthetic dealer responses and atomic quote acceptance. This foundation supplies ownership and transactions but does not authorize that work.
+The later Phase 2B RFQ extension was separately accepted; see [its preserved component contract](FIXED_INCOME_RFQ.md). This foundation alone does not claim those trading actions or authorize future runtime work.

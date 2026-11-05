@@ -1,97 +1,71 @@
-# Interview demonstration
+# Institutional-trading SDET interview demonstration
 
-> Current milestone/release map: [CURRENT_STATE.md](CURRENT_STATE.md). Later accepted local/CI source and the separately pinned public demo have different scopes.
+Candidate interview pack, November 5, 2026. [Setup and cleanup](INTERVIEW_SETUP.md) · [Requirement matrix](TRADEWEB_SDET_MATRIX.md) · [Technical study guide](INTERVIEW_STUDY_GUIDE.md) · [Accepted source/public release](CURRENT_STATE.md).
 
-[Live synthetic workstation](https://tradeflow.farhan-shafee.com) · [Railway/Cloudflare topology and reset behavior](RAILWAY_PRODUCTION.md). Local demonstrations below remain reproducible; hosted availability does not imply a brokerage, durable session storage or live trading.
+Use the actual accepted application capabilities. The public demo remains the separately pinned equities release; local PostgreSQL and FIX evidence belongs to later source. A new interview helper is rehearsal tooling pending its PR approval, not another trading feature. Never represent synthetic portfolio work as employer infrastructure or years of production trading experience.
 
-The goal is to make the rule, ownership, oracle, and evidence visible within five minutes. Run the complete gate beforehand; use a small live test during the presentation. Do not promise a full three-engine run fits every laptop or network within that time.
+## Prepare once
 
-## Preparation
+Run the acceptance commands in the setup guide and record `git rev-parse HEAD`, environment, command exit codes and report locations. Open these tabs before starting the clock:
 
-Install dependencies/browsers once, then create real evidence:
+- Local Chromium from `npm run interview:demo`, Inspector and its terminal.
+- `tests/interview/institutional.spec.ts`, `tests/fixtures/tradeflow.fixture.ts`, `tests/integration/order-state.spec.ts` and `tests/contract/responses.spec.ts`.
+- `app/domain/fixed-income/analytics.ts`, `db/migrations/004_execution.sql`, `verification/sql/executions.sql`.
+- `test-data/fix44/manifest.json`, `test-data/fix44/session/manifest.json`, `contracts/fix-session-v1.yaml` and `docs/FIX44_SESSION.md`.
+- `.github/workflows/quality.yml`, `.github/workflows/persistence.yml` and the exact successful run URLs in the PR evidence.
 
-```sh
-npm ci
-npm run browsers:install
-npm run validate
-npm test -- --repeat-each=2
-npm run demo:failure
-```
+The demonstration is a narrated tour of prepared, verified checkpoints, not an attempt to install dependencies or execute every suite inside five minutes. On a live failure, name it, preserve evidence and switch to the backup below. Never relabel a previous run as the current execution.
 
-The last command intentionally exits `1`. Keep its artifacts. Start the app with `npm start`, open `http://127.0.0.1:3000`, and sign in with the public synthetic credentials `qa.user` / `Password123!`. **After showing the app, stop this manual server with Ctrl+C before live tests or demos.** Playwright owns a fresh server and requires port 3000 to be free; it never reuses the manual process. Open source tabs before speaking:
+## 30-second introduction — spoken script
 
-- `playwright.config.ts`
-- `tests/fixtures/tradeflow.fixture.ts`
-- `tests/ui/orders.spec.ts`
-- `tests/api/orders.spec.ts`
-- `tests/contract/responses.spec.ts`
-- `.github/workflows/quality.yml`
-- `docs/AI_ASSISTED_TESTING.md`
+“TradeFlow is my synthetic institutional-trading SDET lab. It combines a web workstation with local PostgreSQL RFQs, controlled executions and reconciliation, plus fixed-income analytics and bounded FIX verification. I test exact owned records across UI, APIs, contracts and the database, with independent Python and SQL oracles. The public demo is a smaller equities slice. This is inspectable engineering evidence; it is not a live trading venue or a claim of production interoperability.”
 
-Use the recorded results in `docs/VALIDATION.md` only for the execution they describe. State what was run live and what was run beforehand.
+## Three-minute technical demonstration — complete script
 
-For the productized UI tour, use Overview to distinguish full-book totals from Orders filters, then submit/cancel one exact owned record. Show static Positions and the browser-only Activity list; neither implies fills or a durable audit trail. A viewer keeps visible disabled controls while the API enforces 403. Current productization results and actual screenshots are linked from the README; older delivery/audit counts remain historical.
+**0:00–0:40, analytics checkpoint.** “This fictional fixed-coupon bond uses a declared day-count convention. Clean price excludes accrued interest. At this date, 99.875 clean plus 1 accrued gives 100.875 dirty per 100 par. On one million USD par, consideration is 1,008,750 USD. Yield is solved from the selected cash-flow model; duration, convexity and dollar DV01 describe its interest-rate sensitivity. My independent oracle checks the model and units; this is not a market quote.” Point to the actual output and conventions; do not invent a displayed Greek value.
 
-## 30-second version
+**0:40–1:20, resume to the RFQ checkpoint.** “This BUY RFQ accepts ATLAS’s ask, with exact terms frozen into one PENDING_ACK contract. A controlled acknowledgment moves its separate lifecycle to NEW. A 40-par fill posts 4,002 cents; cancellation removes the executable remainder, preserving the fill and signed execution cash. Read-only SQL checks the real ledger, and reconciliation assesses a committed historical snapshot.” Show the UI values and the exact SQL assertion in the rehearsal test.
 
-“TradeFlow Lab is a synthetic local trading workflow created to demonstrate SDET architecture. Every test owns a fresh authenticated order book. Strict TypeScript and runtime schemas support unit, API, contract, integration, and UI coverage. Browser journeys run on Chromium, Firefox, and WebKit. Failures produce trace/report evidence, and CI rejects flaky results. AI can draft scenarios and analyze evidence; human review and deterministic gates decide acceptance.”
+**1:20–1:50, resume to terminal FIX checkpoint.** “This is a raw SOH FIX 4.4 application frame. The codec accepts the pinned example and rejects a damaged checksum. Separately, 59 reviewed session transcripts match their expected results. Some expected results are INVALID or OUT_OF_SCOPE. No socket, runtime session engine or peer was tested.” Open C12_SEQUENCE_GAP and its explicit RECOVERY_REQUIRED result.
 
-Point to the fixture, a normal report, and the contract negative case. Do not imply real brokerage or employer infrastructure.
+**1:50–2:30, source tabs.** “Each Playwright test owns mutable sessions and records. API and independent OpenAPI checks run once; UI and integration journeys run on three browsers. A malformed HTTP 200 must fail validation. Exact IDs, error codes and retained state make a false positive harder.” Show one fixture, one negative API assertion and one cross-layer assertion.
 
-## 3-minute version
+**2:30–3:00, exact CI/evidence.** “These are the original runs on this named revision, with their actual outcomes. PostgreSQL and workstation tests have zero retries; diagnostic retries in the legacy suite still fail the gate if flaky. Earlier failures remain disclosed. I preserve the failing evidence, form a hypothesis and reproduce it before changing a test or service.” Resume to finish owned cleanup.
 
-| Time      | Show                                          | Explain                                                                       |
-| --------- | --------------------------------------------- | ----------------------------------------------------------------------------- |
-| 0:00–0:30 | App blotter and visible synthetic label       | Small product, selected workflows, no real trades                             |
-| 0:30–1:10 | Fixture and configuration                     | Per-test session/storageState; worker health; browser projects versus workers |
-| 1:10–1:45 | Filled-order API test and contract test       | 409 plus code/state; HTTP 200 can still violate a contract                    |
-| 1:45–2:25 | Prepared intentional-failure report and trace | Failed oracle, DOM, actual request/body; diagnosis from evidence              |
-| 2:25–3:00 | Actions artifact policy and AI guide          | Finite retention; retry still fails flaky gate; human acceptance              |
+## Five-minute complete demonstration — complete script
 
-## 5-minute version
+| Time      | Action and spoken explanation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0:00–1:00 | **Analytics.** Start with the 30-second introduction shortened to one sentence, then point at the prepared analytics checkpoint. “Clean price is quoted per 100 par, accrued interest is the earned coupon fraction, and dirty price adds them. This example is 99.875 + 1 = 100.875, giving USD 1,008,750 on USD one million par. The displayed yield is the inverse of our declared semiannual cash-flow model. Modified duration is the local first-order sensitivity; convexity captures curvature. Dollar DV01 is a symmetric one-basis-point bump scaled to the specified par. Python independently checks the declared model. Two fictional instruments and bounded conventions are supported; full credit curves and settlement are not.” |
+| 1:00–2:00 | **Institutional workflow.** Resume to checkpoint 2. “A customer BUY takes the dealer’s ask; a SELL takes its bid. The exact quotation, revision, side, settlement and quantity are frozen at acceptance. Acceptance creates one initial PENDING_ACK contract, not a fill. Here acknowledgment, partial fill and cancellation are explicitly simulated controls. We filled 40 of 100 par at an exact accepted price, recorded 4,002 cents and signed cash -4,002, then canceled the remaining executable quantity. The immutable execution remains. Reconciliation is an independent historical assessment, not a repair, settlement or proof of an external venue.” Point to actual ledger/reconciliation results.                                |
+| 2:00–3:00 | **FIX.** Resume to checkpoint 3 and show terminal/source, not an invented UI. “The application codec checks framing, BodyLength, tag membership, bounded types and CheckSum on real SOH bytes. Sequence state is separate from merely parsing tag 34. This offline session corpus includes Logon, Heartbeat, TestRequest and Logout. A sequence gap is OUT_OF_SCOPE/RECOVERY_REQUIRED, a too-low number is INVALID, and marked replay is explicitly unsupported. All 59 expectations matching is successful comparison, not 59 successful sessions. The application codec still rejects administrative messages. No live peer, transport or recovery engine is demonstrated.”                                                                     |
+| 3:00–4:00 | **Test architecture.** Open the fixture and negative contract example. “Mutable state is test-scoped; the worker fixture shares only immutable health/reference information. Factories create valid owned inputs and exact IDs connect API writes to UI reads. Runtime schemas and an independently authored OpenAPI/AJV contract both inspect responses. Invalid inputs bypass valid-data factories. A FILLED cancellation asserts the specific conflict and unchanged state. Delayed-response barriers test stale-session races without arbitrary sleeps. Workflow browser evidence capture is disabled to avoid retaining credentials.”                                                                                                        |
+| 4:00–5:00 | **Reliability and CI.** Show the exact revision’s GitHub Actions and retained report. “Locked installation, audits, types, lint, formatting, unit and independent oracles precede normal/repeated API/browser gates. Two fresh PostgreSQL executions, three-browser workstation normal/repeat and the separate interview rehearsal provide different evidence. A green aggregate does not replace its child results. I distinguish application, test, data, environment and timing failures and retain first attempts. These finite tests establish bounded synthetic behavior, not availability or production capacity. Resume closes this rehearsal and removes only its owned resources.”                                                      |
 
-| Time      | Action and words                                                                                                                                                          |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0:00–0:25 | Show the app. “Every value and credential is synthetic. The product gives tests realistic workflows.” Stop the manual server with Ctrl+C so Playwright can own port 3000. |
-| 0:25–0:55 | Show `playwright.config.ts`: service once, UI/integration on three engines, four local/two CI workers, diagnostic retry and flaky failure policy.                         |
-| 0:55–1:30 | Show `tradeflow.fixture.ts`: setup, `await use`, cleanup; in-memory storageState and session-owned cloned book; immutable worker health.                                  |
-| 1:30–1:55 | Show an order UI test and its focused Page Object. Point to semantic locators and the exact owned record assertion.                                                       |
-| 1:55–2:30 | Show the filled-order cancellation API case, then run the targeted case below. Explain 409, structured error, and unchanged FILLED state.                                 |
-| 2:30–2:55 | Show normal contract checks and a malformed order fixture. Explain independent OpenAPI validation and runtime parsing.                                                    |
-| 2:55–3:25 | Run the intentional UI failure command. Name its expected nonzero exit and separate output directory.                                                                     |
-| 3:25–4:10 | Open the demo report and trace. Inspect failed expectation, DOM snapshot, and the relevant HTTP request/body.                                                             |
-| 4:10–4:35 | Show GitHub Actions: locked install, static/unit/contract gates, browsers, normal suite, HTML 14 days and failure evidence 7 days.                                        |
-| 4:35–5:00 | Show the filled-order AI workflow: agent proposal, human review, exact gates and evidence, accept/edit/reject. Finish with the line below.                                |
+## Ten-minute deeper walkthrough — complete script
 
-Exact live commands, after stopping the manual `npm start` process with Ctrl+C:
+Use the five-minute script verbatim for **0:00–5:00**, then continue:
 
-```sh
-npm run test:api -- --grep "filled"
-npm run demo:failure
-npm run report:demo
-```
+**5:00–6:00, monetary correctness.** Open `app/domain/fixed-income/cash.ts`, the conventions and `verification/python/execution_reference.py`. “Wire financial values are decimal strings. Clean quote precision, analytical display precision and cents are different units. There is one declared rounding rule, and executed cash is rounded once per fill. Two 50-par fills can sum to 10,006 cents where one 100-par execution is 10,005; reconciliation reconstructs the actual committed fills. It must not invent a single full-order trade to make them equal.” Explain the exact rational midpoint handling and the limits of shared modeling assumptions.
 
-Check that the filtered API command selected a test. If report launch or execution takes longer on the interview machine, use the already generated report, explain when it was produced, and keep the same evidence path. After the demo, `npm run report` opens the normal suite's report; the intentional failure does not overwrite it.
+**6:00–7:00, transactions and replay.** Open `db/migrations/003_rfq.sql`, `004_execution.sql` and a retained-response test. “Locks, version checks, uniqueness and deferred invariants guard one effect. The original request and idempotency key are retained before submission. A lost response is an unknown outcome; retry resolves the original operation. A different payload under the same key conflicts. The response replay does not reset authority or bypass the current ownership generation. A cancellation request does not guarantee cancellation; a fill can win the race.” Describe precommit failure versus uncertain COMMIT.
 
-End with:
+**7:00–8:00, reconciliation.** Open `app/server/reconciliation/scanner.ts` and the SQL manifest. “Four hash-bound queries run in one REPEATABLE READ READ ONLY snapshot. Clean requires complete coverage and no findings, followed by an atomic completion write under current authority and lease. A timeout, finding overflow or lost worker is not clean. The snapshot watermark makes the assessment historical. A later transaction requires a new run; a later clean report does not erase an earlier finding. The reconciler credential is service authority, never browser authority.”
 
-> The app is intentionally small. The engineering focus is reliable evidence, isolation, fast feedback, and maintainable automation.
+**8:00–9:00, FIX boundaries.** Open `app/server/fix/application.ts`, the application guide and selected raw corpus cases. “The retained application SDK and offline administrative classifier are separate. Retained intent, observation, preparation and controlled financial application have correlation and fencing rules; a financial receipt is not proof of peer delivery. BodyLength/CheckSum are framing/integrity checks, not encryption or authentication. Reset, resend, reconnect and real peer recovery are deliberately outside the session pack. I can explain the selected protocol behavior without claiming a production FIX engine.”
 
-## 10-minute deep dive
+**9:00–10:00, investigation and ownership.** Show one retained original failure report with its actual source/run and the subsequent verification. “First I classify what failed, confirm the exact request/record/source and compare the asserted business rule with observed state. I use controlled gates or independent queries to reproduce a hypothesis, then fix the responsible layer without broadening accepted outcomes, adding arbitrary waits or silently increasing retries. My portfolio demonstrates these decisions; my professional experience must be discussed with concrete examples from my own employment.” Finish by showing the owned cleanup result and invite questions.
 
-Use the five-minute core, then spend the remaining time on questions the interviewer chooses:
+## Capital-markets explanation to defend
 
-- **Ownership, 90 seconds:** Show session cloning in `app/domain/session-store.ts`; demonstrate two logins do not share created records. Explain why mutable worker authentication would break this model.
-- **Contracts, 90 seconds:** Show required fields/status schemas in `contracts/openapi.yaml`, runtime schemas, and the independent validator. Run `npm run demo:contract`, then inspect `npm run report:demo`. HTTP 200 is deliberately insufficient.
-- **Cross-layer evidence, 60 seconds:** Show `tests/integration/order-state.spec.ts`: API and UI inspect the same exact ID and token within one test.
-- **Triage, 60 seconds:** Explain application/test/data/environment/race/contract classification with a specific trace observation, rather than a guessed cause.
-- **Performance, 30 seconds:** Show the optional smoke scope and limitations below.
-- **Review, 30 seconds:** Explain one generated test you would reject: a filled-order case that accepts any non-2xx instead of asserting 409 and unchanged state.
+TradeFlow contrasts session-local equity orders with a synthetic dealer-to-client bond RFQ workflow. A dealer price grid is invented, an accepted quote creates a frozen contract, and subsequent controlled executions create economic evidence. Par is not cash or share count. Executed cash/par projections come from immutable executions, while reconciliation independently reconstructs the retained graph. The analytical bond model is a declared valuation convention, not live market discovery. FIX parsing, retained protocol/application state and offline session classification have separate responsibilities and claim limits. These separations are the engineering story.
 
-## Optional performance explanation
+## Evidence-only backup if live execution fails
 
-```sh
-npm run perf:smoke
-```
+1. State: “The live rehearsal failed at [actual step]. I am switching to a previously verified execution, not calling this run successful.” Retain the failure and exact source/environment.
+2. Show the successful same-revision interview log: literal analytics cash, actual ledger assertion, CLEAN reconciliation, checksum rejection, corpus result and retained-capacity-zero line. If it is an older revision, say so and show its hash.
+3. Open the corresponding source/test snippets and approved public equities screenshots. Label screenshots as the older equities slice; do not present them as PostgreSQL/FIX UI evidence. No synthetic generated screenshots are substitutes for execution.
+4. Show exact CI run/job links and counts from the PR, checking completion/attempt/revision rather than relying only on badges. Artifact expiry is a limitation; source/run references remain inspectable.
+5. Explain the same five-minute sequence using evidence and code. Do not simulate a successful click, conceal the failed attempt, expose private descriptors or fetch a new paid/external service.
 
-The smoke creates and owns an application server on an OS-assigned loopback port, uses its actual listening address, authenticates a synthetic session, and sends 120 orders reads with concurrency four. It deletes that session and closes its server in cleanup, so an existing server on port 3001 cannot supply its results. It requires valid HTTP 200 bodies, zero errors, and a loose p95 latency threshold below 250 ms. The output is a local environment-sensitive signal. It is excluded from normal CI and does not establish enterprise load capacity, tail behavior under sustained load, or production trading performance.
+Normal authenticated traces are OFF. The older equities-only intentional-failure demos have separate explicit artifacts; inspect them only within their scope. Use the setup guide for their expected nonzero commands. When no relevant execution evidence is available, say “not demonstrated” and show the implemented source boundary instead.

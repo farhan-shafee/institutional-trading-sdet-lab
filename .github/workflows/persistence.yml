@@ -119,6 +119,8 @@ jobs:
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Real PostgreSQL RFQ workstation in three browsers
         run: npm run test:workflow-browser
+      - name: Owned institutional interview rehearsal
+        run: npm run interview:verify
 
   workstation-repeat:
     name: workstation-repeat

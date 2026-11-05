@@ -2,7 +2,7 @@
 
 > Current milestone/release map: [CURRENT_STATE.md](CURRENT_STATE.md). Later accepted local/CI source and the separately pinned public demo have different scopes.
 
-Candidate source only. Synthetic local simulator, feature default OFF. No production, hosted database, FIX, brokerage, settlement, clearing, P&L, available cash balance or deployment capability is added. Existing equity endpoints and session books remain separate.
+Implemented accepted-source component; opt-in local/CI only. Synthetic local simulator, feature default OFF. No production, hosted database, FIX, brokerage, settlement, clearing, P&L, available cash balance or deployment capability is added. Existing equity endpoints and session books remain separate.
 
 ## Economic contracts and records
 
@@ -95,4 +95,4 @@ Mandatory gates remain full validate/legacy repeat, two fresh actual PostgreSQL 
 
 No runtime dependency or paid service is added. Local PostgreSQL and existing CI runner compute are consumed. Existing retention/capacity (7-day writes, 30-day recovery, 50 sandboxes, 50 RFQs per sandbox, 512 commands, 1024 events) remains. Cleanup deletes the new retained graph in the same authorized maintenance transaction. Runtime never migrates automatically. Exact checksums require an explicitly compatible writer; an enabled old Phase 2B writer fails closed on 004. Rollback is feature OFF and retention of the database, followed by a reviewed compatible artifact. Do not reverse migrations or delete financial records to run an older enabled writer.
 
-Remaining limits: synthetic public-fixture authentication, no live venue/dealer interoperability, no execution correction/bust, no economic netting beyond signed aggregates, no throughput/HA/restore/regulatory-retention certification. Phase 2D, FIX and settlement require separate approval.
+Remaining limits: synthetic public-fixture authentication, no live venue/dealer interoperability, no execution correction/bust, no economic netting beyond signed aggregates, no throughput/HA/restore/regulatory-retention certification. Later accepted [reconciliation](FIXED_INCOME_RECONCILIATION.md) and [bounded FIX application](FIX44_APPLICATION.md) components are separate extensions. Settlement and further runtime/peer work remain unimplemented and require separate authorization.

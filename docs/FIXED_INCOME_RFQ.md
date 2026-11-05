@@ -2,9 +2,9 @@
 
 > Current milestone/release map: [CURRENT_STATE.md](CURRENT_STATE.md). Later accepted local/CI source and the separately pinned public demo have different scopes.
 
-This unmerged candidate extends the Phase 2A ownership foundation, starting exactly at `c57471079774b32c82150b9a133b2a6911b8c138`. It is a synthetic institutional workflow, available only in the explicitly enabled local/ephemeral PostgreSQL mode. Feature OFF preserves the existing equity session model and stateless Phase 1 analytics without a database. No deployment or hosted infrastructure is included.
+This guide records the accepted Phase 2B RFQ component contract, whose implementation started at `c57471079774b32c82150b9a133b2a6911b8c138`. It is a synthetic institutional workflow, available only in the explicitly enabled local/ephemeral PostgreSQL mode. Feature OFF preserves the existing equity session model and stateless Phase 1 analytics without a database. No deployment or hosted infrastructure is included.
 
-The lifecycle ends at a persistent **PENDING_ACK** order. There are no acknowledgments, executions, partial fills, positions, FIX messages, settlement processing, live data, brokerage links or external model/AI trading decisions.
+The Phase 2B acceptance contract ends at a persistent **PENDING_ACK** order. Accepted [Phase 2C lifecycle/execution](FIXED_INCOME_EXECUTIONS.md), [reconciliation](FIXED_INCOME_RECONCILIATION.md) and [bounded FIX application](FIX44_APPLICATION.md) add separate components without rewriting that initial contract. Remaining component-only exclusions below describe Phase 2B. Settlement, live data and brokerage connectivity remain outside current scope.
 
 ## Instruments, units and quotation model
 
@@ -124,4 +124,4 @@ Each PostgreSQL/browser invocation owns a fresh digest-pinned local instance and
 
 The owned bootstrap can install through migration 002 solely for the populated Phase 2A upgrade rehearsal, then apply 003. Normal bootstrap always applies all migrations explicitly. Runtime never migrates on startup. Exact checksums reject an older/newer incompatible enabled writer: after 003, an unmodified enabled Phase 2A binary fails closed. Operational rollback is feature OFF plus a compatible reviewed artifact while retaining the database. Do not delete accepted contracts or reverse migrations to make an older writer run. Public production remains untouched.
 
-No throughput, high availability, production restore, regulatory audit retention, physical power-loss, live trading or dealer interoperability certification is claimed. Phase 2C requires separate approval for acknowledgments and executions; it has not begun.
+No throughput, high availability, production restore, regulatory audit retention, physical power-loss, live trading or dealer interoperability certification is claimed. Phase 2C acknowledgments and executions were separately accepted; [their lifecycle guide](FIXED_INCOME_EXECUTIONS.md) defines that extension without changing this initial RFQ contract.

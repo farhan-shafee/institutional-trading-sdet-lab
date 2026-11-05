@@ -66,3 +66,9 @@ All credentials, quotes, orders and executions are synthetic. There is no real v
 Start with the [README](../README.md), [test strategy](TEST_STRATEGY.md), [CI gates](CI_CD.md), [fixtures](FIXTURES.md) and [public equities/interview walkthrough](INTERVIEW_DEMO.md). Historical [productization](PRODUCTIZATION.md), [validation](VALIDATION.md), [audit](AUDIT.md) and [delivery](DELIVERY_REPORT.md) retain their original context.
 
 Counts, screenshots and reports belong to their named source/environment. Older captures show the equities slice. CI artifacts expire; source/run/job references retain the revision context. Broader security, availability, performance and peer-interoperability claims require separate evidence.
+
+## Interview rehearsal candidate — November 5
+
+Remote main `8cf67f960c467e982897dea4c063cdd49e971fd7` and all eight mandatory checks were reverified before this work. The public equities app remains separately pinned to `265c9e0`; later financial/FIX source remains local/CI only. The implementation checkpoint and counts above are preserved historical evidence, not new candidate test results.
+
+The dedicated interview-readiness branch adds [reproducible setup](INTERVIEW_SETUP.md), [30-second/three-/five-/ten-minute scripts](INTERVIEW_DEMO.md), [source/test requirement mapping](TRADEWEB_SDET_MATRIX.md), [independent-explanation study material](INTERVIEW_STUDY_GUIDE.md) and a bounded owned-database rehearsal. These changes remain a candidate pending human review/merge approval. Actual candidate commands, exits, counts, source trees and hosted run links belong in its PR/evidence record. No new runtime FIX transport, market feed, settlement, production financial activation or Jenkins/GitLab execution is claimed.
