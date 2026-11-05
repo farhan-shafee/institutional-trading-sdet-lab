@@ -34,6 +34,9 @@ try {
       process.env.PWDEBUG = '1';
     }
     await runPostgresVerification({
+      onPhase: (phase, path) => {
+        if (phase === 'startup') console.log(`Interview recovery descriptor: ${path}`);
+      },
       arguments: [
         '--import',
         'tsx',

@@ -47,7 +47,7 @@ Resume through the last checkpoint to complete assertions, purge only this test'
 
 Ctrl+C requests the existing owned supervisor's cancellation path. It terminates its child process group, then destroys only the allocated instance. Cancellation is nonzero (normally 130), never a completed demonstration. SIGKILL or machine loss cannot guarantee cleanup.
 
-If interrupted cleanup did not finish, use the private descriptor path from that invocation's startup/evidence, without displaying its contents:
+At allocation the runner prints `Interview recovery descriptor: /absolute/path/owner.json`. This identifies only that allocation; it contains no connection material. If interrupted cleanup did not finish, use that invocation's printed path, without displaying the descriptor's contents:
 
 ```sh
 npm run db:local -- destroy /absolute/owned/private/descriptor.json
@@ -77,18 +77,32 @@ npm run interview:verify
 For intentional failure investigation, run separately, retain the expected nonzero exit and inspect only its own artifacts:
 
 ```sh
-# Use a new evidence directory; preserve all prior reports.
-test ! -L .local
-mkdir -p .local
-interview_evidence="$(mktemp -d "$PWD/.local/interview-evidence-XXXXXXXX")"
-PLAYWRIGHT_HTML_OUTPUT_DIR="$interview_evidence/ui-report" npm run demo:failure -- --output="$interview_evidence/ui-results"
-# Expected exit 1, not normal acceptance. Continue deliberately after recording it.
-PLAYWRIGHT_HTML_OUTPUT_DIR="$interview_evidence/contract-report" npm run demo:contract -- --output="$interview_evidence/contract-results"
-# Expected exit 1; independent paths preserve the first demonstration's evidence.
-npx --no-install playwright show-report "$interview_evidence/ui-report"
+# Run this whole guarded block from the repository root.
+(
+  umask 077
+  if [ -L .local ]; then echo 'Refusing symlinked .local' >&2; exit 1; fi
+  mkdir -p -m 700 .local || exit 1
+  interview_evidence="$(mktemp -d "$PWD/.local/interview-evidence-XXXXXXXX")" || exit 1
+  [ -n "$interview_evidence" ] && [ -d "$interview_evidence" ] || exit 1
+  case "$interview_evidence" in "$PWD"/.local/interview-evidence-*) ;; *) exit 1 ;; esac
+  printf 'Private failure evidence: %s\n' "$interview_evidence"
+  if PLAYWRIGHT_HTML_OUTPUT_DIR="$interview_evidence/ui-report" npm run demo:failure -- --output="$interview_evidence/ui-results"; then
+    echo 'Expected UI failure was not observed' >&2; exit 1
+  else
+    interview_exit=$?; [ "$interview_exit" -eq 1 ] || exit "$interview_exit"
+  fi
+  if PLAYWRIGHT_HTML_OUTPUT_DIR="$interview_evidence/contract-report" npm run demo:contract -- --output="$interview_evidence/contract-results"; then
+    echo 'Expected contract failure was not observed' >&2; exit 1
+  else
+    interview_exit=$?; [ "$interview_exit" -eq 1 ] || exit "$interview_exit"
+  fi
+  printf 'Both intentional commands exited 1; inspect both reports in %s\n' "$interview_evidence"
+)
+# Use the exact printed directory to inspect a report afterward:
+# npx --no-install playwright show-report /absolute/printed/directory/ui-report
 ```
 
-The legacy failure demos are different from the private PostgreSQL workflow. Their explicit artifact policy does not authorize capturing private workflow browser state. Keep the new evidence directory private and do not publish raw traces or browser state. The explicit output paths keep earlier evidence intact.
+The block stops before invoking Playwright if the parent is a symlink or directory creation fails. Exit 1 is required from each intentional demo; another exit is a setup/runtime failure, and exit 0 means the expected failure disappeared. Inspect the failed assertions and attachments as well as the exit codes. The legacy failure demos are different from the private PostgreSQL workflow. Their explicit artifact policy does not authorize capturing private workflow browser state. Keep the new evidence directory private and do not publish raw traces or browser state. The explicit output paths keep earlier evidence intact.
 
 ## Capability surfaces
 

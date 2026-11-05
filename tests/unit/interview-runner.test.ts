@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 
 // These boundaries must reject unsafe/ambiguous operation before allocating a database.
@@ -29,3 +32,42 @@ void test('interactive interview mode cannot enter CI', () => {
   assert.match(result.stderr, /Interactive interview mode is unavailable in CI/);
   assert.doesNotMatch(result.stdout, /Owned local PostgreSQL ready/);
 });
+void test(
+  'failed provisioning announces only its own recovery path before cleanup',
+  {
+    skip: process.platform === 'win32' ? 'Owned PostgreSQL requires POSIX/WSL.' : false,
+  },
+  () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tradeflow-interview-recovery-'));
+    try {
+      // A genuinely unavailable provisioning tool fails before Docker allocates anything.
+      const result = spawnSync(
+        process.execPath,
+        ['--import', import.meta.resolve('tsx'), resolve('scripts/interview.ts'), '--verify'],
+        {
+          cwd: directory,
+          encoding: 'utf8',
+          timeout: 10_000,
+          env: { ...process.env, PATH: '', TF_PG_BIN: '', PWDEBUG: '', TF_INTERVIEW_MANUAL: '' },
+        },
+      );
+      assert.equal(result.status, 1, result.stderr);
+      const matches = [...result.stdout.matchAll(/^Interview recovery descriptor: (.+)$/gm)];
+      assert.equal(matches.length, 1, result.stdout);
+      const path = matches[0]![1]!;
+      assert.match(
+        path.slice(directory.length),
+        /^\/\.local\/postgres\/[0-9a-f-]{36}\/owner\.json$/,
+      );
+      assert.ok(path.startsWith(directory + '/'));
+      assert.equal(
+        existsSync(path),
+        false,
+        'Failed pre-resource allocation must clean its descriptor.',
+      );
+      assert.doesNotMatch(result.stdout + result.stderr, /postgresql:\/\/|adminUrl|password|nonce/);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  },
+);

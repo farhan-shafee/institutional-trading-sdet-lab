@@ -74,7 +74,7 @@ Use these as explanations to demonstrate in source and evidence, not claims of e
 
 35. **Why not gate normal CI on the performance threshold?** A shared runner's scheduling and resource load can distort latency. The optional smoke checks a small local burst, status/schema validity, errors, and a loose p95 threshold. It is a local signal, not a capacity, soak, or distributed load claim.
 
-36. **Which trading-system concerns does this lab demonstrate?** Status-transition integrity, role boundaries, input validity, resource ownership, and UI/API agreement. Real systems also require precision rules, idempotency, ordering, reconciliation, auditability, resilience, and external-protocol testing; this repository does not claim to implement them.
+36. **Which trading-system concerns does this lab demonstrate?** The foundational equities slice shows status-transition integrity, role boundaries, input validity, resource ownership, and UI/API agreement. Later accepted source adds declared financial precision rules, retained idempotency, immutable execution evidence, historical reconciliation and bounded FIX verification. These do not establish production resilience, live peer interoperability or external settlement. Use the institutional study guide for those implemented contracts and their limits.
 
 37. **Why is a disabled Cancel button insufficient?** A caller can bypass the browser and send the REST mutation directly. The server must enforce the state rule and role permission. UI tests prove affordances; API tests prove authoritative rejection and unchanged state.
 
