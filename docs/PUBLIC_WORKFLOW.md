@@ -2,7 +2,7 @@
 
 ## Status and purpose
 
-This revision adds an optional public synthetic workflow profile. Its source, isolated image verification and proposed release settings are separate from a public deployment. The existing application remains pinned to the independently released equities artifact until the owner approves a concrete new release. Merging source does not activate the profile or provision a database.
+The owner-approved public synthetic workflow was released November 6, 2026 at pinned source `b0216022cb8ff18de904efea9279c91b3977d55f`. The public-domain journey passed in Chromium, Firefox and WebKit. See the [release receipt](PUBLIC_WORKFLOW_RELEASE_2026-11-06.md) and [production topology](RAILWAY_PRODUCTION.md). This document retains the preparation/activation contract for future releases; merging source alone does not activate it or provision a database.
 
 The target is an independently hosted TradeFlow URL: equities, two fictional fixed-income instruments, dealer RFQs, quotation acceptance, controlled execution/cancellation, an immutable execution ledger and historical reconciliation. FIX evidence remains application-message validation and offline session conformance; no FIX engine, socket, live market feed, broker, settlement or real financial transaction is introduced.
 
@@ -25,7 +25,7 @@ Sign in with the published fake credentials, open Fixed-income analytics, and th
 
 The server retains one exact intent/key before database dispatch. Concurrent starts return the same original result; a lost commit response is retried with the original intent. A different key cannot allocate another workspace for that session. Refreshing the browser reopens confirmed ownership. Native capability create/recover/rotate routes are unavailable publicly. Logout, original session expiry and application restart end access; no cross-session or cross-restart ownership recovery is offered.
 
-**Proposed public-only lifetime:** writes end 30 minutes after workspace creation; records become eligible for cleanup after 60 minutes. Access ends at the original synthetic session expiry, which is at most 30 minutes from login and may be earlier than the workspace write deadline. Starting later does not extend the session. The 60 minutes is server-side record retention, not a promise of post-session read access. Cleanup may be delayed by protected active leases or infrastructure failure; it never reports success merely because an attempt occurred.
+**Reviewed public-only lifetime:** writes end 30 minutes after workspace creation; records become eligible for cleanup after 60 minutes. Access ends at the original synthetic session expiry, which is at most 30 minutes from login and may be earlier than the workspace write deadline. Starting later does not extend the session. The 60 minutes is server-side record retention, not a promise of post-session read access. Cleanup may be delayed by protected active leases or infrastructure failure; it never reports success merely because an attempt occurred.
 
 Capacity remains 50 retained workspaces with the existing command/event and request limits. Cleanup removes only eligible complete graphs. The public wrapper refuses any unmarked legacy sandbox and bounds public UUID retirement metadata. Legacy tombstones and the original seven-day write/thirty-day durable ownership policy remain unchanged. Adding public ownership recovery later would require reviewing the public UUID-retirement exception.
 

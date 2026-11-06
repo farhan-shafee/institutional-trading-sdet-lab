@@ -1,6 +1,12 @@
 # TradeFlow current state and evidence
 
-Reviewed **November 5, 2026**. This index distinguishes accepted source milestones, the optional public workflow in this revision, and the independently pinned public application. Named revisions/counts are dated evidence; use exact GitHub runs and the deployment receipt/provider readback for subsequent revisions. Historical plans/reports retain their original results and first failures.
+Reviewed **November 6, 2026**. The public institutional workflow is accepted and deployed at `b021602`. The app remains explicitly pinned when subsequent documentation commits merge. Earlier milestones below retain their exact source/counts and first-failure evidence.
+
+## Current public release
+
+[PR #32](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/32) merged as GitHub-verified `b0216022cb8ff18de904efea9279c91b3977d55f`, tree `0312dae0a6fe0e9b3e460343dec9a0ac3f7cf5ca`. [Main quality](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42221089925) and [main persistence](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42221090065) passed all eight jobs on first attempts. Both PostgreSQL runs passed 455/455 with zero failures/cancellations/skips and retained capacity zero.
+
+The canonical public domain passed analytics/RFQ/execution/cancellation/reconciliation in Chromium, Firefox and WebKit, including 4002-cent execution consideration, genuine clean merge/tree provenance, reload, read-only viewer and cross-visitor isolation. Dedicated PostgreSQL 17.10/TLS and its owner-authorized restart passed. See the [release receipt](PUBLIC_WORKFLOW_RELEASE_2026-11-06.md) and [production runbook](RAILWAY_PRODUCTION.md) for actual deployment IDs, policy, certificate operation, rollback and limits.
 
 ## Accepted protocol implementation checkpoint
 
@@ -34,11 +40,11 @@ PR #29 separately retains the pre-merge 16 hosted checks and local acceptance. T
 
 ## Public demo versus GitHub/local/CI
 
-### Public demo: separately pinned equities slice
+### Public demo: released institutional workflow
 
-The [public workstation](https://tradeflow.farhan-shafee.com) has isolated in-memory session books, synthetic trader/viewer roles, static positions/quotes and browser-observed activity. November 4 provider reads confirmed the Railway app still pinned to `265c9e0ed1fdc528193cd474d966513decd03d3b`, successful deployment `30ca206b-765b-4fe5-ad22-50a1f2d02aec` released October 25, separate cloudflared ingress and no application database/volume. The later source milestones were not deployed by their merge operations.
+The [public workstation](https://tradeflow.farhan-shafee.com) now includes isolated equities books plus fictional bond analytics, a server-owned private visitor workspace, dealer RFQ/exact quotation acceptance, simulated acknowledgments/fills/cancellations, immutable execution-derived cash/positions and historical reconciliation. App deployment `8d174084-7f30-40cb-a026-fa90f231c4a0` reached SUCCESS on November 6 at 08:49:00 EST.
 
-See [production topology](RAILWAY_PRODUCTION.md) and the [dated dependency-maintenance release](SECURITY_MAINTENANCE_2026-10-25.md). Reachability is an observation, not an uptime/capacity guarantee.
+The app uses dedicated private PostgreSQL, restricted roles, strict CA/hostname TLS and a persistent volume. Access still ends with the original session, logout or app restart; retention is separate. There is no public capability recovery. The former October 25 `265c9e0` equities release is preserved as rollback history.
 
 ### Accepted source: later synthetic capabilities
 
@@ -73,10 +79,10 @@ The owner approved PR #31, merged as GitHub-verified `939a81b7bbd44c5485224c60c1
 
 The accepted rehearsal includes [reproducible setup](INTERVIEW_SETUP.md), [30-second/three-/five-/ten-minute scripts](INTERVIEW_DEMO.md), [source/test requirement mapping](TRADEWEB_SDET_MATRIX.md), [independent-explanation study material](INTERVIEW_STUDY_GUIDE.md) and a bounded owned-database journey. Its exact evidence is retained in PR #31; full human-paced narration and independent mastery remain personal rehearsal requirements.
 
-## Optional public institutional workflow — this revision
+## Accepted public institutional workflow - November 6
 
-The [public workflow release contract](PUBLIC_WORKFLOW.md) adds a distinct, default-off hosted profile using a dedicated PostgreSQL 17.10 image, strict certificate/hostname TLS, server-owned visitor bootstrap, the existing RFQ/execution/reconciliation views, and clearly labeled offline FIX evidence. Existing local-only activation and all eight base financial migrations remain unchanged.
+The [public profile contract](PUBLIC_WORKFLOW.md) was accepted in PR #32 and deployed after exact-source qualification and all eight main checks. It is a distinct hosted activation; local PostgreSQL activation still defaults OFF. The eight base migrations, financial rules, SQL/lock/transaction limits and offline FIX contracts remain unchanged.
 
-The proposed public policy is at most 30-minute writes and 60-minute server retention; access ends with the original synthetic session, logout or restart. Native capability recovery is unavailable publicly. Maintenance preserves original expiry/lease checks and legacy tombstones while bounding public-only retirement metadata. These are explicit public-profile proposals for owner acceptance, not changes to the local seven-day/thirty-day ownership contract.
+The reviewed public policy allows workspace writes for 30 minutes and cleanup eligibility after 60 minutes. Access is limited to the original synthetic session (at most 30 minutes from login), logout or app restart; starting later does not extend authentication. Cleanup preserves protected leases and can be delayed by infrastructure failure. Native durable recovery is unavailable publicly. Local seven-day/thirty-day ownership is unchanged.
 
-`npm run test:public-demo` exercises the actual owned image and normal/repeated public browser journeys. The mandatory workstation-baseline job and strict workflow validator require it. Actual source trees, counts, exits, failure evidence and run links belong to this release's PR/evidence record. Source implementation, local qualification, GitHub acceptance and public deployment are separate statuses; no public rollout is implied by this section.
+The receipt distinguishes qualification, actual three-browser main-domain acceptance, database restart, runtime TLS, monitor deployment and scheduled execution. Finite synthetic checks do not establish uptime, sustained capacity, real peer interoperability or the cause of historical intermittent failures.
