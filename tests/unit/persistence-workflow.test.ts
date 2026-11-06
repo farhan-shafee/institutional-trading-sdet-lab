@@ -663,3 +663,11 @@ for (const { id } of aggregateJobs) {
     }
   }
 }
+
+void test('persistence validation rejects omission of the owned institutional rehearsal gate', () => {
+  const candidate = structuredClone(validWorkflow);
+  job(candidate, 'workstation-baseline').steps = steps(candidate, 'workstation-baseline').filter(
+    (step) => mapping(step).run !== 'npm run interview:verify',
+  );
+  assert.throws(() => workflowValidation.validatePersistenceWorkflow(candidate));
+});

@@ -1,5 +1,7 @@
 # Phase 1 financial contract
 
+> Component scope: this guide defines the unchanged Phase 1 valuation contract. Later accepted RFQ/execution/reconciliation/FIX capabilities are mapped in [CURRENT_STATE.md](CURRENT_STATE.md); the exclusions below are not a claim that those later components are missing.
+
 This is a fictional USD fixed-income analytics simulator. Treasury-style means a named convention profile, not an issued U.S. Treasury security or an auction calculator. No market prices, brokerage, FIX execution, portfolio positions, settlement, tax, credit/default modeling or regulated-venue claim is made by this phase.
 
 ## Instrument definitions
@@ -43,4 +45,4 @@ Analytics is a collapsible workspace panel, preserving all four existing tab/key
 
 The independent Python oracle was authored from the written contract without inspecting/importing TypeScript. It uses72-digit Decimal ln/exp pricing, safeguarded Newton/secant inversion and convergence-checked five-point finite differences with Richardson extrapolation for Greeks. Eight frozen goldens use independently calculated rational prices and analytic derivatives; they are not generated from application output. See verification/python/README.md for reproduction and tolerances. The HTTP gate owns one temporary loopback server and an ephemeral session; external origins and redirects are refused.
 
-A shared written convention is still a shared modeling assumption. Agreement does not prove universal market convention coverage or external certification. No QuantLib interoperability claim is made. Precision is finite, fractional powers are numerical approximations, cash uses the declared rounding rule, and the supported instruments/ranges are deliberately bounded. Subsequent trading, persistence, FIX, curves and settlement phases remain unimplemented.
+A shared written convention is still a shared modeling assumption. Agreement does not prove universal market convention coverage or external certification. No QuantLib interoperability claim is made. Precision is finite, fractional powers are numerical approximations, cash uses the declared rounding rule, and the supported instruments/ranges are deliberately bounded. Later trading, persistence and bounded FIX components exist in accepted source; see [the current capability map](CURRENT_STATE.md). Curves and settlement remain outside the implemented model.

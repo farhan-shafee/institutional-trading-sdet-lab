@@ -1,5 +1,7 @@
 # Interview questions and answers
 
+> For the current institutional-trading rehearsal, use [the source-aligned study guide](INTERVIEW_STUDY_GUIDE.md), [timed scripts](INTERVIEW_DEMO.md) and [current release map](CURRENT_STATE.md). The questions below retain the original foundational equities scope.
+
 Use these as explanations to demonstrate in source and evidence, not claims of employer experience. The first ten are the essentials for this lab.
 
 1. **Why does this application stay so small?** The purpose is test engineering. A minimal HTTP server and browser client make the ownership, contract, assertions, and evidence easy to inspect. Additional product frameworks would add concepts without necessarily strengthening the test signal.
@@ -64,15 +66,15 @@ Use these as explanations to demonstrate in source and evidence, not claims of e
 
 31. **How should unknown JSON be typed?** Treat a boundary value as unknown and validate/narrow it with a runtime schema before domain use. Casting to `Order` silences the compiler without creating runtime safety. Use discriminated unions for known variants such as MARKET versus LIMIT where they improve invariants.
 
-32. **What does trace retention trade off?** Capturing all successes improves availability but multiplies storage and review noise. Normal traces occur on the first retry; screenshots/videos are retained on failure. Demos use tracing from the start; local zero-retry reproductions need explicit `--trace on`.
+32. **What does trace retention trade off?** Capturing all successes improves availability but multiplies storage and review noise. Normal authenticated traces are OFF; legacy screenshots/video are retained on failure within their existing scope. Private PostgreSQL workflow/interview captures are OFF. Only the separate, explicitly scoped equities failure demos use tracing from the start; do not enable it on private workflow sessions.
 
-33. **What is in the CI artifacts and why finite retention?** The HTML report keeps results/attachments for 14 days; failure evidence keeps available traces, screenshots, videos, and attachments for 7 days. Finite retention balances investigation time with storage. Files may be absent if a prerequisite gate failed first.
+33. **What is in the CI artifacts and why finite retention?** The HTML report keeps results/attachments for 14 days; failure evidence keeps available permitted screenshots, videos and attachments for 7 days; normal authenticated traces are disabled. Finite retention balances investigation time with storage. Files may be absent if a prerequisite gate failed first.
 
 34. **Why npm ci in GitHub Actions?** It installs using the committed lockfile and fails when package metadata is inconsistent with it. It makes dependency resolution reproducible; it does not remove the need to review dependency changes. npm cache is separate from browser and OS dependency installation.
 
 35. **Why not gate normal CI on the performance threshold?** A shared runner's scheduling and resource load can distort latency. The optional smoke checks a small local burst, status/schema validity, errors, and a loose p95 threshold. It is a local signal, not a capacity, soak, or distributed load claim.
 
-36. **Which trading-system concerns does this lab demonstrate?** Status-transition integrity, role boundaries, input validity, resource ownership, and UI/API agreement. Real systems also require precision rules, idempotency, ordering, reconciliation, auditability, resilience, and external-protocol testing; this repository does not claim to implement them.
+36. **Which trading-system concerns does this lab demonstrate?** The foundational equities slice shows status-transition integrity, role boundaries, input validity, resource ownership, and UI/API agreement. Later accepted source adds declared financial precision rules, retained idempotency, immutable execution evidence, historical reconciliation and bounded FIX verification. These do not establish production resilience, live peer interoperability or external settlement. Use the institutional study guide for those implemented contracts and their limits.
 
 37. **Why is a disabled Cancel button insufficient?** A caller can bypass the browser and send the REST mutation directly. The server must enforce the state rule and role permission. UI tests prove affordances; API tests prove authoritative rejection and unchanged state.
 
@@ -80,6 +82,6 @@ Use these as explanations to demonstrate in source and evidence, not claims of e
 
 39. **What is a primary versus supporting agent?** The primary maintains scope, file ownership, integration, and evidence. A supporting agent works in a bounded area such as contract review. Both need relevant context and scoped tools; a subagent's confident summary still needs diff review and executable verification.
 
-40. **What evidence would you present to a skeptical hiring manager?** A readable requirement-to-test path, session ownership in fixtures, a negative API rule with unchanged state, independent contract checks, repeated multi-browser results, an intentional failure trace, and CI artifact policy. State actual counts and limitations from `docs/VALIDATION.md` rather than claiming production experience.
+40. **What evidence would you present to a skeptical hiring manager?** A readable requirement-to-test path, session ownership in fixtures, a negative API rule with unchanged state, independent contract checks, repeated multi-browser results, an intentional failure trace, and CI artifact policy. State revision-specific counts and limitations from `docs/CURRENT_STATE.md` and the candidate PR evidence; `docs/VALIDATION.md` is historical rather than claiming production experience.
 
 Further reading: [Playwright fixtures](https://playwright.dev/docs/test-fixtures), [parallelism](https://playwright.dev/docs/test-parallel), [API testing](https://playwright.dev/docs/api-testing), [TypeScript strict mode](https://www.typescriptlang.org/tsconfig/strict.html), and [OpenAPI 3.0.3](https://spec.openapis.org/oas/v3.0.3.html).
