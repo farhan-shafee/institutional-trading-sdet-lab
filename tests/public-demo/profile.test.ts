@@ -259,3 +259,90 @@ await test('public cleanup bounds retired UUID metadata while preserving all leg
     await maintenance.end();
   }
 });
+
+await test('public cleanup trims a graph that crosses retention after candidate capture', async () => {
+  const app = await connection('app'),
+    admin = await connection('admin'),
+    maintenance = await connection('maintenance');
+  const id = randomUUID();
+  let purge: Promise<pg.QueryResult<{ removed: number }>> | undefined;
+  try {
+    const created = await app.query<{ result: { status: number } }>(
+      'SELECT fi_control.create_public_demo_sandbox($1,$2,$3,$4,$5,$6) AS result',
+      [id, 'a'.repeat(64), 'b'.repeat(64), 'c'.repeat(64), randomUUID(), randomUUID()],
+    );
+    assert.equal(created.rows[0]!.result.status, 201);
+    await admin.query(
+      "UPDATE fi.sandboxes SET created_at=clock_timestamp()-interval '2 hours',write_expires_at=clock_timestamp()-interval '90 minutes',retained_until=clock_timestamp()+interval '1 second' WHERE id=$1",
+      [id],
+    );
+    const pid = (await maintenance.query<{ pid: number }>('SELECT pg_backend_pid() AS pid'))
+      .rows[0]!.pid;
+    await admin.query('BEGIN');
+    // The wrapper captures candidates before the base purge requests this table.
+    await admin.query('LOCK TABLE fi.reconciliation_runs IN ACCESS EXCLUSIVE MODE');
+    purge = maintenance.query<{ removed: number }>(
+      'SELECT fi_control.purge_public_demo_expired() AS removed',
+    );
+    void purge.catch(() => undefined);
+    let blocked = false;
+    const deadline = performance.now() + 750;
+    while (performance.now() < deadline) {
+      blocked =
+        (
+          await admin.query<{ blocked: boolean }>(
+            "SELECT wait_event_type='Lock' AS blocked FROM pg_stat_activity WHERE pid=$1",
+            [pid],
+          )
+        ).rows[0]?.blocked === true;
+      if (blocked) break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.equal(blocked, true);
+    assert.equal(
+      (
+        await admin.query<{ early: boolean }>(
+          'SELECT clock_timestamp()<retained_until AS early FROM fi.sandboxes WHERE id=$1',
+          [id],
+        )
+      ).rows[0]!.early,
+      true,
+    );
+    await admin.query(
+      'SELECT pg_sleep(GREATEST(0,EXTRACT(EPOCH FROM (retained_until-clock_timestamp())))+0.05) FROM fi.sandboxes WHERE id=$1',
+      [id],
+    );
+    await admin.query('COMMIT');
+    assert.equal((await purge).rows[0]!.removed, 1);
+    assert.equal(
+      (
+        await admin.query<{ count: number }>(
+          'SELECT count(*)::int AS count FROM fi_control.purged_sandboxes WHERE id=$1',
+          [id],
+        )
+      ).rows[0]!.count,
+      0,
+    );
+    assert.equal(
+      (
+        await admin.query<{ count: number }>(
+          'SELECT count(*)::int AS count FROM fi.sandboxes WHERE id=$1',
+          [id],
+        )
+      ).rows[0]!.count,
+      0,
+    );
+  } finally {
+    await admin.query('ROLLBACK');
+    await purge?.catch(() => undefined);
+    await admin.query(
+      "UPDATE fi.sandboxes SET created_at=clock_timestamp()-interval '2 hours',write_expires_at=clock_timestamp()-interval '90 minutes',retained_until=clock_timestamp()-interval '1 hour' WHERE id=$1",
+      [id],
+    );
+    await maintenance.query('SELECT fi_control.purge_public_demo_expired()');
+    await admin.query('DELETE FROM fi_control.purged_sandboxes WHERE id=$1', [id]);
+    await app.end();
+    await admin.end();
+    await maintenance.end();
+  }
+});

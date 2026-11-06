@@ -76,8 +76,9 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='Dedicated public demo profile required';
   END IF;
   SELECT coalesce(array_agg(s.id),ARRAY[]::uuid[]) INTO candidates
-    FROM fi.sandboxes s JOIN fi_control.public_demo_sandboxes p ON p.sandbox_id=s.id
-    WHERE s.retained_until<=clock_timestamp();
+    FROM fi.sandboxes s JOIN fi_control.public_demo_sandboxes p ON p.sandbox_id=s.id;
+  -- Capture the bounded public graph set before purge samples its later clock.
+  -- A graph crossing retention between statements must not leave a tombstone.
   -- Retains the existing complete-graph purge, active-lease checks and capacity accounting.
   removed := fi_control.purge_expired();
   -- Public ownership cannot outlive its <=30-minute session or choose/recover a UUID.

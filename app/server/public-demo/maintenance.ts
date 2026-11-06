@@ -2,6 +2,7 @@ import pg from 'pg';
 import { DomainError } from '../../domain/errors.js';
 import { databaseConnection, type DatabaseTarget } from './configuration.js';
 import { verifyPublicProfile } from './profile.js';
+import { checkoutClient } from '../../persistence/postgres/client-errors.js';
 
 export class PublicDemoMaintenance {
   private readonly pool: pg.Pool;
@@ -52,7 +53,9 @@ export class PublicDemoMaintenance {
     if (this.closed) return Promise.reject(new Error('Public demo maintenance closed.'));
     this.lastAttempt = this.now();
     const work = async () => {
-      const db = await this.pool.connect();
+      const lease = await checkoutClient(this.pool);
+      const db = lease.client;
+      let completed = false;
       try {
         await db.query('BEGIN');
         await db.query("SET LOCAL statement_timeout='1500ms'");
@@ -65,14 +68,16 @@ export class PublicDemoMaintenance {
         await verifyPublicProfile(db);
         await db.query('SELECT fi_control.purge_public_demo_expired()');
         await db.query('COMMIT');
-        this.lastSuccess = this.now();
+        if (lease.error) throw lease.error;
+        completed = true;
       } catch (error) {
         this.lastSuccess = -Infinity;
         await db.query('ROLLBACK').catch(() => undefined);
         throw error;
       } finally {
-        db.release();
+        lease.release(!completed);
       }
+      this.lastSuccess = this.now();
     };
     this.pending = work().finally(() => {
       this.pending = undefined;

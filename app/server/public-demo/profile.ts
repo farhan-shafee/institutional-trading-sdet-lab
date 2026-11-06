@@ -2,7 +2,7 @@ import type pg from 'pg';
 import { DomainError } from '../../domain/errors.js';
 
 export const publicProfileChecksum =
-  'c3cddf384dfc39920d9cc30021d30cd106816953ee3dccba4f685ea1810149b6';
+  'cfa58430fe84656729eaf5fd0ed61db16da061927c619d9a336de4647dbbed32';
 
 export async function verifyPublicProfile(db: pg.PoolClient | pg.Client): Promise<void> {
   const result = await db.query<{
