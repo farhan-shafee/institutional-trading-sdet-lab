@@ -19,6 +19,8 @@ import {
   sessionResponseSchema,
 } from '../domain/schemas.js';
 import { SessionStore } from '../domain/session-store.js';
+import { PublicDemoWorkspaces } from './public-demo/workspaces.js';
+import { PublicDemoMaintenance } from './public-demo/maintenance.js';
 import {
   ConfigurationError,
   readConfiguration,
@@ -143,16 +145,23 @@ export function createApplicationServer(
   const now = options.now ?? (() => performance.now());
   const hosted = configuration.mode === 'hosted-demo';
   const workflow = new WorkflowRoutes(
-    configuration.workflow?.databaseUrl,
+    configuration.publicDemo?.app ?? configuration.workflow?.databaseUrl,
     now,
     options.workflowDatabase,
-    configuration.workflow?.reconcilerUrl,
+    configuration.publicDemo?.reconciler ?? configuration.workflow?.reconcilerUrl,
     options.reconciliationHooks,
   );
   const sessions = new SessionStore({
     ...(hosted ? { limits: configuration.limits } : {}),
     now,
   });
+  const maintenance = configuration.publicDemo
+    ? new PublicDemoMaintenance(configuration.publicDemo.maintenance, now)
+    : undefined;
+  const publicWorkspaces = maintenance
+    ? new PublicDemoWorkspaces(workflow, maintenance, (token) => sessions.authenticate(token))
+    : undefined;
+  maintenance?.start();
   const requests = hosted
     ? new AdmissionWindow(configuration.admission.requestsPerMinute, 60_000, now)
     : undefined;
@@ -168,7 +177,23 @@ export function createApplicationServer(
     return contents
       .toString('utf8')
       .replace('data-demo-mode="local"', 'data-demo-mode="hosted-demo"')
+      .replace(
+        'data-public-workflow="off"',
+        `data-public-workflow="${configuration.publicDemo ? 'on' : 'off'}"`,
+      )
       .replace('a local synthetic trading environment', 'a synthetic public demo')
+      .replace(
+        'A clear view.<br />A controlled workflow.',
+        configuration.publicDemo
+          ? 'Explore institutional<br />trading workflows.'
+          : 'A clear view.<br />A controlled workflow.',
+      )
+      .replace(
+        'Inspect orders, manage eligible transitions, and explore a session-owned trading book.',
+        configuration.publicDemo
+          ? 'Explore equities, bond pricing and risk, dealer RFQs, execution ledgers and reconciliation in a private synthetic workspace.'
+          : 'Inspect orders, manage eligible transitions, and explore a session-owned trading book.',
+      )
       .replace('SYNTHETIC / LOCAL', 'SYNTHETIC / PUBLIC DEMO')
       .replace(
         'Environment: Synthetic · local only',
@@ -232,6 +257,31 @@ export function createApplicationServer(
     }
     const token = bearerToken(request);
     const session = sessions.authenticate(token);
+    const workflowContext = {
+      request,
+      response,
+      url,
+      token: token!,
+      authenticate: () => sessions.authenticate(token).user,
+      readJson: () => readJson(request),
+      admitLegacyMutation: () => {
+        mutations?.take();
+        sessions.admitMutation(token);
+      },
+      respond: (status: number, body: unknown) => json(response, status, body),
+    };
+    if (publicWorkspaces && (await publicWorkspaces.handle(workflowContext))) return;
+    if (!publicWorkspaces && method === 'GET' && url.pathname === '/api/public-demo/status') {
+      if (url.search)
+        throw new DomainError(400, 'VALIDATION_ERROR', 'Status takes no query parameters.');
+      json(response, 200, {
+        enabled: false,
+        state: 'disabled',
+        write_minutes: 30,
+        retention_minutes: 60,
+      });
+      return;
+    }
     if (method === 'GET') {
       const result = fixedIncomeRead(url.pathname, url.searchParams);
       if (result !== undefined) {
@@ -268,6 +318,7 @@ export function createApplicationServer(
       if (token) {
         sessions.delete(token);
         workflow.bindings.forget(token);
+        publicWorkspaces?.forget(token);
       }
       response.writeHead(204);
       response.end();
@@ -372,11 +423,20 @@ export function createApplicationServer(
     server.keepAliveTimeout = 5_000;
     server.setTimeout(10_000, (socket) => socket.destroy());
   }
-  const expirySweep = hosted ? setInterval(() => sessions.pruneExpired(), 30_000) : undefined;
+  const expirySweep = hosted
+    ? setInterval(() => {
+        sessions.pruneExpired();
+        publicWorkspaces?.prune();
+      }, 30_000)
+    : undefined;
   expirySweep?.unref();
   server.once('close', () => {
     clearInterval(expirySweep);
     sessions.clear();
+    publicWorkspaces?.clear();
+    void maintenance
+      ?.close()
+      .catch(() => console.error('TradeFlow public maintenance cleanup unavailable.'));
     void workflow.close().catch(() => console.error('TradeFlow workflow cleanup unavailable.'));
   });
   return server;

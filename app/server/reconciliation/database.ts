@@ -2,6 +2,7 @@ import pg from 'pg';
 import { DomainError } from '../../domain/errors.js';
 import { financialSource, migrationChecksums } from '../../domain/workflow/database-contract.js';
 import { checkoutClient, type ClientLease } from '../../persistence/postgres/client-errors.js';
+import { databaseConnection, type DatabaseTarget } from '../public-demo/configuration.js';
 export type VerificationHooks = {
   beforeCommit?: () => void | Promise<void>;
   afterCommit?: () => void | Promise<void>;
@@ -12,11 +13,11 @@ export class VerificationDatabase {
   private pending = 0;
   private closing: Promise<void> | undefined;
   constructor(
-    url: string,
+    url: DatabaseTarget,
     private readonly hooks: VerificationHooks = {},
   ) {
     this.pool = new pg.Pool({
-      connectionString: url,
+      ...databaseConnection(url),
       max: 2,
       connectionTimeoutMillis: 500,
       query_timeout: 2000,

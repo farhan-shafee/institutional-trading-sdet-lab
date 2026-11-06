@@ -1,4 +1,9 @@
 import type { SessionLimits } from '../domain/session-store.js';
+import {
+  publicDemoSettingNames,
+  readPublicDemoConfiguration,
+  type PublicDemoConfiguration,
+} from './public-demo/configuration.js';
 
 type Address = '127.0.0.1' | '0.0.0.0';
 type BaseConfiguration =
@@ -12,6 +17,7 @@ type BaseConfiguration =
     };
 export type ApplicationConfiguration = BaseConfiguration & {
   workflow?: { databaseUrl: string; reconcilerUrl?: string };
+  publicDemo?: PublicDemoConfiguration;
 };
 
 export class ConfigurationError extends Error {}
@@ -43,6 +49,7 @@ export function readConfiguration(env: NodeJS.ProcessEnv = process.env): Applica
     'TRADEFLOW_FIXED_INCOME_WORKFLOW',
     'TRADEFLOW_FIXED_INCOME_DATABASE_URL',
     'TRADEFLOW_FIXED_INCOME_RECONCILER_URL',
+    ...publicDemoSettingNames,
     ...Object.keys(limits),
   ]);
   for (const name of Object.keys(env)) {
@@ -51,6 +58,14 @@ export function readConfiguration(env: NodeJS.ProcessEnv = process.env): Applica
     }
   }
   const mode = env.TRADEFLOW_MODE ?? 'local';
+  let publicDemo: PublicDemoConfiguration | undefined;
+  try {
+    publicDemo = readPublicDemoConfiguration(env, mode);
+  } catch {
+    throw new ConfigurationError(
+      'Public demo requires a complete dedicated database profile with verified TLS.',
+    );
+  }
   if (mode !== 'local' && mode !== 'hosted-demo') {
     throw new ConfigurationError('TRADEFLOW_MODE must be local or hosted-demo.');
   }
@@ -114,6 +129,11 @@ export function readConfiguration(env: NodeJS.ProcessEnv = process.env): Applica
     const [fallback, minimum, maximum] = limits[name];
     return integer(env, name, fallback, minimum, maximum);
   };
+  if (
+    publicDemo &&
+    (limit('TRADEFLOW_SESSION_TTL_SECONDS') > 1800 || limit('TRADEFLOW_MAX_SESSIONS') > 50)
+  )
+    throw new ConfigurationError('Public workflow sessions must stay within ownership bounds.');
   return {
     mode,
     host,
@@ -129,5 +149,6 @@ export function readConfiguration(env: NodeJS.ProcessEnv = process.env): Applica
       authPerMinute: limit('TRADEFLOW_AUTH_PER_MINUTE'),
       mutationsPerMinute: limit('TRADEFLOW_MUTATIONS_PER_MINUTE'),
     },
+    ...(publicDemo ? { publicDemo } : {}),
   };
 }

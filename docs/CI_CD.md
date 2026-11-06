@@ -8,6 +8,8 @@ Read `.github/workflows/quality.yml` with `package.json` and `playwright.config.
 
 `quality.yml` runs full audits/static checks, independent financial/FIX verification, native artifact smoke, and normal/repeated legacy browser tests. `persistence.yml` runs two fresh PostgreSQL executions, baseline/repeated three-browser RFQ workstation checks, their mandatory aggregates, and a full legacy regression job. The eight main job names are `quality`, `postgres-run-a`, `postgres-run-b`, `postgres`, `workstation-baseline`, `workstation-repeat`, `workstation`, and `regression`.
 
+In this revision, workstation-baseline additionally requires `npm run test:public-demo`: build the dedicated PostgreSQL 17.10/TLS image, verify ownership/role/transport/failure boundaries, run normal and repeated Chromium/Firefox/WebKit public-workflow cases, and check owned resource cleanup and credential absence from logs. The existing job deadline, permissions, retry settings and aggregate are preserved. Strict workflow validation rejects omission of this gate. See [the public release contract](PUBLIC_WORKFLOW.md); a green local image is not a provider deployment.
+
 The accepted checkpoint's exact counts and links are in [CURRENT_STATE.md](CURRENT_STATE.md). PostgreSQL/workstation tests use zero test retries; 30-second tests and 15-minute jobs remain unchanged. The legacy Playwright diagnostic retry still fails the gate for flaky results. Missing/skipped/cancelled mandatory executions are not accepted. Both workflows must be complete; a green aggregate is not a substitute for inspecting its required executions.
 
 ## Pipeline

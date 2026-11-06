@@ -1,8 +1,8 @@
 # TradeFlow current state and evidence
 
-Reviewed **November 4, 2026**. This is the current release and navigation index. Historical plans/reports keep their original revisions, measured results and first failures; their earlier candidate/pending wording does not override this index.
+Reviewed **November 5, 2026**. This index distinguishes accepted source milestones, the optional public workflow in this revision, and the independently pinned public application. Named revisions/counts are dated evidence; use exact GitHub runs and the deployment receipt/provider readback for subsequent revisions. Historical plans/reports retain their original results and first failures.
 
-## Accepted implementation checkpoint
+## Accepted protocol implementation checkpoint
 
 | Item                | Verified result                                                                                                                                                                |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -67,8 +67,16 @@ Start with the [README](../README.md), [test strategy](TEST_STRATEGY.md), [CI ga
 
 Counts, screenshots and reports belong to their named source/environment. Older captures show the equities slice. CI artifacts expire; source/run/job references retain the revision context. Broader security, availability, performance and peer-interoperability claims require separate evidence.
 
-## Interview rehearsal candidate — November 5
+## Accepted interview rehearsal — November 5
 
-Remote main `8cf67f960c467e982897dea4c063cdd49e971fd7` and all eight mandatory checks were reverified before this work. The public equities app remains separately pinned to `265c9e0`; later financial/FIX source remains local/CI only. The implementation checkpoint and counts above are preserved historical evidence, not new candidate test results.
+The owner approved PR #31, merged as GitHub-verified `939a81b7bbd44c5485224c60c15a1988ffb3f383` with tree `70822ae32d252f036a196a6ead5cda0c1c6a6d0a`. [Main quality](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42146377202) and [main persistence](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42146377266) passed all eight mandatory jobs on first attempts. Both PostgreSQL executions passed 455/455, preserving 247 executions and 44 rotations; all measured workload phases stayed below 30 seconds. The public application was not deployed by that merge.
 
-The dedicated interview-readiness branch adds [reproducible setup](INTERVIEW_SETUP.md), [30-second/three-/five-/ten-minute scripts](INTERVIEW_DEMO.md), [source/test requirement mapping](TRADEWEB_SDET_MATRIX.md), [independent-explanation study material](INTERVIEW_STUDY_GUIDE.md) and a bounded owned-database rehearsal. These changes remain a candidate pending human review/merge approval. Actual candidate commands, exits, counts, source trees and hosted run links belong in its PR/evidence record. No new runtime FIX transport, market feed, settlement, production financial activation or Jenkins/GitLab execution is claimed.
+The accepted rehearsal includes [reproducible setup](INTERVIEW_SETUP.md), [30-second/three-/five-/ten-minute scripts](INTERVIEW_DEMO.md), [source/test requirement mapping](TRADEWEB_SDET_MATRIX.md), [independent-explanation study material](INTERVIEW_STUDY_GUIDE.md) and a bounded owned-database journey. Its exact evidence is retained in PR #31; full human-paced narration and independent mastery remain personal rehearsal requirements.
+
+## Optional public institutional workflow — this revision
+
+The [public workflow release contract](PUBLIC_WORKFLOW.md) adds a distinct, default-off hosted profile using a dedicated PostgreSQL 17.10 image, strict certificate/hostname TLS, server-owned visitor bootstrap, the existing RFQ/execution/reconciliation views, and clearly labeled offline FIX evidence. Existing local-only activation and all eight base financial migrations remain unchanged.
+
+The proposed public policy is at most 30-minute writes and 60-minute server retention; access ends with the original synthetic session, logout or restart. Native capability recovery is unavailable publicly. Maintenance preserves original expiry/lease checks and legacy tombstones while bounding public-only retirement metadata. These are explicit public-profile proposals for owner acceptance, not changes to the local seven-day/thirty-day ownership contract.
+
+`npm run test:public-demo` exercises the actual owned image and normal/repeated public browser journeys. The mandatory workstation-baseline job and strict workflow validator require it. Actual source trees, counts, exits, failure evidence and run links belong to this release's PR/evidence record. Source implementation, local qualification, GitHub acceptance and public deployment are separate statuses; no public rollout is implied by this section.

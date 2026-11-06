@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { migrationChecksums } from '../app/domain/workflow/database-contract.js';
+import { validatePublicProfileSources } from './validate-public-profile.js';
 
 const directory = new URL('../db/migrations/', import.meta.url);
 const migrations = (await readdir(directory))
@@ -21,3 +22,5 @@ assert.deepEqual(
   'Runtime database contract must bind the exact migration sources.',
 );
 console.log('Runtime migration checksums match reviewed SQL sources.');
+await validatePublicProfileSources();
+console.log('Public profile and database image manifest match reviewed sources.');

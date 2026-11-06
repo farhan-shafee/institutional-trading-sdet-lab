@@ -1,0 +1,17 @@
+.git
+node_modules
+.local
+dist
+test-results
+playwright-report
+demo-report
+demo-results
+blob-report
+playwright/.auth
+.env
+.env.*
+!.env.example
+.npmrc
+**/__pycache__
+**/*.pyc
+**/*.key

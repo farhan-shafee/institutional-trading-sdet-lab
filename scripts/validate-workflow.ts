@@ -157,6 +157,7 @@ const expectedPersistenceWorkflow = {
         ...browserSetup,
         { run: 'npm run test:workflow-browser' },
         { run: 'npm run interview:verify' },
+        { run: 'npm run test:public-demo' },
       ],
     },
     'workstation-repeat': {

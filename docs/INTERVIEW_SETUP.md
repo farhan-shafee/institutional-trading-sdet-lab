@@ -1,12 +1,12 @@
 # Reproduce the institutional interview demonstration
 
-November 5, 2026 interview-pack candidate. The accepted application baseline is `8cf67f960c467e982897dea4c063cdd49e971fd7` (Phase 3C0 implementation checkpoint `f31f6e2`). New rehearsal tooling must be reviewed in its PR; it is not a production release. Use [current state](CURRENT_STATE.md), [scripts](INTERVIEW_DEMO.md), [requirements](TRADEWEB_SDET_MATRIX.md), and [study guide](INTERVIEW_STUDY_GUIDE.md).
+November 5, 2026 interview pack, accepted in PR #31 at `939a81b7bbd44c5485224c60c15a1988ffb3f383`, with eight successful post-merge jobs. The underlying Phase 3C0 protocol checkpoint is `f31f6e2`. Rehearsal acceptance is separate from a public release. Use [current state](CURRENT_STATE.md), [scripts](INTERVIEW_DEMO.md), [requirements](TRADEWEB_SDET_MATRIX.md), and [study guide](INTERVIEW_STUDY_GUIDE.md).
 
 ## Prerequisites and clean installation
 
 Use Linux or WSL Ubuntu, Node 24.x, npm, Python 3.12+, Docker with a running daemon, and Playwright's browser/system libraries. Python has no additional package requirement. The database tool uses its existing digest-pinned PostgreSQL 17 image and private ownership descriptors. Windows-native financial ownership journaling is not claimed; keep source and private files on the WSL Linux filesystem, not an NTFS checkout.
 
-Start from a clean current clone or a separate worktree of the approved revision. Preserve existing untracked plans and evidence. The PR branch is a candidate until approved; record the exact revision you actually use.
+Start from a clean current clone or a separate worktree of the approved revision. Preserve existing untracked plans and evidence. Record the exact revision actually used; review status of a later public profile does not change this accepted native rehearsal.
 
 ```sh
 git status --short
@@ -105,6 +105,8 @@ For intentional failure investigation, run separately, retain the expected nonze
 The block stops before invoking Playwright if the parent is a symlink or directory creation fails. Exit 1 is required from each intentional demo; another exit is a setup/runtime failure, and exit 0 means the expected failure disappeared. Inspect the failed assertions and attachments as well as the exit codes. The legacy failure demos are different from the private PostgreSQL workflow. Their explicit artifact policy does not authorize capturing private workflow browser state. Keep the new evidence directory private and do not publish raw traces or browser state. The explicit output paths keep earlier evidence intact.
 
 ## Capability surfaces
+
+The optional [public workflow profile](PUBLIC_WORKFLOW.md) reuses the financial views with a **Start private workspace** action and server-owned bootstrap. It has its own image verification and release approval; the table below still describes the separately pinned equities release and the accepted native/local rehearsal. Consult a verified deployment receipt before presenting a new capability as live on the public URL.
 
 | Capability                                                       | Actual surface                                                             | Public equities pin `265c9e0`                      |
 | ---------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------- |

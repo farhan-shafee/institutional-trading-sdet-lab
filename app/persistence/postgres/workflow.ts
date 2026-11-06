@@ -2,6 +2,7 @@ import pg from 'pg';
 import { DomainError } from '../../domain/errors.js';
 import { financialSource, migrationChecksums } from '../../domain/workflow/database-contract.js';
 import { checkoutClient, type ClientLease } from './client-errors.js';
+import { databaseConnection, type DatabaseTarget } from '../../server/public-demo/configuration.js';
 
 export type TransactionHooks = {
   beforeCommit?: () => void | Promise<void>;
@@ -13,11 +14,11 @@ export class WorkflowDatabase {
   private pending = 0;
   private closing: Promise<void> | undefined;
   constructor(
-    databaseUrl: string,
+    databaseUrl: DatabaseTarget,
     private readonly hooks: TransactionHooks = {},
   ) {
     this.pool = new pg.Pool({
-      connectionString: databaseUrl,
+      ...databaseConnection(databaseUrl),
       max: 4,
       connectionTimeoutMillis: 500,
       query_timeout: 2000,

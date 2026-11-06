@@ -121,6 +121,8 @@ jobs:
         run: npm run test:workflow-browser
       - name: Owned institutional interview rehearsal
         run: npm run interview:verify
+      - name: Complete public database image and repeated three-browser workflows
+        run: npm run test:public-demo
 
   workstation-repeat:
     name: workstation-repeat
