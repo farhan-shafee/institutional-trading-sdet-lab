@@ -3,7 +3,15 @@ import {
   WorkflowDatabase,
   type TransactionHooks,
 } from '../../app/persistence/postgres/workflow.js';
-import { owner, imageOwner, connection, imageMode, roleTarget, imageControl } from './database.js';
+import {
+  owner,
+  imageOwner,
+  connection,
+  imageMode,
+  roleTarget,
+  imageControl,
+  freshNativeApplication,
+} from './database.js';
 import { httpLab } from '../postgres/http.js';
 import { postgresTlsProxy } from './tls-fixture.js';
 
@@ -32,6 +40,7 @@ export async function publicBrowser() {
   const data = await imageOwner();
   if (!data.nativeOrigin)
     throw new Error('Native owned application image is required for public browser acceptance.');
+  await freshNativeApplication();
   return { origin: data.nativeOrigin, close: cleanupOwnedPublicGraphs };
 }
 

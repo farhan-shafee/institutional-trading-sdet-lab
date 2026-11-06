@@ -139,3 +139,33 @@ export async function imageControl(action: 'stop' | 'resume') {
     throw new Error('Owned database did not resume.');
   }
 }
+
+/** Give each browser case the same fresh process boundary as the native HTTP fixture. */
+export async function freshNativeApplication(): Promise<void> {
+  if (!imageMode) throw new Error('Native isolation requires an owned image descriptor.');
+  const data = await imageOwner();
+  if (!data.nativeOrigin) throw new Error('Missing native application origin.');
+  const container = data.container + '-application';
+  const proof = await execute(
+    'docker',
+    ['container', 'inspect', container, '--format', '{{json .Config.Labels}}'],
+    { timeout: 10000, encoding: 'utf8' },
+  );
+  const labels = z.record(z.string(), z.string()).parse(JSON.parse(proof.stdout));
+  if (labels['tradeflow.public-owner'] !== data.nonce)
+    throw new Error('Foreign application container preserved.');
+  await execute('docker', ['container', 'restart', '--time=5', container], { timeout: 15000 });
+  const deadline = performance.now() + 15000;
+  while (performance.now() < deadline) {
+    try {
+      const response = await fetch(data.nativeOrigin + '/health', {
+        signal: AbortSignal.timeout(1000),
+      });
+      if (response.status === 200) return;
+    } catch {
+      /* The new owned process may not have opened its listener yet. */
+    }
+    await setTimeout(50);
+  }
+  throw new Error('Fresh native application did not become ready.');
+}
