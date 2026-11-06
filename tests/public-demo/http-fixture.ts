@@ -7,6 +7,34 @@ import { owner, imageOwner, connection, imageMode, roleTarget, imageControl } fr
 import { httpLab } from '../postgres/http.js';
 import { postgresTlsProxy } from './tls-fixture.js';
 
+async function cleanupOwnedPublicGraphs() {
+  const admin = await connection('admin');
+  const maintenance = await connection('maintenance');
+  try {
+    await admin.query('BEGIN');
+    await admin.query("SET LOCAL session_replication_role='replica'");
+    await admin.query(
+      "UPDATE fi.reconciliation_runs SET requested_at=requested_at-interval '1 minute',started_at=started_at-interval '1 minute',lease_expires_at=clock_timestamp()-interval '1 second' WHERE state IN ('REQUESTED','RUNNING')",
+    );
+    await admin.query('COMMIT');
+    await admin.query(
+      "UPDATE fi.sandboxes SET created_at=clock_timestamp()-interval '40 days',write_expires_at=clock_timestamp()-interval '33 days',retained_until=clock_timestamp()-interval '10 days'",
+    );
+    await maintenance.query('SELECT fi_control.purge_public_demo_expired()');
+  } finally {
+    await admin.end();
+    await maintenance.end();
+  }
+}
+
+export async function publicBrowser() {
+  if (!imageMode) return publicHttp();
+  const data = await imageOwner();
+  if (!data.nativeOrigin)
+    throw new Error('Native owned application image is required for public browser acceptance.');
+  return { origin: data.nativeOrigin, close: cleanupOwnedPublicGraphs };
+}
+
 export async function publicHttp(hooks?: TransactionHooks, now?: () => number) {
   const owned = await owner();
   const transport = imageMode ? undefined : await postgresTlsProxy(owned.appUrl!);
@@ -59,23 +87,7 @@ export async function publicHttp(hooks?: TransactionHooks, now?: () => number) {
       await lab.close();
       if (stopped) await imageControl('resume');
       await transport?.close();
-      const admin = await connection('admin');
-      const maintenance = await connection('maintenance');
-      try {
-        await admin.query('BEGIN');
-        await admin.query("SET LOCAL session_replication_role='replica'");
-        await admin.query(
-          "UPDATE fi.reconciliation_runs SET requested_at=requested_at-interval '1 minute',started_at=started_at-interval '1 minute',lease_expires_at=clock_timestamp()-interval '1 second' WHERE state IN ('REQUESTED','RUNNING')",
-        );
-        await admin.query('COMMIT');
-        await admin.query(
-          "UPDATE fi.sandboxes SET created_at=clock_timestamp()-interval '40 days',write_expires_at=clock_timestamp()-interval '33 days',retained_until=clock_timestamp()-interval '10 days'",
-        );
-        await maintenance.query('SELECT fi_control.purge_public_demo_expired()');
-      } finally {
-        await admin.end();
-        await maintenance.end();
-      }
+      await cleanupOwnedPublicGraphs();
     },
   };
 }

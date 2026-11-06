@@ -17,6 +17,23 @@ const schema = z
     database: z.string().regex(/^tradeflow_public_demo_[a-f0-9]{16}$/),
     source_snapshot: z.string().regex(/^[a-f0-9]{64}$/),
     ca: z.string(),
+    nativeOrigin: z
+      .string()
+      .url()
+      .refine((value) => {
+        const url = new URL(value);
+        return (
+          url.protocol === 'http:' &&
+          url.hostname === '127.0.0.1' &&
+          !!url.port &&
+          url.pathname === '/' &&
+          !url.username &&
+          !url.password &&
+          !url.search &&
+          !url.hash
+        );
+      })
+      .optional(),
     adminUrl: z.string(),
     appUrl: z.string(),
     migratorUrl: z.string(),

@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.request
 
 if sys.argv[1:] == ['--help']:
     print('Use --verify to build/test one owned disposable public PostgreSQL image. No external target is accepted.')
@@ -24,6 +25,8 @@ label = 'tradeflow.public-owner'
 name = 'tradeflow-public-test-' + nonce
 volume = name + '-data'
 image = 'tradeflow-public-test:' + nonce
+application_image = 'tradeflow-public-application-test:' + nonce
+network = name + '-network'
 evidence = root / '.local' / ('public-image-evidence-' + nonce)
 if (root / '.local').is_symlink():
     raise SystemExit('Refusing symlinked private evidence directory.')
@@ -97,6 +100,9 @@ def stop(signum, _frame):
 signal.signal(signal.SIGINT, stop)
 signal.signal(signal.SIGTERM, stop)
 try:
+    revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
+    if subprocess.check_output(['git', 'status', '--porcelain'], cwd=root, text=True).strip():
+        raise RuntimeError('Native public verification requires a clean published source revision.')
     files = subprocess.check_output(['git', 'ls-files', '--cached', '--modified', '--others', '--exclude-standard'], cwd=root, text=True).splitlines()
     snapshot = {path: hashlib.sha256((root / path).read_bytes()).hexdigest() for path in sorted(set(files))}
     source = hashlib.sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
@@ -119,9 +125,11 @@ try:
     print('Public test recovery descriptor: ' + str(state / 'owner.json'), flush=True)
     invoke(['docker', 'build', '--label', label + '=' + nonce, '-t', image,
             '-f', 'deployment/postgres/Dockerfile', '.'], evidence / 'build.log')
+    docker('network', 'create', '--label', label + '=' + nonce, network)
     docker('volume', 'create', '--label', label + '=' + nonce, volume)
     invoke(['docker', 'create', '--name', name, '--label', label + '=' + nonce,
             '--env-file', str(state / 'database.env'), '--publish', f'127.0.0.1:{port}:5432',
+            '--network', network, '--network-alias', hostname,
             '--mount', f'type=volume,source={volume},target=/var/lib/postgresql/data',
             '--cpus=0.5', '--memory=512m', '--shm-size=64m', '--pids-limit=128', image], evidence / 'create.log')
     docker('container', 'start', name)
@@ -155,8 +163,50 @@ try:
     env = dict(os.environ)
     env.pop('TF_DB_OWNER_FILE', None)
     env['TF_PUBLIC_IMAGE_OWNER_FILE'] = str(state / 'owner.json')
+    results['node'] = invoke(['node', '--import', 'tsx', 'scripts/verify-public-demo-image.ts'], evidence / 'node.log', env=env)
+    invoke(['docker', 'build', '--label', label + '=' + nonce,
+            '--build-arg', 'RAILWAY_GIT_COMMIT_SHA=' + revision, '-t', application_image,
+            '-f', 'deployment/application/Dockerfile', '.'], evidence / 'native-build.log')
+    with socket.socket() as reservation:
+        reservation.bind(('127.0.0.1', 0))
+        application_port = reservation.getsockname()[1]
+    application = name + '-application'
+    containers.append(application)
+    private(state / 'application.env', '\n'.join([
+        'PORT=3000', 'TRADEFLOW_HOST=0.0.0.0', 'TRADEFLOW_MODE=hosted-demo', 'TRADEFLOW_PUBLIC_DEMO=on',
+        *[setting + '=postgresql://tf_' + role + ':' + passwords[role] + '@' + hostname + ':5432/' + database
+          for role, setting in [('app', 'TRADEFLOW_PUBLIC_DEMO_DATABASE_URL'),
+                                ('reconciler', 'TRADEFLOW_PUBLIC_DEMO_RECONCILER_URL'),
+                                ('maintenance', 'TRADEFLOW_PUBLIC_DEMO_MAINTENANCE_URL')]],
+    ]) + '\n')
+    invoke(['docker', 'create', '--name', application, '--label', label + '=' + nonce,
+            '--env-file', str(state / 'application.env'), '--env', 'TRADEFLOW_PUBLIC_DEMO_DATABASE_CA=' + ca,
+            '--network', network, '--publish', f'127.0.0.1:{application_port}:3000',
+            '--cpus=0.5', '--memory=512m', '--shm-size=64m', '--pids-limit=128', application_image], evidence / 'native-create.log')
+    docker('container', 'start', application)
+    owner['nativeOrigin'] = f'http://127.0.0.1:{application_port}'
+    deadline = time.monotonic() + 30
+    ready = False
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(owner['nativeOrigin'] + '/health', timeout=2) as response:
+                ready = response.status == 200
+            if ready:
+                break
+        except Exception:
+            time.sleep(0.1)
+    if not ready:
+        raise RuntimeError('Native application image did not become ready.')
+    invoke(['docker', 'exec', application, 'node', '--import', 'tsx', '--input-type=module', '-e',
+            "import assert from 'node:assert/strict'; import { verificationManifest } from './app/server/reconciliation/manifest.ts'; const metadata=await verificationManifest(); assert.equal(metadata.source_revision,process.env.RAILWAY_GIT_COMMIT_SHA); assert.equal(metadata.source_state,'CLEAN'); console.log('Native public reconciliation has genuine clean Git source provenance.');"], evidence / 'native-provenance.log')
+    private(state / 'owner-native.json', json.dumps(owner))
+    (state / 'owner-native.json').replace(state / 'owner.json')
+    directory_fd=os.open(state,os.O_RDONLY|os.O_DIRECTORY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
     for title, command in [
-        ('node', ['node', '--import', 'tsx', 'scripts/verify-public-demo-image.ts']),
         ('browser', ['node', 'node_modules/@playwright/test/cli.js', 'test', '--config=playwright.public-demo.config.ts']),
         ('browser-repeat', ['node', 'node_modules/@playwright/test/cli.js', 'test', '--config=playwright.public-demo.config.ts', '--repeat-each=2']),
     ]:
@@ -210,10 +260,15 @@ finally:
             if not matches('volume', volume):
                 raise RuntimeError('Foreign volume preserved.')
             docker('volume', 'rm', volume)
-        if image in docker('image', 'ls', '--format', '{{.Repository}}:{{.Tag}}').splitlines():
-            if not matches('image', image):
-                raise RuntimeError('Foreign image preserved.')
-            docker('image', 'rm', image)
+        if network in docker('network', 'ls', '--format', '{{.Name}}').splitlines():
+            if not matches('network', network):
+                raise RuntimeError('Foreign network preserved.')
+            docker('network', 'rm', network)
+        for candidate_image in [application_image, image]:
+            if candidate_image in docker('image', 'ls', '--format', '{{.Repository}}:{{.Tag}}').splitlines():
+                if not matches('image', candidate_image):
+                    raise RuntimeError('Foreign image preserved.')
+                docker('image', 'rm', candidate_image)
         results['secret_material_absent']=all(not any(password.encode() in path.read_bytes() for password in passwords.values()) for path in evidence.rglob('*') if path.is_file())
         if not results['secret_material_absent']:
             results['failed']=True

@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { publicHttp } from '../public-demo/http-fixture.js';
+import { publicBrowser } from '../public-demo/http-fixture.js';
 import { connection } from '../public-demo/database.js';
 
 test('public visitor reaches exact bond analytics, dealer execution ledger and clean reconciliation through the UI', async ({
   page,
 }) => {
-  const f = await publicHttp();
+  const f = await publicBrowser();
   try {
     await page.goto(f.origin);
     await page.getByLabel('Username', { exact: true }).fill('qa.user');
@@ -62,7 +62,7 @@ test('public visitor reaches exact bond analytics, dealer execution ledger and c
 test('public viewer creates a private read-only workspace without native ownership input', async ({
   page,
 }) => {
-  const f = await publicHttp();
+  const f = await publicBrowser();
   try {
     await page.goto(f.origin);
     await page.getByLabel('Username', { exact: true }).fill('qa.viewer');
@@ -83,7 +83,7 @@ test('public viewer creates a private read-only workspace without native ownersh
 test('public browser reload reopens its existing workspace without allocating another sandbox', async ({
   page,
 }) => {
-  const f = await publicHttp();
+  const f = await publicBrowser();
   try {
     await page.goto(f.origin);
     await page.getByLabel('Username', { exact: true }).fill('qa.user');
@@ -118,7 +118,7 @@ test('public browser reload reopens its existing workspace without allocating an
 test('public workspace setup stops before HTTP when its idempotency journal cannot be retained', async ({
   page,
 }) => {
-  const f = await publicHttp();
+  const f = await publicBrowser();
   let posted = 0;
   try {
     await page.goto(f.origin);
