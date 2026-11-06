@@ -10,18 +10,17 @@ Every user, credential, order, position, and quote is synthetic. There are no br
 
 ## Current source and public demo
 
-Reviewed November 5, 2026. **Phase 3C0 and the institutional interview rehearsal are merged and accepted on GitHub. The public application is a separately pinned release. This revision additionally implements an optional public institutional workflow profile; publishing that profile requires a reviewed release.**
+Released **November 6, 2026**. The [public site](https://tradeflow.farhan-shafee.com) now includes fictional bond analytics, private visitor workspaces, dealer RFQ/quote acceptance, simulated executions/cancellations, an immutable synthetic execution ledger and historical reconciliation. It runs independently of the owner's computer. [Exact release receipt](docs/PUBLIC_WORKFLOW_RELEASE_2026-11-06.md).
 
-| Surface                  | Scope and exact evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Accepted implementation  | [PR #29](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/29), checkpoint [`f31f6e2`](https://github.com/farhan-shafee/institutional-trading-sdet-lab/commit/f31f6e28ea07c4927537c43d797dae8e11b1b85c), GitHub Verified. [Main quality](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/41914340404) and [main persistence](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/41914340173) completed on attempt 1; 8/8 jobs passed. |
-| Interview acceptance     | [PR #31](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/31), signed merge [`939a81b`](https://github.com/farhan-shafee/institutional-trading-sdet-lab/commit/939a81b7bbd44c5485224c60c15a1988ffb3f383); [main quality](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42146377202) and [main persistence](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42146377266): 8/8 jobs, first attempts.                              |
-| Public demo              | Railway app pinned to `265c9e0`, observed November 5. Ephemeral session-owned equities books; no application database. Later source milestones were not deployed by their merge operations.                                                                                                                                                                                                                                                                                                                     |
-| Optional public workflow | Implemented in this revision: private visitor workspace bootstrap, PostgreSQL image/verified TLS, RFQ/execution/reconciliation views and offline FIX evidence. Default off; [release contract and verification](docs/PUBLIC_WORKFLOW.md). This row is not a deployment receipt.                                                                                                                                                                                                                                 |
+Accepted [PR #32](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/32) merged as `b0216022cb8ff18de904efea9279c91b3977d55f` with reviewed tree `0312dae0a6fe0e9b3e460343dec9a0ac3f7cf5ca`. [Main quality](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42221089925) and [main persistence](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42221090065) passed all eight checks on first attempts. Both PostgreSQL runs passed 455/455 with zero failures/cancellations/skips and retained capacity zero.
 
-That accepted checkpoint passed **966 Node units, 117 financial Python tests, 78 session Python tests and 59 reviewed transcript expectations**. API/browser runs passed **230 baseline and 460 repeated cases**. Both post-merge PostgreSQL executions passed **455/455**, preserving **247 executions and 44 rotations per run**; workstation gates passed **99/198**, with retained capacity zero. These are revision-specific results, not an uptime or full-interoperability claim; documentation-only commits may follow the checkpoint.
+The deployed application reached Railway SUCCESS at that exact source. Chromium, Firefox and WebKit passed the real public-domain journey, including exact financial values, genuine clean source provenance, viewer/cross-visitor denials, reload and 320 px layout. The dedicated PostgreSQL 17.10/TLS database passed its authorized restart, role/schema/identity and financial-record preservation checks.
 
-The [current state index](docs/CURRENT_STATE.md) maps the implemented [PostgreSQL foundation](docs/FIXED_INCOME_PERSISTENCE.md), [RFQ workstation](docs/FIXED_INCOME_RFQ.md), [execution ledger](docs/FIXED_INCOME_EXECUTIONS.md), [reconciliation](docs/FIXED_INCOME_RECONCILIATION.md), [FIX bytes](docs/FIX44_PROFILE.md), [controlled FIX application](docs/FIX44_APPLICATION.md) and [offline session conformance](docs/FIX44_SESSION.md). Workflow persistence defaults OFF. A running FIX session engine, transport, durable session state and real peer interoperability remain separate future work.
+Public access lasts only for the original synthetic session (at most 30 minutes from login), logout or app restart; there is no public recovery. Workspace writes last 30 minutes; records become cleanup-eligible after 60 minutes, subject to protected leases and failure rules. Local durable ownership is unchanged.
+
+The current candidate's qualification passed 994 Node units, 230 baseline/460 repeated API/browser cases, two 455-case PostgreSQL runs, 99/198 workstation cases, the native public image and the bounded interview journey. These are distinct command categories, not availability, sustained-load or interoperability guarantees. Earlier Phase 3C0 and interview acceptances remain historical checkpoints in [CURRENT_STATE.md](docs/CURRENT_STATE.md).
+
+Sign in with the fake trader/viewer credentials below. The main site is the hosted demonstration; the local interview launcher remains a separate reproducible rehearsal/verification path. Local workflow activation still defaults OFF. A running FIX session engine, socket transport, durable FIX session state and real peer interoperability remain future work.
 
 ## Institutional SDET interview rehearsal
 
@@ -38,20 +37,20 @@ npm run interview:demo
 
 The bounded verification runs the actual workflow in a fresh descriptor-owned PostgreSQL instance and Chromium, with private browser captures disabled. Interactive debugging is not an acceptance result. [The setup guide](docs/INTERVIEW_SETUP.md) explains interruption/recovery and the separate complete gate commands.
 
-## Complete public workflow candidate
+## Hosted public institutional workflow
 
-The hosted profile lets a visitor sign in with fake credentials, start one private workspace, calculate bond analytics, request/accept invented dealer quotations, simulate execution/cancellation, and inspect the ledger and reconciliation. All ownership material stays server-side. The viewer remains read-only. Public access ends with the original session, logout or restart; records follow a separately proposed short demo policy. Existing local durable ownership and financial/FIX contracts remain unchanged.
+The hosted profile lets a visitor sign in with fake credentials, start one private workspace, calculate bond analytics, request/accept invented dealer quotations, simulate execution/cancellation, and inspect the ledger and reconciliation. All ownership material stays server-side. The viewer remains read-only. Public access ends with the original session, logout or restart; records become cleanup-eligible after 60 minutes under the reviewed public policy. Existing local durable ownership and financial/FIX contracts remain unchanged.
 
 ```sh
 # Linux/WSL, Node 24, Python, Docker and installed Playwright browsers:
 npm run test:public-demo
 ```
 
-This builds and verifies the real dedicated PostgreSQL 17.10/TLS image, API/ownership/failure cases and baseline/repeated three-browser workflows, then removes only proven owned test resources. It is mandatory in CI. [Public workflow operation](docs/PUBLIC_WORKFLOW.md) describes configuration, private preparation journals, retention, certificate operation, hosted rehearsal and the final production approval. A local test run does not publish the website.
+This builds and verifies the real dedicated PostgreSQL 17.10/TLS image, API/ownership/failure cases and baseline/repeated three-browser workflows, then removes only proven owned test resources. It is mandatory in CI. [Public workflow operation](docs/PUBLIC_WORKFLOW.md) describes configuration, private preparation journals, retention, certificate operation, hosted rehearsal and future owner-approved releases. A local test run does not publish the website.
 
 ## Fixed-income analytics in the accepted source
 
-An additive, read-only analytics panel calculates fictional USD regular-coupon bonds: schedules, Actual/Actual ICMA versus US30/360 accrued interest, clean/dirty price, inverse yield, duration, convexity and dollar DV01. See the [complete financial contract](docs/FIXED_INCOME_CONVENTIONS.md). This analytics panel is read-only. The separate opt-in workflows below implement synthetic RFQ, executions, persistence and FIX application; the pinned public demo is unchanged. Curves and settlement remain outside this analytics contract.
+An additive, read-only analytics panel calculates fictional USD regular-coupon bonds: schedules, Actual/Actual ICMA versus US30/360 accrued interest, clean/dirty price, inverse yield, duration, convexity and dollar DV01. See the [complete financial contract](docs/FIXED_INCOME_CONVENTIONS.md). This analytics panel is read-only. The separate opt-in workflows below implement synthetic RFQ, executions, persistence and FIX application; the reviewed public profile exposes these institutional workflows. Curves and settlement remain outside this analytics contract.
 
 Open **Fixed-income analytics** after signing in; supply a yield **or** a clean price. Both synthetic roles may calculate. Existing four-tab keyboard navigation and session-owned equity books are retained.
 
@@ -63,7 +62,7 @@ Requires Python3.12+ (`python3` on Unix, `python` on Windows; `PYTHON` can name 
 
 ## Run locally
 
-The optional local PostgreSQL workflow defaults OFF. Main includes synthetic dealer RFQ acceptance, controlled order/execution/cancel workflows, historical reconciliation and an explicitly opted-in FIX application SDK. Use the [current source/capability map](docs/CURRENT_STATE.md) and its guides for ownership, recovery, exact prices, role boundaries and owned-instance prerequisites. Ordinary development and the separately pinned public demo need no database. `npm run test:postgres` and `npm run test:workflow-browser` are real PostgreSQL gates; they do not target a hosted database.
+The optional local PostgreSQL workflow defaults OFF. Main includes synthetic dealer RFQ acceptance, controlled order/execution/cancel workflows, historical reconciliation and an explicitly opted-in FIX application SDK. Use the [current source/capability map](docs/CURRENT_STATE.md) and its guides for ownership, recovery, exact prices, role boundaries and owned-instance prerequisites. Ordinary equities-only development needs no database; the released public institutional profile uses its dedicated database. `npm run test:postgres` and `npm run test:workflow-browser` are real PostgreSQL gates; they do not target a hosted database.
 
 Use Node.js 24 and npm. From the repository root:
 
@@ -82,7 +81,7 @@ Open [TradeFlow](http://127.0.0.1:3000).
 
 Each login creates an isolated order book. **Stop the manual server with Ctrl+C before tests.** Playwright starts its own server on port 3000 with `reuseExistingServer: false`; a stale manual process cannot supply results.
 
-Public hosting (October 25 release, provider pin rechecked November 4, 2026): Railway runs the Node.js app and a separate cloudflared service behind the [canonical Cloudflare hostname](https://tradeflow.farhan-shafee.com). The public demo does not depend on the owner's computer. No database or persistent volume is used; synthetic sessions/orders reset on app restart. The app remains pinned to reviewed source. See [current production architecture and operating boundaries](docs/RAILWAY_PRODUCTION.md); [deployment readiness](docs/PUBLIC_DEPLOYMENT_READINESS.md) preserves the earlier preparation evidence.
+Public hosting (November 6 release): Railway runs the pinned native Node.js app and dedicated PostgreSQL database behind the existing cloudflared service and [canonical Cloudflare hostname](https://tradeflow.farhan-shafee.com). The public demo does not depend on the owner's computer. Equities books and authentication sessions reset on app restart; institutional records have separately bounded database retention and cannot be recovered by a new public session. See [production operation](docs/RAILWAY_PRODUCTION.md) and the [observed release receipt](docs/PUBLIC_WORKFLOW_RELEASE_2026-11-06.md).
 
 ```sh
 npm run validate
@@ -113,7 +112,7 @@ Additional captures: [1440px exact-record details](docs/screenshots/premium/trad
 
 ## Architecture and ownership
 
-Hosted ingress is Cloudflare HTTPS → Railway cloudflared → private Railway Node.js app. The process-local architecture below applies to both local development and the bounded public demo; it is not a durable trading system.
+Hosted ingress is Cloudflare HTTPS → Railway cloudflared → private Railway Node.js app. The diagram below shows the equities/session path. The released institutional profile adds a dedicated PostgreSQL database over verified TLS; see the [complete production topology](docs/RAILWAY_PRODUCTION.md). This remains a bounded synthetic demonstration.
 
 ```mermaid
 flowchart LR
@@ -217,4 +216,4 @@ Implemented Phase 2D: [durable reconciliation and exception investigation](docs/
 
 Implemented Phase 3A: [bounded FIX4.4 codec and bilateral profile](docs/FIX44_PROFILE.md), standalone synthetic bytes only. No FIX financial adapter, transport, session engine or deployment. `npm run test:fix44` independently checks raw bytes and the pinned base FIX4.4 dictionary.
 
-Phase 3C0 is implemented: [offline FIX session contract and transcript conformance](docs/FIX44_SESSION.md). [Later roadmap entries](docs/plans/PHASE3C.md) remain proposed; no session engine or production rollout is implied.
+Phase 3C0 is implemented: [offline FIX session contract and transcript conformance](docs/FIX44_SESSION.md). [Later roadmap entries](docs/plans/PHASE3C.md) remain proposed; no runtime FIX session engine or peer-interoperability release is implied.

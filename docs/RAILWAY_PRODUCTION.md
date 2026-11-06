@@ -1,61 +1,70 @@
 # TradeFlow Railway production topology
 
-Topology/release reviewed October 25; source pin and provider state rechecked November 4, 2026. [Live synthetic workstation](https://tradeflow.farhan-shafee.com) · [Health](https://tradeflow.farhan-shafee.com/health) · [Public source](https://github.com/farhan-shafee/institutional-trading-sdet-lab).
+Reviewed **November 6, 2026** after the owner applied the institutional-workflow release. [Live synthetic workstation](https://tradeflow.farhan-shafee.com) · [Health](https://tradeflow.farhan-shafee.com/health) · [Exact release receipt](PUBLIC_WORKFLOW_RELEASE_2026-11-06.md).
 
-The separately pinned public equities demo runs on Railway independently of the owner's computer. A separate Railway cloudflared service connects the public Cloudflare hostname to the app over the private network. It has no application database, persistent volume or backup requirement.
-
-> GitHub main has later accepted local PostgreSQL/FIX milestones, including Phase 3C0. They are mapped in [CURRENT_STATE.md](CURRENT_STATE.md); their merges did not update this application pin.
-
-The optional [public institutional workflow](PUBLIC_WORKFLOW.md) is a separate release candidate in this revision. Its dedicated PostgreSQL/TLS image and private visitor ownership do not describe the existing deployment below until an approved release and provider readback replace this dated topology record. PR #31 was accepted at `939a81b` with eight first-attempt post-merge checks and did not deploy the public app.
+The public site runs independently of the owner's computer. Cloudflare HTTPS enters through the existing separate Railway cloudflared service. The private Node.js app now uses a dedicated PostgreSQL 17.10 database for the short-lived public institutional workflow.
 
 ```mermaid
 flowchart TD
   Browser["Browser"] --> Edge["Cloudflare HTTPS"]
-  Edge --> Tunnel["Railway cloudflared tunnel"]
-  Tunnel --> App["Railway Node.js TradeFlow app"]
-  App --> State["Ephemeral session-owned synthetic books"]
+  Edge --> Tunnel["Railway cloudflared"]
+  Tunnel --> App["Private Node.js app"]
+  App --> Books["Ephemeral equities and sessions"]
+  App --> Database["Dedicated PostgreSQL over verified TLS"]
+  Monitor["Credential-free certificate check"] --> Database
 ```
 
 ## Source and runtime
 
-| Item       | Observed configuration                                                                    |
-| ---------- | ----------------------------------------------------------------------------------------- |
-| App source | Public repository `main`, pinned to `265c9e0ed1fdc528193cd474d966513decd03d3b`            |
-| Build      | Node 24, Railpack, `npm ci --include=dev && npm run build`                                |
-| Start      | `node dist/app/server/index.js`                                                           |
-| Health     | `/health`                                                                                 |
-| Capacity   | One sfo replica, 0.5 vCPU / 500 MB configured ceiling                                     |
-| Ingress    | Separate cloudflared service; no public Railway app ingress in the reviewed configuration |
-| Monitor    | Railway Function every 15 minutes, website and public health checks                       |
+| Item                  | Observed configuration                                                                                               |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| App source            | Pinned `b0216022cb8ff18de904efea9279c91b3977d55f`, accepted PR #32                                                   |
+| App deployment        | `8d174084-7f30-40cb-a026-fa90f231c4a0`, SUCCESS at November 6, 08:49:00 EST                                          |
+| Build/start           | Native `deployment/application/Dockerfile`, Node 24, genuine clean Git checkout; `node dist/app/server/index.js`     |
+| App health/ingress    | `/health`, private port 8080, existing tunnel; no new public Railway app domain                                      |
+| App bounds            | One sfo replica, 0.5 vCPU / 500 MB ceiling, 90-second readiness timeout                                              |
+| Database              | Dedicated PostgreSQL 17.10, private `production-postgres.railway.internal`; no public database domain or TCP proxy   |
+| Persistence           | Dedicated 512 MB volume at `/var/lib/postgresql/data`; one replica, 0.5 vCPU / 500 MB ceiling                        |
+| Runtime roles         | Separate restricted app/reconciler/maintenance credentials and public CA; admin/migrator credentials absent from app |
+| Existing site monitor | Existing website/health function every 15 minutes, unchanged                                                         |
+| Certificate monitor   | Separate Bun 1.4.4 function, daily `0 14 * * *` UTC, restart NEVER, 0.25 vCPU / 250 MB                               |
 
-The October 25 compatible dependency patch `265c9e0` passed [CI run 40214510996](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/40214510996) and reached Railway SUCCESS at 2026-10-25T17:08:36.249Z (deployment `30ca206b-765b-4fe5-ad22-50a1f2d02aec`). Twenty public acceptance checks passed at 2026-10-25T17:09:14.687237+00:00, including exact served-asset hashes and isolated synthetic trader/viewer workflows. The earlier reviewed pin was `7b125f63198b0eb38a2e7140aba0d83d2e7fcdc1`. See [dependency maintenance and its evidence limits](SECURITY_MAINTENANCE_2026-10-25.md).
+The exact release passed all eight main checks on first attempts and real Chromium/Firefox/WebKit workflows. A documentation push does not deploy a new app revision: this release stays explicitly pinned. Consult actual deployment metadata and the dated receipt before making later-release claims.
 
-The app release is pinned. A documentation push to main does not itself prove that production changed revisions. Read actual deployment metadata for future releases; CI checks and runtime publication are separate facts.
+## Public behavior and security boundaries
 
-The browser UI and same-origin API are served by one Node process. Each login receives an isolated cloned order book. Sessions, created orders, rate-limit counters and activity state are synthetic and ephemeral. Restarting or replacing the app discards that state and requires a fresh login; no recovery migration is appropriate.
+The equities book and authentication sessions remain process-local and isolated per login. The distinct public institutional profile supplies server-owned private workspace bootstrap, fictional bond analytics, RFQ/quote acceptance, simulated order/execution/cancellation, an immutable synthetic execution ledger and historical independent reconciliation.
 
-## Public security boundaries
+All users, credentials, quotes, orders and executions are fake fixtures. Viewer mutations return 403; a valid visitor session does not authorize another visitor's records. Ownership material remains server-side. Native durable recovery/bootstrap routes are unavailable publicly. Access ends with the original session, logout or app restart.
 
-Only public fake fixtures are used; they are not credentials to a financial institution. Server-side role checks, ownership, request/runtime schema validation, bounded admission and hosted-mode resource caps remain authoritative. `qa.viewer` can read while mutations return 403. A valid session never authorizes another session's records.
+Workspace writes last 30 minutes; records become cleanup-eligible after 60 minutes. Retention is not post-session access. Cleanup preserves active leases and existing complete-graph rules; infrastructure failure can delay it. Retained capacity is bounded at 50. The [profile contract](PUBLIC_WORKFLOW.md) distinguishes this policy from unchanged local durable ownership.
 
-TLS terminates at Cloudflare; the tunnel's internal hop is private application HTTP. Keep the app private when operating this tunnel topology. Do not introduce a public Railway app domain and then assume Cloudflare controls cover that bypass. Do not copy a tunnel token into documentation, Git history, logs or browser output.
+SQL statement/lock/transaction bounds remain 1500 ms / 750 ms / five seconds. App, reconciler and maintenance use verified certificate/hostname TLS and distinct least-privilege roles. The eight base migrations and financial contracts are unchanged.
 
-The separate [historical readiness record](PUBLIC_DEPLOYMENT_READINESS.md) discusses alternative direct-ingress/TLS/Free-plan constraints. Those alternatives are not descriptions of the currently selected tunnel route. Do not repurpose another project's edge rules or change shared billing/TLS settings as a routine release.
+TLS terminates at Cloudflare; the tunnel's private app hop is HTTP. Keep the app private with this topology. Do not introduce a direct public app domain and assume Cloudflare controls cover it. Never copy tunnel tokens, database URLs, passwords, private CA keys or visitor bearer tokens into source, logs or browser captures.
 
-## Monitoring and release acceptance
+## Operation and monitoring
 
-Railway ingress metrics can be empty because requests enter through the tunnel; that is not proof of health. Check both public endpoints and bounded app/tunnel logs. Unexpected app failures are logged with the `TradeFlow INTERNAL_ERROR` marker. Read deployment success, running/crashed replicas and CPU/RAM limits separately.
+Railway ingress metrics can be empty because public requests enter through the tunnel; they do not establish availability. Read public home/health, active deployments, replica state and bounded logs separately. `/health` is not a full persistence or capacity guarantee.
 
-For an authorized application release:
+The certificate monitor contains only the actual private hostname and public CA. It sends an eight-byte SSLRequest, requires exactly the PostgreSQL S response, validates TLS/hostname and closes before authentication or SQL. It has no database password, public endpoint or persistent volume. It warns/exits nonzero at 35 or fewer days remaining; notification delivery is not demonstrated merely by a log entry.
 
-1. Validate reviewed source with the repository's full and production dependency audits, compiler, lint, formatting, contract, unit, production-build/smoke and three-browser test gates.
-2. Review the actual source pin and deploy only the approved release. Require terminal SUCCESS at that SHA for the app and a healthy tunnel.
-3. Check website/health, same-origin assets/API, synthetic disclosures, login/viewer boundaries and bounded errors. Production mutation checks need an explicitly authorized synthetic scope.
-4. Review resource use and availability without treating finite checks as load tolerance, immediate paging or guaranteed recovery.
-5. Record the release source and observed results. Roll back only to an already reviewed hosted-safe artifact, preserving tunnel/hosted boundaries.
+The observed leaf expires February 4, 2027, 07:56:18 EST. The image renews on database startup when fewer than 30 days remain and preserves the CA. Schedule owner-controlled renewal/restart and verify it; this is not unattended renewal or high availability. Its first actual scheduled production execution succeeded November 6 at 09:03:38 EST, validating TLS 1.3, the expected leaf fingerprint and 89 days remaining. The [receipt](PUBLIC_WORKFLOW_RELEASE_2026-11-06.md) distinguishes deployed configuration, observed probe execution and scheduled execution.
 
-There is no broker, exchange connection, live market feed, matching engine, real execution, P&L, settlement or durable ledger. Incident Copilot integration remains a separately proposed feature; this hosting work does not implement it.
+Before activation, an authorized database restart preserved the volume, financial fixture, migrations, roles, database identity and certificates. After activation, all three runtime roles independently verified TLS 1.3 from the new app container. Application restart still loses public sessions even when database records survive. No durable public session recovery or off-volume backup/recovery guarantee is claimed for these expiring synthetic graphs.
 
-## Local development and dated evidence
+## Release acceptance and rollback
 
-[README](../README.md), [architecture](ARCHITECTURE.md) and [test strategy](TEST_STRATEGY.md) retain local loopback development and reproducible fixture ownership. Historical test totals are attached to their original source revisions; the latest run result must be checked before claiming a current pass. `package.json`'s `private: true` prevents npm publishing and does not make the GitHub repository private.
+For a future authorized release:
+
+1. Qualify the reviewed exact source through unchanged gates. Use immutable run/source references.
+2. Preserve current app source, artifact and complete configuration before staging changes. Prepare fresh credentials only for a newly approved empty database.
+3. Check only intended staged resources, require terminal SUCCESS, verify source/tree/CLEAN provenance, runtime roles/TLS and the real public-domain visitor workflows.
+4. Record exact financial values, viewer/cross-visitor denials, reload/session boundaries, cleanup, limitations and resource state. Finite checks are not sustained-load or uptime evidence.
+5. Synchronize README/current-state/portfolio from the observed release.
+
+The prior equities source `265c9e0ed1fdc528193cd474d966513decd03d3b` and deployment `30ca206b-765b-4fe5-ad22-50a1f2d02aec` are retained with the exact old two-variable app configuration. Rollback restores the old source and Railpack builder, clears the Dockerfile setting with actual JSON null and removes all five new `TRADEFLOW_PUBLIC_DEMO*` variables. Setting activation off alone is insufficient. Preserve the new database, volume, journals and evidence; do not reset/downgrade its schema or rotate passwords as a rollback shortcut. The existing tunnel and unrelated monitors remain unchanged.
+
+The preview proved rebuilding the exact older source and restoring the candidate; it did not prove redeployment of the exact retained production artifact. Preserve that distinction. Historical [October 25 dependency maintenance](SECURITY_MAINTENANCE_2026-10-25.md) and the [pre-rollout topology at b021602](https://github.com/farhan-shafee/institutional-trading-sdet-lab/blob/b0216022cb8ff18de904efea9279c91b3977d55f/docs/RAILWAY_PRODUCTION.md) retain their original evidence.
+
+There is no real broker/exchange, live feed, settlement, real-money P&L or production-trading guarantee. FIX remains bounded application tooling and offline conformance; no running session engine, transport or independent peer was added.
