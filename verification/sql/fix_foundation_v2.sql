@@ -2,7 +2,7 @@
 WITH bindings AS (SELECT b.*,o.contract,l.status,l.version FROM fi.fix_bindings b JOIN fi.orders o ON(o.sandbox_id,o.id)=(b.sandbox_id,b.order_id) JOIN fi.order_states l ON(l.sandbox_id,l.order_id)=(b.sandbox_id,b.order_id) WHERE b.sandbox_id=$1),
 -- Invalid wire bytes become bounded findings before any text decoding.
 wire_bytes AS MATERIALIZED (
- SELECT a.*,NOT EXISTS(SELECT 1 FROM generate_series(0,octet_length(a.raw_bytes)-1) g(i)
+ SELECT a.*,a.id::text AS attempt_ref,NOT EXISTS(SELECT 1 FROM generate_series(0,octet_length(a.raw_bytes)-1) g(i)
  WHERE get_byte(a.raw_bytes,g.i)<>1 AND get_byte(a.raw_bytes,g.i) NOT BETWEEN 32 AND 126) AS ascii_valid
  FROM fi.fix_attempts a WHERE a.sandbox_id=$1
 ),
@@ -142,8 +142,8 @@ record_history AS MATERIALIZED (
 -- First accepted RECORD sequence orders distinct physical observations; replays/reuse add no ordinal.
 attempt_receipts AS MATERIALIZED (
  SELECT a.sandbox_id,a.id,a.message_id,min(c.command_seq) AS first_record_seq
- FROM fi.fix_attempts a LEFT JOIN receipts c ON c.sandbox_id=a.sandbox_id
- AND c.operation='RECORD' AND c.attempt_ref=a.id::text
+ FROM wire_bytes a LEFT JOIN receipts c ON c.sandbox_id=a.sandbox_id
+ AND c.operation='RECORD' AND c.attempt_ref=a.attempt_ref
  WHERE a.sandbox_id=$1 GROUP BY a.sandbox_id,a.id,a.message_id
 ),
 attempt_order AS (
@@ -400,7 +400,7 @@ raw_issues AS (
  -- A receipt must retain its specific attempt, including when another attempt survives.
  -- A wrong message/attempt reference already fails this exact body; matching references use their receipt cohort.
  UNION ALL SELECT 'RECORD_EVIDENCE',c.id::text FROM record_history c
- LEFT JOIN record_graph a ON a.sandbox_id=c.sandbox_id AND a.id::text=c.attempt_ref
+ LEFT JOIN record_graph a ON a.sandbox_id=c.sandbox_id AND a.attempt_ref=c.attempt_ref
  WHERE NOT COALESCE(c.http_status=201 AND c.is_object AND a.evidence_valid
  AND c.request_hash=a.record_request_hash AND c.response_body=jsonb_build_object(
  'order_id',a.order_id,'message_id',a.message_id,'attempt_id',a.id,'semantic_hash',a.semantic_hash,

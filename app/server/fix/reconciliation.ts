@@ -15,7 +15,7 @@ export const foundationVerificationSources = {
   },
   current: {
     file: 'fix_foundation_v2.sql',
-    sha256: '076e401fa696f81c1b733dc718b0eab21114914cf10685bbe53cc4b0e69566cd',
+    sha256: 'd303ff5df6ee6d4563585b8dae2211da03be32acd948f853046319e3a4ddd598',
     profile: 'fix-foundation-v2',
     schema: 8,
   },
