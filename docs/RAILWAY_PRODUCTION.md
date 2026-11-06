@@ -6,6 +6,8 @@ The separately pinned public equities demo runs on Railway independently of the 
 
 > GitHub main has later accepted local PostgreSQL/FIX milestones, including Phase 3C0. They are mapped in [CURRENT_STATE.md](CURRENT_STATE.md); their merges did not update this application pin.
 
+The optional [public institutional workflow](PUBLIC_WORKFLOW.md) is a separate release candidate in this revision. Its dedicated PostgreSQL/TLS image and private visitor ownership do not describe the existing deployment below until an approved release and provider readback replace this dated topology record. PR #31 was accepted at `939a81b` with eight first-attempt post-merge checks and did not deploy the public app.
+
 ```mermaid
 flowchart TD
   Browser["Browser"] --> Edge["Cloudflare HTTPS"]

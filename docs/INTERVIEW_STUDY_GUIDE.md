@@ -64,7 +64,7 @@ The frozen RFQ contract keeps its original `PENDING_ACK` status. A separate curr
 
 Acknowledgment takes PENDING_ACK to NEW; business rejection makes it terminal REJECTED. Controlled execution advances NEW/eligible partial state toward PARTIALLY_FILLED or FILLED. A cancellation request creates a pending request, while execution may still win. Its acknowledgment cancels executable remainder without erasing fills; rejection leaves eligible execution possible. Terminal states do not reopen. These controls are synthetic, not peer acknowledgments. Evidence: the transition table in `docs/FIXED_INCOME_EXECUTIONS.md` and migration 004.
 
-**Senior follow-up:** Can the old public equities demo simulate new fills? No. New equity submissions start NEW; seeded statuses and cancellation test bounded behavior. Controlled financial executions belong to the separate local fixed-income workflow.
+**Senior follow-up:** Can the old public equities demo simulate new fills? No. New equity submissions start NEW; seeded statuses and cancellation test bounded behavior. Controlled executions belong to the fixed-income workflow, using native ownership locally or the separately qualified public workspace profile.
 
 ### 11. What is the hard partial-fill/cancel race?
 
@@ -186,7 +186,7 @@ Preserve the first failure, source hash, environment, exact request/record and a
 
 ### 30. What are the reliability gates?
 
-Locked install/audits, types/lint/format, OpenAPI/workflow validation, units, independent financial/FIX oracles, build/smoke and normal/repeated API/browser suites. Persistence additionally requires two fresh owned PostgreSQL executions and baseline/repeated three-browser workstation checks with child-result aggregates. The interview candidate adds one separately owned Chromium rehearsal to workstation-baseline. PostgreSQL/workstation/interview retries remain zero; legacy CI allows a diagnostic retry but rejects a flaky result. Evidence: workflow YAML, strict workflow validator and actual exact-revision run/job results.
+Locked install/audits, types/lint/format, OpenAPI/workflow validation, units, independent financial/FIX oracles, build/smoke and normal/repeated API/browser suites. Persistence additionally requires two fresh owned PostgreSQL executions and baseline/repeated three-browser workstation checks with child-result aggregates. Workstation-baseline also requires the accepted owned Chromium interview rehearsal and this revision's complete public database-image/API/browser gate. PostgreSQL/workstation/interview/public retries remain zero; legacy CI allows a diagnostic retry but rejects a flaky result. Evidence: workflow YAML, strict workflow validator and actual exact-revision run/job results.
 
 **Senior follow-up:** Does successful CI deploy the public TradeFlow app? No. Its separate reviewed public pin is not advanced by source merges; portfolio publication is a different service/release path.
 

@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/app.js"></script>
   </head>
-  <body data-demo-mode="local">
+  <body data-demo-mode="local" data-public-workflow="off">
     <header class="app-header">
       <a class="brand" href="/" aria-label="TradeFlow home"
         ><span class="brand-mark" aria-hidden="true">TF</span
@@ -437,12 +437,23 @@
         <details id="rfq-panel" class="panel fi-panel" hidden>
           <summary>Dealer RFQ workstation</summary>
           <p>
-            Synthetic local workflow · invented firm prices · BUY accepts ask; SELL accepts bid.
-            Ends at PENDING_ACK. No acknowledgments, fills or settlement. Capabilities are never
-            entered or retained in this browser.
+            Synthetic workflow · invented firm prices · BUY accepts ask; SELL accepts bid. Explore
+            simulated acknowledgments, partial executions, cancellation, immutable ledger entries
+            and reconciliation. No real trading or settlement. Ownership capabilities stay outside
+            this browser.
           </p>
-          <label>Authorized sandbox UUID<input id="rfq-sandbox" autocomplete="off" /></label>
-          <button type="button" id="rfq-load">Load authorized sandbox</button>
+          <div id="rfq-native-ownership">
+            <label>Authorized sandbox UUID<input id="rfq-sandbox" autocomplete="off" /></label>
+            <button type="button" id="rfq-load">Load authorized sandbox</button>
+          </div>
+          <p id="public-workspace-policy" hidden>
+            Start one private synthetic workspace. Access ends with your original session, logout or
+            a restart; starting later does not extend your session. Workspace writes last at most 30
+            minutes. Server-side records are retained for 60 minutes before they become eligible for
+            cleanup. There is no recovery after your session ends.
+          </p>
+          <button type="button" id="public-workspace-start" hidden>Start private workspace</button>
+          <p id="public-workspace-id" class="muted" hidden></p>
           <button type="button" id="rfq-refresh" disabled>Refresh RFQs</button>
           <button type="button" id="rfq-retry" disabled>Retry retained command</button>
           <p id="rfq-status" data-testid="rfq-status" role="status"></p>
@@ -547,6 +558,30 @@
             <pre id="recon-trace"></pre>
           </section>
         </details>
+        <section class="panel fi-panel" aria-labelledby="evidence-title">
+          <p class="eyebrow">ENGINEERING EVIDENCE</p>
+          <h2 id="evidence-title">Offline FIX evidence</h2>
+          <p>
+            The source implements bounded FIX 4.4 application-message validation and selected
+            offline Logon, Heartbeat, TestRequest and Logout transcript checks. These tools do not
+            open a FIX connection, run a live session engine or connect to a dealer.
+          </p>
+          <p>
+            <a
+              href="https://github.com/farhan-shafee/institutional-trading-sdet-lab/blob/939a81b7bbd44c5485224c60c15a1988ffb3f383/docs/FIX44_PROFILE.md"
+              >Application-message profile</a
+            >
+            ·
+            <a
+              href="https://github.com/farhan-shafee/institutional-trading-sdet-lab/blob/939a81b7bbd44c5485224c60c15a1988ffb3f383/docs/FIX44_SESSION.md"
+              >Offline session contract and corpus</a
+            >
+            ·
+            <a href="https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions"
+              >CI history and failure diagnostics</a
+            >
+          </p>
+        </section>
       </div>
     </main>
     <footer>

@@ -19,6 +19,7 @@ import { ReconciliationService } from '../reconciliation/service.js';
 import { handleReconciliation } from '../reconciliation/routes.js';
 import type { RunnerHooks } from '../reconciliation/runner.js';
 import { handleRfq } from './rfq-routes.js';
+import type { DatabaseTarget } from '../public-demo/configuration.js';
 
 export type WorkflowContext = {
   request: IncomingMessage;
@@ -37,10 +38,10 @@ export class WorkflowRoutes {
   readonly service: WorkflowService | undefined;
   readonly reconciliation: ReconciliationService | undefined;
   constructor(
-    databaseUrl?: string,
+    databaseUrl?: DatabaseTarget,
     now?: () => number,
     database?: WorkflowDatabase,
-    reconcilerUrl?: string,
+    reconcilerUrl?: DatabaseTarget,
     hooks?: RunnerHooks,
   ) {
     this.bindings = new WorkflowBindings(now);

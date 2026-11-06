@@ -10,12 +10,14 @@ Every user, credential, order, position, and quote is synthetic. There are no br
 
 ## Current source and public demo
 
-Reviewed November 4, 2026. **Phase 3C0 is merged and accepted on GitHub; the public demo remains a separately pinned equities slice.**
+Reviewed November 5, 2026. **Phase 3C0 and the institutional interview rehearsal are merged and accepted on GitHub. The public application is a separately pinned release. This revision additionally implements an optional public institutional workflow profile; publishing that profile requires a reviewed release.**
 
-| Surface                 | Scope and exact evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Accepted implementation | [PR #29](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/29), checkpoint [`f31f6e2`](https://github.com/farhan-shafee/institutional-trading-sdet-lab/commit/f31f6e28ea07c4927537c43d797dae8e11b1b85c), GitHub Verified. [Main quality](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/41914340404) and [main persistence](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/41914340173) completed on attempt 1; 8/8 jobs passed. |
-| Public demo             | Railway app pinned to `265c9e0`, rechecked November 4. Ephemeral session-owned equities books; no application database. Later source milestones were not deployed by their merge operations.                                                                                                                                                                                                                                                                                                                    |
+| Surface                  | Scope and exact evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Accepted implementation  | [PR #29](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/29), checkpoint [`f31f6e2`](https://github.com/farhan-shafee/institutional-trading-sdet-lab/commit/f31f6e28ea07c4927537c43d797dae8e11b1b85c), GitHub Verified. [Main quality](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/41914340404) and [main persistence](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/41914340173) completed on attempt 1; 8/8 jobs passed. |
+| Interview acceptance     | [PR #31](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/31), signed merge [`939a81b`](https://github.com/farhan-shafee/institutional-trading-sdet-lab/commit/939a81b7bbd44c5485224c60c15a1988ffb3f383); [main quality](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42146377202) and [main persistence](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42146377266): 8/8 jobs, first attempts.                              |
+| Public demo              | Railway app pinned to `265c9e0`, observed November 5. Ephemeral session-owned equities books; no application database. Later source milestones were not deployed by their merge operations.                                                                                                                                                                                                                                                                                                                     |
+| Optional public workflow | Implemented in this revision: private visitor workspace bootstrap, PostgreSQL image/verified TLS, RFQ/execution/reconciliation views and offline FIX evidence. Default off; [release contract and verification](docs/PUBLIC_WORKFLOW.md). This row is not a deployment receipt.                                                                                                                                                                                                                                 |
 
 That accepted checkpoint passed **966 Node units, 117 financial Python tests, 78 session Python tests and 59 reviewed transcript expectations**. API/browser runs passed **230 baseline and 460 repeated cases**. Both post-merge PostgreSQL executions passed **455/455**, preserving **247 executions and 44 rotations per run**; workstation gates passed **99/198**, with retained capacity zero. These are revision-specific results, not an uptime or full-interoperability claim; documentation-only commits may follow the checkpoint.
 
@@ -23,7 +25,7 @@ The [current state index](docs/CURRENT_STATE.md) maps the implemented [PostgreSQ
 
 ## Institutional SDET interview rehearsal
 
-The [institutional walkthrough](docs/INTERVIEW_DEMO.md), [Linux/WSL setup and cleanup](docs/INTERVIEW_SETUP.md), [Tradeweb requirement matrix](docs/TRADEWEB_SDET_MATRIX.md) and [study guide](docs/INTERVIEW_STUDY_GUIDE.md) distinguish actual UI, API, native and offline capabilities. New interview tooling is a reviewable candidate until its PR is approved; it does not deploy or expand the financial application.
+The [institutional walkthrough](docs/INTERVIEW_DEMO.md), [Linux/WSL setup and cleanup](docs/INTERVIEW_SETUP.md), [Tradeweb requirement matrix](docs/TRADEWEB_SDET_MATRIX.md) and [study guide](docs/INTERVIEW_STUDY_GUIDE.md) distinguish actual UI, API, native and offline capabilities. The rehearsal was accepted in PR #31. Its merge did not deploy the public application.
 
 After the documented Node 24/Python/Docker/browser setup:
 
@@ -35,6 +37,17 @@ npm run interview:demo
 ```
 
 The bounded verification runs the actual workflow in a fresh descriptor-owned PostgreSQL instance and Chromium, with private browser captures disabled. Interactive debugging is not an acceptance result. [The setup guide](docs/INTERVIEW_SETUP.md) explains interruption/recovery and the separate complete gate commands.
+
+## Complete public workflow candidate
+
+The hosted profile lets a visitor sign in with fake credentials, start one private workspace, calculate bond analytics, request/accept invented dealer quotations, simulate execution/cancellation, and inspect the ledger and reconciliation. All ownership material stays server-side. The viewer remains read-only. Public access ends with the original session, logout or restart; records follow a separately proposed short demo policy. Existing local durable ownership and financial/FIX contracts remain unchanged.
+
+```sh
+# Linux/WSL, Node 24, Python, Docker and installed Playwright browsers:
+npm run test:public-demo
+```
+
+This builds and verifies the real dedicated PostgreSQL 17.10/TLS image, API/ownership/failure cases and baseline/repeated three-browser workflows, then removes only proven owned test resources. It is mandatory in CI. [Public workflow operation](docs/PUBLIC_WORKFLOW.md) describes configuration, private preparation journals, retention, certificate operation, hosted rehearsal and the final production approval. A local test run does not publish the website.
 
 ## Fixed-income analytics in the accepted source
 

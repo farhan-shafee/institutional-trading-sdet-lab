@@ -1,8 +1,10 @@
 # Institutional-trading SDET interview demonstration
 
-Candidate interview pack, November 5, 2026. [Setup and cleanup](INTERVIEW_SETUP.md) · [Requirement matrix](TRADEWEB_SDET_MATRIX.md) · [Technical study guide](INTERVIEW_STUDY_GUIDE.md) · [Accepted source/public release](CURRENT_STATE.md).
+Interview pack accepted in PR #31, November 5, 2026. [Setup and cleanup](INTERVIEW_SETUP.md) · [Requirement matrix](TRADEWEB_SDET_MATRIX.md) · [Technical study guide](INTERVIEW_STUDY_GUIDE.md) · [Accepted source/public release](CURRENT_STATE.md).
 
-Use the actual accepted application capabilities. The public demo remains the separately pinned equities release; local PostgreSQL and FIX evidence belongs to later source. A new interview helper is rehearsal tooling pending its PR approval, not another trading feature. Never represent synthetic portfolio work as employer infrastructure or years of production trading experience.
+Use the actual accepted application capabilities. The local rehearsal was accepted at `939a81b`; its merge did not update the independently pinned public application. This revision also supplies an optional [public workflow profile](PUBLIC_WORKFLOW.md). Present it as live only after a verified deployment receipt confirms that release. Never represent synthetic portfolio work as employer infrastructure or years of production trading experience.
+
+For a verified public release, sign in with the displayed fake credentials and use **Start private workspace** instead of native sandbox setup. The financial checkpoints and exact values below remain the same. Keep the local launcher and evidence-only presentation as backups. FIX remains offline in either presentation.
 
 ## Prepare once
 
@@ -18,7 +20,7 @@ The demonstration is a narrated tour of prepared, verified checkpoints, not an a
 
 ## 30-second introduction — spoken script
 
-“TradeFlow is my synthetic institutional-trading SDET lab. It combines a web workstation with local PostgreSQL RFQs, controlled executions and reconciliation, plus fixed-income analytics and bounded FIX verification. I test exact owned records across UI, APIs, contracts and the database, with independent Python and SQL oracles. The public demo is a smaller equities slice. This is inspectable engineering evidence; it is not a live trading venue or a claim of production interoperability.”
+“TradeFlow is my synthetic institutional-trading SDET lab. It combines a web workstation with PostgreSQL RFQs, controlled executions and reconciliation, plus fixed-income analytics and bounded FIX verification. I test exact owned records across UI, APIs, contracts and the database, with independent Python and SQL oracles. FIX session verification is offline. This is inspectable engineering evidence; it is not a live trading venue or a claim of production interoperability.”
 
 ## Three-minute technical demonstration — complete script
 

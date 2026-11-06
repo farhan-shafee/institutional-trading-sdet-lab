@@ -33,6 +33,8 @@ export function rfqView(
     sandboxId: string | undefined,
     detail: RfqDetail | undefined;
   let scope: 'read' | 'trade' | undefined;
+  const publicMode = document.body.dataset.publicWorkflow === 'on';
+  let publicJournalStorageKey: string | undefined;
   const journal = new RfqCommandJournal(sessionStorage);
   const lifecycle = orderView(
     api,
@@ -55,6 +57,14 @@ export function rfqView(
     sandboxId = undefined;
     detail = undefined;
     scope = undefined;
+    if (publicJournalStorageKey) {
+      try {
+        sessionStorage.removeItem(publicJournalStorageKey);
+      } catch {
+        /* Session is already revoked. */
+      }
+      publicJournalStorageKey = undefined;
+    }
     lifecycle.reset();
     reconciliation.reset();
     panel.hidden = true;
@@ -64,6 +74,11 @@ export function rfqView(
     node<HTMLInputElement>('rfq-sandbox').value = '';
     status.textContent = '';
     message.textContent = '';
+    node('rfq-native-ownership').hidden = publicMode;
+    node('public-workspace-start').hidden = !publicMode;
+    node('public-workspace-policy').hidden = !publicMode;
+    node('public-workspace-id').textContent = '';
+    node('public-workspace-id').hidden = true;
     render();
   };
   async function initialize() {
@@ -80,12 +95,66 @@ export function rfqView(
         .parse(await response.json());
       if (owner !== getToken() || version !== epoch) return;
       panel.hidden = !response.ok || !result.enabled;
+      node('rfq-native-ownership').hidden = publicMode;
+      node('public-workspace-start').hidden = !publicMode;
+      node('public-workspace-policy').hidden = !publicMode;
       status.textContent =
         result.state === 'ready'
-          ? 'Load an already authorized sandbox. Recovery stays outside this browser.'
+          ? publicMode
+            ? 'Start a private synthetic workspace.'
+            : 'Load an already authorized sandbox. Recovery stays outside this browser.'
           : 'Fixed-income persistence is unavailable.';
+      if (publicMode && result.state === 'ready') {
+        const existing = await api('/api/public-demo/workspace');
+        if (owner !== getToken() || version !== epoch) return;
+        if (existing.response.ok) await loadPublicWorkspace(existing.data);
+        else if (existing.response.status !== 404 && existing.response.status !== 503)
+          throw new Error('Public workspace status is unavailable.');
+      }
+      render();
     } catch {
-      if (owner === getToken() && version === epoch) panel.hidden = true;
+      if (owner === getToken() && version === epoch) {
+        panel.hidden = !publicMode;
+        if (publicMode)
+          status.textContent = 'Public workflow is unavailable. Retry when service returns.';
+      }
+    }
+  }
+  async function loadPublicWorkspace(data: unknown) {
+    const owner = getToken(),
+      version = epoch;
+    const body = sandboxBodySchema.parse(data);
+    sandboxId = body.sandbox.id;
+    scope = body.scope;
+    node<HTMLInputElement>('rfq-sandbox').value = sandboxId;
+    const identity = node('public-workspace-id');
+    identity.textContent = `Private workspace ${sandboxId}`;
+    identity.hidden = false;
+    await refresh();
+    if (owner !== getToken() || version !== epoch || sandboxId !== body.sandbox.id) return;
+    status.textContent = 'Private demo workspace ready.';
+  }
+  async function publicWorkspaceKey(owner: string, version: number): Promise<string> {
+    try {
+      const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(owner));
+      const name =
+        'tradeflow.public.workspace.v1.' +
+        Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, '0')).join('');
+      if (owner !== getToken() || version !== epoch) throw new Error();
+      publicJournalStorageKey = name;
+      const previous = sessionStorage.getItem(name);
+      if (previous !== null)
+        return z
+          .object({ version: z.literal(1), key: z.uuid() })
+          .strict()
+          .parse(JSON.parse(previous)).key;
+      const key = crypto.randomUUID();
+      sessionStorage.setItem(name, JSON.stringify({ version: 1, key }));
+      return key;
+    } catch {
+      throw new Error(
+        'The private workspace request could not be retained. Existing browser data was preserved.',
+      );
     }
   }
   async function api(
@@ -319,6 +388,7 @@ export function rfqView(
     node<HTMLFieldSetElement>('rfq-fields').disabled =
       busy || !sandboxId || getRole() !== 'trader' || scope !== 'trade' || journal.has(sandboxId);
     node<HTMLButtonElement>('rfq-load').disabled = busy;
+    node<HTMLButtonElement>('public-workspace-start').disabled = busy || !!sandboxId;
     node<HTMLButtonElement>('rfq-refresh').disabled = busy || !sandboxId;
     selector.disabled = busy;
     node<HTMLButtonElement>('rfq-retry').disabled =
@@ -332,6 +402,22 @@ export function rfqView(
       detail = undefined;
       await refresh();
       status.textContent = 'Authorized sandbox loaded.';
+    });
+  });
+  node('public-workspace-start').addEventListener('click', () => {
+    void run(async () => {
+      if (!publicMode) throw new Error('Public workspace setup is unavailable.');
+      const owner = getToken(),
+        version = epoch;
+      if (!owner) throw new Error('Sign in first.');
+      const key = await publicWorkspaceKey(owner, version);
+      if (owner !== getToken() || version !== epoch) throw new Error('Session changed.');
+      const result = await api('/api/public-demo/workspace', 'POST', {}, key);
+      if (!result.response.ok)
+        throw new Error(
+          `Workspace setup unavailable (HTTP ${result.response.status}). Retry this same request.`,
+        );
+      await loadPublicWorkspace(result.data);
     });
   });
   node('rfq-refresh').addEventListener('click', () => {

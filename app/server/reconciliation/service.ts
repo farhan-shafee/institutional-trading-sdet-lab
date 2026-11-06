@@ -13,12 +13,13 @@ import type { WorkflowDatabase } from '../../persistence/postgres/workflow.js';
 import type { Binding } from '../fixed-income-workflow/bindings.js';
 import { verificationManifest } from './manifest.js';
 import { ReconciliationRunner, type RunnerHooks } from './runner.js';
+import type { DatabaseTarget } from '../public-demo/configuration.js';
 export class ReconciliationService {
   readonly runner: ReconciliationRunner | undefined;
   private readonly metadata: Promise<VerificationMetadata | undefined>;
   constructor(
     readonly database: WorkflowDatabase,
-    url?: string,
+    url?: DatabaseTarget,
     hooks?: RunnerHooks,
   ) {
     this.runner = url ? new ReconciliationRunner(url, hooks) : undefined;

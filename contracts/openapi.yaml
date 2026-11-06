@@ -29,6 +29,108 @@ tags:
 security:
   - bearerAuth: []
 paths:
+  /api/public-demo/status:
+    get:
+      operationId: getPublicDemoStatus
+      summary: Read optional public workflow availability and record lifetime
+      description: Authenticated read. Does not allocate a workspace or extend a session.
+        The 60-minute retention is server-side only; access ends at the original session expiry,
+        logout or restart. Disabled is returned when the optional profile is off.
+      responses:
+        '200':
+          description: Public profile state, independently of equities readiness.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicDemoStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/public-demo/workspace:
+    get:
+      operationId: getPublicDemoWorkspace
+      summary: Read the current synthetic session private workspace
+      description: Returns current metadata after a confirmed start. Does not allocate or
+        recover ownership after logout, original session expiry or restart. An uncertain start
+        returns 503; retry POST using its original retained key.
+      responses:
+        '200':
+          description: Current metadata and the current session trade or read scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SandboxResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/PublicWorkspaceUnavailable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/PublicWorkspaceUnavailable'
+    post:
+      operationId: startPublicDemoWorkspace
+      summary: Start one private synthetic workspace for the current session
+      description: Explicit public-profile opt-in only. Ownership material stays server-side.
+        Trader setup binds trade scope; viewer setup binds read scope and grants no financial
+        mutation authority. Concurrent/repeated requests retain one original intent/key.
+        Writes last 30 minutes and records are retained for 60 minutes from allocation; the
+        original session may expire sooner. No request extends either lifetime. Native
+        capability creation/recovery/rotation endpoints are unavailable in this public profile.
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Za-z0-9_-]{8,128}$'
+            minLength: 8
+            maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              maxProperties: 0
+      responses:
+        '201':
+          description: Original confirmed workspace metadata. Idempotent replay retains the
+            same response and is marked Idempotency-Replayed true.
+          headers:
+            Location:
+              schema:
+                type: string
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum: ['true']
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SandboxResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/PublicWorkspaceUnavailable'
+        '409':
+          $ref: '#/components/responses/PublicWorkspaceUnavailable'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/PublicWorkspaceUnavailable'
   /health:
     get:
       tags:
@@ -2834,6 +2936,13 @@ components:
         minLength: 1
       example: seed-new-aapl
   responses:
+    PublicWorkspaceUnavailable:
+      description: Workspace is absent, conflicts with the original key, or persistence,
+        maintenance, profile, capacity or commit outcome prevents confirmed completion.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
     BadRequest:
       description: Invalid fields, filters, or path encoding (VALIDATION_ERROR), or malformed JSON
         (INVALID_JSON).
@@ -2911,6 +3020,40 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    PublicDemoStatus:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [enabled, state, write_minutes, retention_minutes]
+          properties:
+            enabled:
+              type: boolean
+              enum: [true]
+            state:
+              type: string
+              enum: [ready, unavailable]
+            write_minutes:
+              type: integer
+              enum: [30]
+            retention_minutes:
+              type: integer
+              enum: [60]
+        - type: object
+          additionalProperties: false
+          required: [enabled, state, write_minutes, retention_minutes]
+          properties:
+            enabled:
+              type: boolean
+              enum: [false]
+            state:
+              type: string
+              enum: [disabled]
+            write_minutes:
+              type: integer
+              enum: [30]
+            retention_minutes:
+              type: integer
+              enum: [60]
     FixedIncomeInstrument:
       type: object
       additionalProperties: false

@@ -8,6 +8,7 @@ import {
 import type { Binding } from '../fixed-income-workflow/bindings.js';
 import { VerificationDatabase, type VerificationHooks } from './database.js';
 import { scanSnapshot, type ScanHooks } from './scanner.js';
+import type { DatabaseTarget } from '../public-demo/configuration.js';
 export type RunnerHooks = ScanHooks & {
   beforeResultCommit?: VerificationHooks['beforeCommit'];
   afterResultCommit?: VerificationHooks['afterCommit'];
@@ -16,7 +17,7 @@ export type RunnerHooks = ScanHooks & {
 export class ReconciliationRunner {
   readonly database: VerificationDatabase;
   constructor(
-    url: string,
+    url: DatabaseTarget,
     private readonly hooks: RunnerHooks = {},
   ) {
     this.database = new VerificationDatabase(url);

@@ -671,3 +671,11 @@ void test('persistence validation rejects omission of the owned institutional re
   );
   assert.throws(() => workflowValidation.validatePersistenceWorkflow(candidate));
 });
+
+void test('persistence validation rejects omission of the complete public database and browser verification', () => {
+  const candidate = structuredClone(validWorkflow);
+  job(candidate, 'workstation-baseline').steps = steps(candidate, 'workstation-baseline').filter(
+    (step) => mapping(step).run !== 'npm run test:public-demo',
+  );
+  assert.throws(() => workflowValidation.validatePersistenceWorkflow(candidate));
+});
