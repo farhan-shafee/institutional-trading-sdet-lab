@@ -48,13 +48,15 @@ The production leaf expires **February 4, 2027, 07:56:18 EST**. Its SHA-256 fing
 
 `0F:15:9B:2C:16:A3:5B:F3:53:D0:CB:DE:70:63:A0:74:65:66:AD:08:49:4C:63:CD:9E:7C:E9:53:43:34:DA:01`
 
-The credential-free certificate function is deployed on Bun 1.4.4, daily `0 14 * * *` UTC (**09:00 EST** on this release date), restart NEVER, 0.25 vCPU / 250 MB. It verifies the PostgreSQL SSLRequest response, CA and hostname before closing without authentication or SQL, and reports warning/nonzero at 35 or fewer days remaining. At the initial post-deploy read, its first scheduled production execution had not yet occurred. The same probe had independently passed from the existing app container; initial execution is separate from schedule configuration. Notification delivery is not claimed.
+The credential-free certificate function is deployed on Bun 1.4.4, daily `0 14 * * *` UTC (**09:00 EST** on this release date), restart NEVER, 0.25 vCPU / 250 MB. It verifies the PostgreSQL SSLRequest response, CA and hostname before closing without authentication or SQL, and reports warning/nonzero at 35 or fewer days remaining. Its first real scheduled production run emitted CERT_MONITOR status ok at November 6, 09:03:37 EST; the provider reported succeeded at 09:03:38 EST. It verified TLS 1.3, the expected leaf fingerprint and 89 days remaining. The final daily schedule and limits are unchanged. Notification delivery is not claimed.
 
 The image renews its 90-day leaf on startup when fewer than 30 days remain, preserving the CA. Renewal/restart remains owner-controlled; no unattended renewal or high availability is promised.
 
 ## Public policy, rollback and evidence limits
 
 Writes end 30 minutes after workspace creation; records are eligible for cleanup after 60 minutes, subject to existing lease and failure rules. Access ends with the original synthetic session, logout or app restart. These are separate clocks; there is no public ownership recovery. Local seven-day/thirty-day ownership behavior is unchanged.
+
+A read-only production observation at November 6, 09:03:03 EST confirmed the pre-activation fixture had naturally expired and was removed: workspace, public ownership marker, retirement tombstone and all eight scoped ledger tables were empty for that fixture. The six newer public verification workspaces remained, with six public markers, capacity counter six and no expired graph. No timestamp was forced or row manually deleted for this proof.
 
 The previous equities release `265c9e0ed1fdc528193cd474d966513decd03d3b`, deployment `30ca206b-765b-4fe5-ad22-50a1f2d02aec`, and exact old app configuration are preserved for rollback. Restore the old builder/source/configuration and remove all five `TRADEFLOW_PUBLIC_DEMO*` settings; activation off alone is insufficient. Preserve the new database/volume. A preview rehearsal rebuilt the exact old source; it did not redeploy the retained production artifact.
 
