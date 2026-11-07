@@ -1,0 +1,372 @@
+{
+  "version": 1,
+  "scope": "selected-synthetic-local-session-profile",
+  "expectations_authored_from": "hashed November 2020 standard and June 2020 test cases; local isolation limits from approved design",
+  "financial_application_verified": false,
+  "cases": [
+    {
+      "id": "S01-01",
+      "name": "fresh-logon-java-logout",
+      "boundary": "runtime",
+      "test_case_sections": ["4.3.1", "4.4.1", "4.5.11", "4.5.12"],
+      "expected": ["logon-java=1", "logon-go=1", "initial-sequence=1", "logout-both=true"]
+    },
+    {
+      "id": "S01-02",
+      "name": "go-logout",
+      "boundary": "runtime",
+      "test_case_sections": ["4.5.11", "4.5.12"],
+      "expected": ["logout-frame-go=true", "logout-both=true"]
+    },
+    {
+      "id": "S02-01",
+      "name": "java-testrequest",
+      "boundary": "runtime",
+      "test_case_sections": ["4.5.3", "4.5.4", "4.5.5"],
+      "expected": ["112=SYN-J-REQUEST", "matching-heartbeat-java=true"]
+    },
+    {
+      "id": "S02-02",
+      "name": "go-testrequest",
+      "boundary": "runtime",
+      "test_case_sections": ["4.5.3", "4.5.4", "4.5.5"],
+      "expected": ["112=SYN-G-REQUEST", "matching-heartbeat-go=true"]
+    },
+    {
+      "id": "S02-03",
+      "name": "live-heartbeat",
+      "boundary": "live-timer",
+      "test_case_sections": ["4.5.3"],
+      "expected": ["heartbtint=30", "ordinary-heartbeat-without-112=true"]
+    },
+    {
+      "id": "S02-04",
+      "name": "live-missing-testresponse",
+      "boundary": "live-timer",
+      "test_case_sections": ["4.5.4", "4.5.5"],
+      "expected": [
+        "ordinary-heartbeat-does-not-answer=true",
+        "testrequest-observed=true",
+        "missing-matching-response=true",
+        "logout-or-disconnect=true"
+      ]
+    },
+    {
+      "id": "S02-05",
+      "name": "timer-boundary-control",
+      "boundary": "deterministic",
+      "test_case_sections": ["4.5.5"],
+      "expected": ["before-threshold-no-timeout=true", "at-threshold-timeout=true"]
+    },
+    {
+      "id": "S03-01",
+      "name": "socket-reconnect",
+      "boundary": "runtime",
+      "test_case_sections": ["4.3.1", "4.4.1", "4.5.8"],
+      "expected": ["second-logon-both=true", "sequences-increase=true", "same-run-identity=true"]
+    },
+    {
+      "id": "S03-02",
+      "name": "java-process-restart",
+      "boundary": "process-restart",
+      "test_case_sections": ["4.3.1", "4.5.8"],
+      "expected": ["same-store-bytes-before-start=true", "logon-sequence-not-one=true"]
+    },
+    {
+      "id": "S03-03",
+      "name": "go-process-restart",
+      "boundary": "process-restart",
+      "test_case_sections": ["4.4.1", "4.5.8"],
+      "expected": ["same-store-bytes-before-start=true", "logon-sequence-not-one=true"]
+    },
+    {
+      "id": "S03-04",
+      "name": "calendar-boundary",
+      "boundary": "deterministic",
+      "test_case_sections": ["4.3.1", "4.4.1"],
+      "expected": ["continuous-session=true", "no-calendar-sequence-reset=true"]
+    },
+    {
+      "id": "S04-01",
+      "name": "drop-order-recover-gap",
+      "boundary": "runtime",
+      "test_case_sections": ["4.5.7", "4.5.8"],
+      "expected": [
+        "dropped-original-callback=false",
+        "resendrequest=true",
+        "later-probe-cannot-leap-gap=true",
+        "original-body-recovered=true"
+      ]
+    },
+    {
+      "id": "S05-01",
+      "name": "drop-ack-replay",
+      "boundary": "runtime",
+      "test_case_sections": ["4.5.7"],
+      "expected": ["same-execid=true", "same-business-body=true", "43=Y", "122=original-52"]
+    },
+    {
+      "id": "S06-01",
+      "name": "admin-gapfill",
+      "boundary": "runtime",
+      "test_case_sections": ["4.5.7", "4.5.9"],
+      "expected": ["123=Y", "36-greater-than-34=true", "only-admin-skipped=true"]
+    },
+    {
+      "id": "S06-02",
+      "name": "application-never-gapfilled",
+      "boundary": "runtime",
+      "test_case_sections": ["4.5.7", "4.5.9"],
+      "expected": ["retained-application-replayed=true", "no-gapfill-over-application=true"]
+    },
+    {
+      "id": "S07-01",
+      "name": "physical-duplicate",
+      "boundary": "runtime",
+      "test_case_sections": ["4.5.1"],
+      "expected": ["duplicate-wire-observed=true", "not-new-logical-work=true"]
+    },
+    {
+      "id": "S07-02",
+      "name": "conflicting-business-identity",
+      "boundary": "profile-guard",
+      "test_case_sections": ["4.5.13"],
+      "expected": ["error=DUPLICATE_CONFLICT", "not-forwarded=true"]
+    },
+    {
+      "id": "S08-01",
+      "name": "low-sequence-no-possdup",
+      "boundary": "runtime",
+      "test_case_sections": ["4.5.1"],
+      "expected": ["logout=true", "no-new-application-callback=true"]
+    },
+    {
+      "id": "S08-02",
+      "name": "nonadvancing-gapfill",
+      "boundary": "profile-guard",
+      "test_case_sections": ["4.5.9"],
+      "expected": ["error=INVALID_GAP_FILL", "not-forwarded=true"]
+    },
+    {
+      "id": "S08-03",
+      "name": "reset-logon-flag",
+      "boundary": "profile-guard",
+      "test_case_sections": ["4.4.1"],
+      "expected": ["error=LOGON_PROFILE", "not-forwarded=true"]
+    },
+    {
+      "id": "S08-04",
+      "name": "reset-mode",
+      "boundary": "profile-guard",
+      "test_case_sections": ["4.5.10"],
+      "expected": ["error=RESET_UNSUPPORTED", "not-forwarded=true"]
+    },
+    {
+      "id": "S08-05",
+      "name": "corrupt-or-missing-store",
+      "boundary": "store-guard",
+      "test_case_sections": ["4.3.1", "4.4.1"],
+      "expected": ["restart-denied=true", "no-new-empty-store=true"]
+    },
+    {
+      "id": "S09-01",
+      "name": "literal-wire",
+      "boundary": "wire-guard",
+      "test_case_sections": ["4.5.1", "4.5.2"],
+      "expected": ["soh=01", "bodylength=57", "checksum=222", "garbled-denied=true"]
+    },
+    {
+      "id": "S09-02",
+      "name": "fragment-coalesce",
+      "boundary": "wire-guard",
+      "test_case_sections": ["4.5.1", "4.5.2"],
+      "expected": ["two-complete-identical-frames=true", "truncated-eof-denied=true"]
+    },
+    {
+      "id": "S09-03",
+      "name": "exact-decimal-probes",
+      "boundary": "runtime",
+      "test_case_sections": ["4.5.13"],
+      "expected": ["D8F9-callbacks=true", "44=100.050000000123", "38=100.00"]
+    },
+    {
+      "id": "S09-04",
+      "name": "unknown-type-and-field",
+      "boundary": "profile-guard",
+      "test_case_sections": ["4.5.1", "4.5.13"],
+      "expected": ["unknown-field=FIELD_UNSUPPORTED", "unknown-type=MESSAGE_UNSUPPORTED"]
+    },
+    {
+      "id": "S09-05",
+      "name": "historical-codec-compatibility",
+      "boundary": "runtime",
+      "test_case_sections": ["4.5.14"],
+      "expected": [
+        "actual-wire-hash-retained=true",
+        "original-codec-result-recorded=true",
+        "wire-not-normalized=true"
+      ]
+    },
+    {
+      "id": "S10-01",
+      "name": "single-owned-writer",
+      "boundary": "store-guard",
+      "test_case_sections": ["local-ownership"],
+      "expected": [
+        "second-owner=RUN_ALREADY_OWNED",
+        "wrong-identity=RUN_IDENTITY",
+        "unowned-files-untouched=true"
+      ]
+    },
+    {
+      "id": "S10-02",
+      "name": "loopback-only",
+      "boundary": "configuration",
+      "test_case_sections": ["local-ownership"],
+      "expected": ["nonloopback-denied=true", "automatic-resets-denied=true"]
+    },
+    {
+      "id": "S10-03",
+      "name": "runtime-namespace",
+      "boundary": "host-inspection",
+      "test_case_sections": ["local-ownership"],
+      "expected": ["network=none", "host-ports=0", "read-only-root=true", "capabilities=none"]
+    },
+    {
+      "id": "S11-01",
+      "name": "frame-buffer-field-limits",
+      "boundary": "wire-guard",
+      "test_case_sections": ["local-budget"],
+      "expected": [
+        "frame-max=8192",
+        "buffer-max=16384",
+        "field-max=64",
+        "value-max=256",
+        "each-one-over-denied=true"
+      ]
+    },
+    {
+      "id": "S11-02",
+      "name": "batch-backpressure",
+      "boundary": "wire-guard",
+      "test_case_sections": ["local-budget"],
+      "expected": ["first-batch=16", "next-drain=1", "no-frame-lost=true"]
+    },
+    {
+      "id": "S11-03",
+      "name": "store-budget",
+      "boundary": "store-guard",
+      "test_case_sections": ["local-budget"],
+      "expected": [
+        "max-bytes=67108864",
+        "one-over=STORE_BUDGET",
+        "unacknowledged-evidence-not-deleted=true"
+      ]
+    },
+    {
+      "id": "S11-04",
+      "name": "bounded-cleanup",
+      "boundary": "orchestration",
+      "test_case_sections": ["local-ownership"],
+      "expected": ["only-owned-pids-stopped=true", "forced-cleanup-nonzero=true"]
+    },
+    {
+      "id": "S12-01",
+      "name": "kill-persisted-send",
+      "boundary": "process-kill",
+      "test_case_sections": ["4.5.7", "4.5.8"],
+      "expected": [
+        "actual-sigkill=true",
+        "named-store-barrier=true",
+        "retained-probe-recovered-or-unresolved=true",
+        "no-fabricated-callback=true"
+      ]
+    },
+    {
+      "id": "S12-02",
+      "name": "kill-persisted-receive",
+      "boundary": "process-kill",
+      "test_case_sections": ["4.5.7", "4.5.8"],
+      "expected": [
+        "actual-sigkill=true",
+        "named-store-barrier=true",
+        "same-session-restart=true",
+        "no-new-logical-work=true"
+      ]
+    },
+    {
+      "id": "S12-03",
+      "name": "uncertain-crash-bytes",
+      "boundary": "store-guard",
+      "test_case_sections": ["4.3.1", "4.4.1"],
+      "expected": ["changed-store=STORE_CHANGED_OR_UNCERTAIN", "restart-denied=true"]
+    },
+    {
+      "id": "S13-01",
+      "name": "discovery-admission",
+      "boundary": "orchestration",
+      "test_case_sections": ["local-evidence"],
+      "expected": [
+        "zero-cases-denied=true",
+        "missing-case-denied=true",
+        "missing-expectation-denied=true"
+      ]
+    },
+    {
+      "id": "S13-02",
+      "name": "pin-admission",
+      "boundary": "preflight",
+      "test_case_sections": ["local-evidence"],
+      "expected": ["missing-tool-denied=true", "wrong-pin-denied=true", "wrong-hash-denied=true"]
+    },
+    {
+      "id": "S13-03",
+      "name": "child-failure",
+      "boundary": "orchestration",
+      "test_case_sections": ["local-evidence"],
+      "expected": ["child-nonzero-gate-nonzero=true", "bounded-output=true"]
+    },
+    {
+      "id": "S13-04",
+      "name": "deadline-failure",
+      "boundary": "orchestration",
+      "test_case_sections": ["local-evidence"],
+      "expected": ["expired-deadline-gate-nonzero=true", "empty-success-impossible=true"]
+    },
+    {
+      "id": "S14-01",
+      "name": "financial-isolation",
+      "boundary": "runtime",
+      "test_case_sections": ["local-scope"],
+      "expected": [
+        "financial_application_verified=false",
+        "external_delivery_verified=false",
+        "database-sdk-absent=true"
+      ]
+    },
+    {
+      "id": "S15-01",
+      "name": "historical-source-preservation",
+      "boundary": "preflight",
+      "test_case_sections": ["local-scope"],
+      "expected": [
+        "existing-app-unchanged=true",
+        "migrations001-008-unchanged=true",
+        "dictionary-goldens-3c0-unchanged=true",
+        "release-settings-unchanged=true"
+      ]
+    }
+  ],
+  "excluded": [
+    "full FIX certification",
+    "sequence reset mode",
+    "ResetSeqNumFlag=Y session reset",
+    "encryption/signatures",
+    "third-party addressing",
+    "PossResend financial handling",
+    "simultaneous resend stress",
+    "financial SDK/database handoff",
+    "container or power-loss durability",
+    "external delivery/completeness"
+  ]
+}

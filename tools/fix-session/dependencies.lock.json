@@ -67,7 +67,7 @@
       "maven": "artifactId=slf4j-simple\ngroupId=org.slf4j\nversion=2.0.17\n"
     }
   ],
-  "go_mod_sha256": "57e39ffd5e2d005398092a791e0ec56ad042cd663ac600c6d8d46029d793d415",
+  "go_mod_sha256": "ee237d633b8460099abaf11b9413cab6d99b54169304e2feac7a0f24e020a7ac",
   "go_sum_sha256": "b60f304d8734e1f00e046b253eba8a4a6d150eab4d5009982dfcc5791981f833",
   "references": [
     {
