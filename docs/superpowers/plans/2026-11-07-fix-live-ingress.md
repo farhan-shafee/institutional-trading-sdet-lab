@@ -32,11 +32,11 @@
 Files: create app/protocol/fix44-live/index.ts, tests/unit/fix-live/decoder.test.ts, test-data/fix44/live/*.json, verification/python/fix_live.py, scripts/verify-fix-live.ts; append new unit/oracle gate to package.json; add docs/FIX44_LIVE.md.
 Interfaces: `decodeLiveFix44(input:Uint8Array):LiveFixFrame`, `liveFix44Bytes(frame:LiveFixFrame):Buffer`; frame profile literal, direction/type, exact fields and SHA256; private raw-byte provenance distinct from legacy trusted registry.
 
-- [ ] Write failing literal tests for fresh/replay ordered headers, D21=1, ATLAS direction, precision/calendar, exact decimals, lengths/checksum/unknown/duplicate fields, invalid business references, copy/provenance and unchanged legacy rejection.
-- [ ] Run `node --import tsx --test tests/unit/fix-live/decoder.test.ts`; Expected RED missing new decoder.
-- [ ] Implement only the new decoder, no encoder/byte normalization; run targeted tests GREEN.
-- [ ] Add independent Python parser/corpus and real engine capture negatives. Run `npm run test:fix-live`; Expected exact literal outcomes, no financial claim.
-- [ ] Typecheck/lint/format and whole unit suite pass; commit this independently testable boundary with evidence.
+- [x] Write failing literal tests for fresh/replay ordered headers, D21=1, ATLAS direction, precision/calendar, exact decimals, lengths/checksum/unknown/duplicate fields, invalid business references, copy/provenance and unchanged legacy rejection.
+- [x] Run `node --import tsx --test tests/unit/fix-live/decoder.test.ts`; Expected RED missing new decoder.
+- [x] Implement only the new decoder, no encoder/byte normalization; run targeted tests GREEN.
+- [x] Add independent Python parser/corpus and real engine capture negatives. Run `npm run test:fix-live`; Expected exact literal outcomes, no financial claim.
+- [x] Typecheck/lint/format and whole unit suite pass; commit this independently testable boundary with evidence.
 
 ### Task 2: Owned schema9 observations and atomic eligibility
 

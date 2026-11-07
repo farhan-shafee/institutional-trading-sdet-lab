@@ -114,10 +114,13 @@ Phase 3C2 implementation needs its own reviewed spec, fixtures and additive migr
   re-encoded, relabeled trusted legacy frames, or replaced.
 - Migration009 stores live bindings/sessions/connections, observations/callbacks
   and sequence slots. Old epoch1 slots retain only legacy metadata semantics.
-  Preserve public function OIDs with wrappers; common private profile-aware
-  command code is copied from the installed proven body and changed only at
-  asserted profile/parser/sequence/callback admission points. Public legacy
-  paths reject live bindings; new narrow live functions own callback eligibility.
+  Preserve public function OIDs by inserting an asserted live-binding guard
+  after authorization and before receipt lookup. Owner-only private snapshots
+  retain the exact installed v8 command, ingest and application bodies. New
+  narrow live functions own observation/callback admission and delegate other
+  commands to those proven bodies. A live request extension binds the complete
+  profile/context to existing receipts without charging another quota. New
+  connection ordinals fence older incarnations; the store identity persists.
 - Original SQL001-008, financial kernel/hash/effect bodies, legacy decoder,
   independent historical verifiers and all434 preservation hashes stay frozen.
 - A new explicitly constructed `LiveWorkflowDatabase` subclasses the existing

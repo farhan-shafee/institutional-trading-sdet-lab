@@ -44,7 +44,8 @@
     "interview:demo": "npm run build:ui && node --import tsx scripts/interview.ts --manual",
     "test:public-demo": "npm run build:ui && python3 scripts/test-public-demo.py --verify",
     "test:fix-session": "node --import tsx scripts/test-fix-session.ts",
-    "test:fix-live": "node --import tsx scripts/verify-fix-live.ts"
+    "test:fix-live": "node --import tsx scripts/verify-fix-live.ts",
+    "test:fix-live-sql": "node --import tsx --test --test-timeout=30000 tests/fix-live/sql.test.ts"
   },
   "dependencies": {
     "decimal.js": "10.6.0",

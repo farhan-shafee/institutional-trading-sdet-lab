@@ -17,7 +17,28 @@ replacement wire or admitted to the legacy decoder trust registry. Calling
 `decodeFix44` on these actual header layouts still rejects FIELD_ORDER. A live
 parsed result proves neither ownership nor financial eligibility. SQL observation,
 validated engine callback, fenced preparation/application and independent financial
-verification are later plan tasks; the financial kernel remains authoritative.
+verification follow separate boundaries; the financial kernel remains authoritative.
+
+The additive database boundary now uses opt-in migration009 in
+`db/live-migrations`, `LiveWorkflowDatabase` and `LiveFixApplicationService`.
+Bootstrap the existing owned schema8 first, then explicitly call `migrateLive`.
+Repeated live migration verifies the exact nine checksums; default schema8
+clients reject schema9. No default loader, public route or legacy migration is
+changed. The SDK is disabled unless explicitly constructed with `enabled=true`.
+
+SQL retains original observations, accepts a separate matching callback witness,
+checks owned order terms itself and stores engine sequence slots by store and
+direction. Connection ordinals fence earlier process connections. Raw evidence
+alone cannot prepare or apply. Existing public metadata, ingest and apply entry
+points reject a live binding; private snapshots preserve their proven command
+and financial application bodies. Live request fingerprints extend receipts
+with the full profile/context without another quota charge. Rollback removes
+financial effects and capacity consumption together. An unknown COMMIT is never
+retried internally; recovery uses the original key and intent.
+
+The database admission tests author callback witnesses solely to test SQL. They
+are not evidence that a real engine emitted those callbacks. The real-engine
+bridge and independent financial/crash qualification remain unfinished.
 
 `npm run test:fix-live` verifies20 literal wire vectors through TypeScript and an
 independent Python/dictionary oracle. Fourteen authored financial-valid frames
