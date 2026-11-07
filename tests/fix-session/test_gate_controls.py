@@ -4,8 +4,10 @@ from pathlib import Path
 import sys
 import contextlib
 import io
+import hashlib
 import json
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -16,6 +18,82 @@ def gate():
     m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 
 class GateControls(unittest.TestCase):
+    def test_deadline_terminates_descendants_holding_output_and_retains_original_failure(self):
+        m=gate()
+        code='import subprocess,sys,time; subprocess.Popen([sys.executable,"-c","import time; time.sleep(8)"]); print("ready",flush=True); time.sleep(30)'
+        with tempfile.TemporaryDirectory() as d:
+            started=time.monotonic()
+            try:m.run_bounded([sys.executable,'-c',code],Path(d)/'output.log',.5)
+            except m.GateError as error:actual=str(error)
+            else:self.fail('deadline accepted')
+            self.assertEqual(actual,'CHILD_DEADLINE')
+            self.assertLess(time.monotonic()-started,6)
+            self.assertEqual((Path(d)/'output.log').read_text().strip(),'ready')
+
+    def test_exited_parent_cannot_leave_a_descendant_holding_output_open(self):
+        m=gate()
+        code='import subprocess,sys; subprocess.Popen([sys.executable,"-c","import time; time.sleep(8)"]); print("parent-exited",flush=True)'
+        with tempfile.TemporaryDirectory() as d:
+            started=time.monotonic()
+            with self.assertRaisesRegex(m.GateError,'^CHILD_OUTPUT_SHUTDOWN$'):
+                m.run_bounded([sys.executable,'-c',code],Path(d)/'output.log',10)
+            self.assertLess(time.monotonic()-started,6)
+
+    def test_uncertain_daemon_creation_is_reconciled_by_owned_identity(self):
+        # The CLI can fail after the daemon has accepted a build/create request.
+        for fault in ('build','create','invalid-create'):
+            with self.subTest(fault=fault):self.check_uncertain_creation(fault)
+
+    def test_uncertain_creation_never_removes_a_resource_with_foreign_labels(self):
+        self.check_uncertain_creation('create',foreign=True)
+
+    def check_uncertain_creation(self,fault,foreign=False):
+        spec=importlib.util.spec_from_file_location('uncertain_host_gate',ROOT/'scripts/test-fix-session.py')
+        host=importlib.util.module_from_spec(spec);spec.loader.exec_module(host)
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            for name in ['tools/fix-session/dependencies.lock.json','tools/fix-session/Dockerfile','test-data/fix44/runtime/manifest.json','test-data/fix44/runtime/bindings.json','contracts/fix-session-runtime-v1.json']:
+                target=root/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((ROOT/name).read_bytes())
+            (root/'tools/fix-session/preservation.json').write_text(json.dumps({'files':{'fixture':'0'*64}}))
+            lock_path=root/'tools/fix-session/dependencies.lock.json';lock=json.loads(lock_path.read_text())
+            for name,key in [('go.mod','go_mod_sha256'),('go.sum','go_sum_sha256')]:
+                target=root/'verification/fix-peer/go'/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(b'isolated daemon-boundary fixture\n')
+                lock[key]=hashlib.sha256(target.read_bytes()).hexdigest()
+            lock_path.write_text(json.dumps(lock))
+            resources={};removed=[];identity=[]
+            def run(args,path,*unused,**kwargs):
+                text='';name=Path(path).stem
+                if args[0]=='node':text='v24.22.0\n'
+                elif args[1]=='build':
+                    tag=args[args.index('-t')+1];run_id=tag.split('run-',1)[1];identity.append(run_id)
+                    labels={'tradeflow.scope':'synthetic-fix-session','tradeflow.run_id':run_id}
+                    resources['image']={'Id':'sha256:'+'a'*64,'Config':{'Labels':labels}}
+                    if fault=='build':raise host.GateError('CHILD_DEADLINE')
+                elif args[1]=='create':
+                    labels={'tradeflow.scope':'synthetic-fix-session','tradeflow.run_id':'foreign' if foreign else identity[0]}
+                    resources['container']={'Id':'b'*64,'Name':'/tradeflow-fix-session-'+identity[0],'Config':{'Labels':labels}}
+                    if fault=='create':raise host.GateError('CHILD_DEADLINE')
+                    text='not-a-container-id'
+                elif args[1:3]==['image','inspect']:text=json.dumps([resources['image']])
+                elif args[1]=='inspect':text=json.dumps([resources['container']])
+                elif args[1]=='rm':
+                    self.assertEqual(args[-1],resources['container']['Id']);removed.append('container')
+                elif args[1:3]==['image','rm']:
+                    self.assertEqual(args[-1],resources['image']['Id']);removed.append('image')
+                elif args[1]!='version':self.fail('unexpected command '+repr(args))
+                Path(path).write_text(text)
+                return {'exit_code':0,'bytes':len(text)}
+            with patch.object(host,'ROOT',root),patch.object(host,'require_tool',side_effect=lambda name:name),patch.object(host,'verify_preserved'),patch.object(host,'input_identity',return_value={'fixture':'immutable'}),patch.object(host,'run_bounded',side_effect=run),contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaisesRegex(host.GateError,'^'+('CONTAINER_ID' if fault=='invalid-create' else 'CHILD_DEADLINE')+'$'):host.main()
+            summary=json.loads(next(root.rglob('summary.json')).read_text())
+            self.assertEqual(summary['status'],'failed')
+            self.assertEqual(summary['error'],'CONTAINER_ID' if fault=='invalid-create' else 'CHILD_DEADLINE')
+            self.assertIn('image',removed)
+            if fault!='build' and not foreign:self.assertIn('container',removed)
+            if foreign:
+                self.assertNotIn('container',removed);self.assertFalse(summary['owned_cleanup_complete'])
+                self.assertIn('CONTAINER_CLEANUP_UNRESOLVED',summary['cleanup_errors'])
+            else:self.assertTrue(summary['owned_cleanup_complete'])
     def test_daemon_logging_cannot_write_outside_the_evidence_budget(self):
         m=gate();m.admit_log_driver({'Type':'none','Config':{}})
         for value in [{'Type':'json-file','Config':{}},{'Type':'local','Config':{}},{'Type':'fluentd','Config':{}},{}]:

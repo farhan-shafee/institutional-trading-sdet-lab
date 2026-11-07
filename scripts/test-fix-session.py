@@ -20,9 +20,16 @@ def main():
     if sys.version_info<(3,12):raise GateError('PYTHON_VERSION')
     started=time.monotonic();identity=str(uuid4());out=ROOT/'artifacts'/('fix-session-'+identity)
     out.mkdir(parents=True,exist_ok=False)
-    docker=None;container=None;image='tradeflow-fix-session:run-'+identity;image_built=False
+    docker=None;container=None;image='tradeflow-fix-session:run-'+identity
+    container_name='tradeflow-fix-session-'+identity;intents={}
     report={'run_id':identity,'scope':'synthetic-local-selected-session-profile','financial_application_verified':False,'status':'failed'}
     host_proofs={};peak_store=0
+    def intend(kind,name):
+        # Persist before the daemon request: a missing CLI receipt is uncertain.
+        intents[kind]=name
+        with (out/'ownership-intent.json').open('w',encoding='utf-8',newline='\n') as descriptor:
+            json.dump({'version':1,'run_id':identity,'scope':'synthetic-fix-session','resources':intents},descriptor,sort_keys=True)
+            descriptor.flush();os.fsync(descriptor.fileno())
     def remaining_bytes():
         used=sum(path.stat().st_size for path in out.rglob('*') if path.is_file())
         if used+peak_store>=MAX_BYTES:raise GateError('EVIDENCE_BUDGET')
@@ -73,9 +80,10 @@ def main():
         report['build_inputs_sha256']=hashlib.sha256(encoded.encode()).hexdigest()
         report['preserved_original_files']=len(baseline['files'])
         print('Building pinned session peers',flush=True)
-        run([docker,'build','--platform=linux/amd64','--progress=plain','-f',str(ROOT/'tools/fix-session/Dockerfile'),'-t',image,str(ROOT)],'build',cap=900)
-        image_built=True
-        args=[docker,'create','--name','tradeflow-fix-session-'+identity,'--label','tradeflow.scope=synthetic-fix-session','--label','tradeflow.run_id='+identity,'--log-driver','none','--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges','--cpus','1','--memory','1g','--memory-swap','1g','--pids-limit','128','--shm-size','64m','--tmpfs','/state:rw,nosuid,nodev,noexec,size=64m,uid=1000,gid=1000,mode=0700',image,'python','tools/fix-session/run_matrix.py']
+        intend('image',image)
+        run([docker,'build','--platform=linux/amd64','--progress=plain','--label','tradeflow.scope=synthetic-fix-session','--label','tradeflow.run_id='+identity,'-f',str(ROOT/'tools/fix-session/Dockerfile'),'-t',image,str(ROOT)],'build',cap=900)
+        args=[docker,'create','--name',container_name,'--label','tradeflow.scope=synthetic-fix-session','--label','tradeflow.run_id='+identity,'--log-driver','none','--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges','--cpus','1','--memory','1g','--memory-swap','1g','--pids-limit','128','--shm-size','64m','--tmpfs','/state:rw,nosuid,nodev,noexec,size=64m,uid=1000,gid=1000,mode=0700',image,'python','tools/fix-session/run_matrix.py']
+        intend('container',container_name)
         container=run(args,'create').read_text().strip()
         if not re.fullmatch(r'[a-f0-9]{64}',container):raise GateError('CONTAINER_ID')
         inspected=json.loads(run([docker,'inspect',container],'runtime-inspect').read_text())[0]
@@ -122,17 +130,32 @@ def main():
         report['error']=str(error) if isinstance(error,GateError) else type(error).__name__
         raise
     finally:
-        cleanup=[]
-        if container and re.fullmatch(r'[a-f0-9]{64}',container):
-            try:run_bounded([docker,'rm','-f',container],out/'cleanup.log',30,max_bytes=32768,cwd=ROOT)
-            except BaseException:cleanup.append('CONTAINER_CLEANUP')
-        if image_built:
-            try:run_bounded([docker,'image','rm',image],out/'image-cleanup.log',30,max_bytes=32768,cwd=ROOT)
-            except BaseException:cleanup.append('IMAGE_CLEANUP')
+        cleanup=[];removed={};cleanup_deadline=time.monotonic()+30
+        active_error=sys.exc_info()[0] is not None
+        def cleanup_run(args,name):
+            remaining=cleanup_deadline-time.monotonic()
+            if remaining<=0:raise GateError('CLEANUP_DEADLINE')
+            path=out/(name+'.log')
+            run_bounded(args,path,min(15,remaining),max_bytes=32768,cwd=ROOT)
+            return path
+        for kind in ('container','image'):
+            if kind not in intents:continue
+            try:
+                args=[docker,'inspect',intents[kind]] if kind=='container' else [docker,'image','inspect',intents[kind]]
+                result=json.loads(cleanup_run(args,kind+'-cleanup-inspect').read_text())
+                if len(result)!=1:raise GateError('CLEANUP_IDENTITY')
+                item=result[0];labels=item['Config']['Labels'];resource_id=item['Id']
+                pattern=r'[a-f0-9]{64}' if kind=='container' else r'sha256:[a-f0-9]{64}'
+                if not re.fullmatch(pattern,resource_id) or labels.get('tradeflow.scope')!='synthetic-fix-session' or labels.get('tradeflow.run_id')!=identity:raise GateError('CLEANUP_OWNERSHIP')
+                if kind=='container' and item['Name']!='/'+container_name:raise GateError('CLEANUP_OWNERSHIP')
+                args=[docker,'rm','-f',resource_id] if kind=='container' else [docker,'image','rm',resource_id]
+                cleanup_run(args,kind+'-cleanup');removed[kind]=resource_id
+            except BaseException:cleanup.append(kind.upper()+'_CLEANUP_UNRESOLVED')
+        report.update(ownership_intents=intents,removed_owned_resources=removed,owned_cleanup_complete=not cleanup)
         if cleanup:report.update(status='failed',cleanup_errors=cleanup)
         (out/'summary.json').write_text(json.dumps(report,indent=2)+'\n')
         print('Evidence: '+str(out/'summary.json'),flush=True)
-        if cleanup:raise GateError(cleanup[0])
+        if cleanup and not active_error:raise GateError(cleanup[0])
 
 if __name__=='__main__':
     try:main()

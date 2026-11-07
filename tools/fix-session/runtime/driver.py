@@ -208,7 +208,9 @@ class Lab:
         self.closing=True
         if kind is not None:self.errors.append('SCENARIO_EXCEPTION')
         for role,process in self.children.items():
-            if process in self.paused and process.poll() is None:self.resume(role)
+            if process in self.paused and process.poll() is None:
+                try:self.resume(role)
+                except (OSError,LabError):self.errors.append('CHILD_RESUME_CLEANUP')
         for role,process in self.children.items():
             if process.poll() is None:
                 try:self.command(role,'STOP')
@@ -216,12 +218,20 @@ class Lab:
         forced=False
         for process in self.children.values():
             try:process.wait(timeout=10)
-            except subprocess.TimeoutExpired:process.kill();process.wait(timeout=5);forced=True
-            process.stdin.close()
+            except subprocess.TimeoutExpired:
+                forced=True
+                try:process.kill();process.wait(timeout=5)
+                except (OSError,subprocess.TimeoutExpired):self.errors.append('CHILD_REAP_CLEANUP')
+            try:process.stdin.close()
+            except OSError:self.errors.append('CHILD_STDIN_CLOSE')
         for reader in self.readers:
             reader.join(timeout=2)
             if reader.is_alive():self.errors.append('CHILD_READER_SHUTDOWN')
-        for process in self.children.values():process.stdout.close()
+        for process in self.children.values():
+            # Never take a buffered reader's lock while it is still reading.
+            if not any(reader.is_alive() for reader in self.readers):
+                try:process.stdout.close()
+                except OSError:self.errors.append('CHILD_STDOUT_CLOSE')
         self.transport.close()
         for out in self.stderr.values():out.close()
         inventories={}
@@ -408,7 +418,21 @@ class Lab:
         if len(line)>12000:raise LabError('COMMAND_BOUND')
         child=self.children[role]
         if child.poll() is not None:raise LabError('CHILD_NOT_RUNNING')
-        child.stdin.write(line.encode('ascii'));child.stdin.flush()
+        # A scenario alarm may already have fired before cleanup invokes STOP.
+        # Every command therefore owns a separate bounded nonblocking write.
+        data=memoryview(line.encode('ascii'));fd=child.stdin.fileno()
+        blocking=os.get_blocking(fd);deadline=time.monotonic()+1
+        os.set_blocking(fd,False)
+        try:
+            while data:
+                remaining=deadline-time.monotonic()
+                if remaining<=0:raise LabError('COMMAND_DEADLINE')
+                if not select.select([], [fd], [], remaining)[1]:raise LabError('COMMAND_DEADLINE')
+                try:written=os.write(fd,data)
+                except BlockingIOError:continue
+                if written<=0:raise LabError('COMMAND_IO')
+                data=data[written:]
+        finally:os.set_blocking(fd,blocking)
 
     def send(self,role,fields):
         if not isinstance(fields,dict) or any(not isinstance(v,str) for v in fields.values()):raise LabError('EXACT_STRING_FIELDS')

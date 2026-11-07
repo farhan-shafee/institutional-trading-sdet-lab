@@ -1,6 +1,8 @@
 """Fail-closed helpers shared by the portable host gate and matrix runner."""
 import hashlib
 import json
+import os
+import signal
 from pathlib import Path
 import re
 import shutil
@@ -76,25 +78,99 @@ def admit_results(bindings,discovered,outcomes):
     if any(outcomes.get(name)!='passed' for name in discovered):raise GateError('CASE_RESULT')
     return sorted(bindings)
 
+class _WindowsJob:
+    """Own a suspended child before it can create descendants (Windows 8+)."""
+    def __init__(self):
+        import ctypes
+        from ctypes import wintypes as w
+        self.ctypes=ctypes;self.handle=None
+        self.api=ctypes.WinDLL('kernel32',use_last_error=True)
+        size=ctypes.c_size_t;u64=ctypes.c_uint64
+        class Basic(ctypes.Structure):
+            _fields_=[('PerProcessUserTimeLimit',ctypes.c_int64),('PerJobUserTimeLimit',ctypes.c_int64),('LimitFlags',w.DWORD),('MinimumWorkingSetSize',size),('MaximumWorkingSetSize',size),('ActiveProcessLimit',w.DWORD),('Affinity',size),('PriorityClass',w.DWORD),('SchedulingClass',w.DWORD)]
+        class Counters(ctypes.Structure):
+            _fields_=[(name,u64) for name in ('ReadOperationCount','WriteOperationCount','OtherOperationCount','ReadTransferCount','WriteTransferCount','OtherTransferCount')]
+        class Extended(ctypes.Structure):
+            _fields_=[('BasicLimitInformation',Basic),('IoInfo',Counters),('ProcessMemoryLimit',size),('JobMemoryLimit',size),('PeakProcessMemoryUsed',size),('PeakJobMemoryUsed',size)]
+        class ThreadEntry(ctypes.Structure):
+            _fields_=[('dwSize',w.DWORD),('cntUsage',w.DWORD),('th32ThreadID',w.DWORD),('th32OwnerProcessID',w.DWORD),('tpBasePri',w.LONG),('tpDeltaPri',w.LONG),('dwFlags',w.DWORD)]
+        self.ThreadEntry=ThreadEntry
+        signatures={
+            'CreateJobObjectW':([ctypes.c_void_p,w.LPCWSTR],w.HANDLE),
+            'SetInformationJobObject':([w.HANDLE,ctypes.c_int,ctypes.c_void_p,w.DWORD],w.BOOL),
+            'OpenProcess':([w.DWORD,w.BOOL,w.DWORD],w.HANDLE),
+            'AssignProcessToJobObject':([w.HANDLE,w.HANDLE],w.BOOL),
+            'CreateToolhelp32Snapshot':([w.DWORD,w.DWORD],w.HANDLE),
+            'Thread32First':([w.HANDLE,ctypes.POINTER(ThreadEntry)],w.BOOL),
+            'Thread32Next':([w.HANDLE,ctypes.POINTER(ThreadEntry)],w.BOOL),
+            'OpenThread':([w.DWORD,w.BOOL,w.DWORD],w.HANDLE),
+            'ResumeThread':([w.HANDLE],w.DWORD),
+            'TerminateJobObject':([w.HANDLE,w.UINT],w.BOOL),
+            'CloseHandle':([w.HANDLE],w.BOOL),
+        }
+        for name,(args,result) in signatures.items():
+            function=getattr(self.api,name);function.argtypes=args;function.restype=result
+        self.handle=self.api.CreateJobObjectW(None,None)
+        try:
+            if not self.handle:raise GateError('CHILD_OWNERSHIP')
+            limits=Extended();limits.BasicLimitInformation.LimitFlags=0x2000 # KILL_ON_JOB_CLOSE
+            if not self.api.SetInformationJobObject(self.handle,9,ctypes.byref(limits),ctypes.sizeof(limits)):raise GateError('CHILD_OWNERSHIP')
+        except BaseException:self.close();raise
+
+    def attach_and_resume(self,process):
+        c=self.ctypes;a=self.api
+        handle=a.OpenProcess(0x0101,False,process.pid) # SET_QUOTA | TERMINATE
+        if not handle:raise GateError('CHILD_OWNERSHIP')
+        try:
+            if not a.AssignProcessToJobObject(self.handle,handle):raise GateError('CHILD_OWNERSHIP')
+        finally:a.CloseHandle(handle)
+        snapshot=a.CreateToolhelp32Snapshot(4,0) # TH32CS_SNAPTHREAD
+        if snapshot in (None,c.c_void_p(-1).value):raise GateError('CHILD_OWNERSHIP')
+        try:
+            entry=self.ThreadEntry();entry.dwSize=c.sizeof(entry);found=a.Thread32First(snapshot,c.byref(entry))
+            while found:
+                if entry.th32OwnerProcessID==process.pid:
+                    thread=a.OpenThread(2,False,entry.th32ThreadID) # SUSPEND_RESUME, our child only
+                    if not thread:raise GateError('CHILD_OWNERSHIP')
+                    try:
+                        if a.ResumeThread(thread)!=1:raise GateError('CHILD_OWNERSHIP')
+                    finally:a.CloseHandle(thread)
+                    return
+                entry.dwSize=c.sizeof(entry);found=a.Thread32Next(snapshot,c.byref(entry))
+            raise GateError('CHILD_OWNERSHIP')
+        finally:a.CloseHandle(snapshot)
+
+    def terminate(self):
+        if self.handle and not self.api.TerminateJobObject(self.handle,1):raise GateError('CHILD_TREE_CLEANUP')
+
+    def close(self):
+        if self.handle:self.api.CloseHandle(self.handle);self.handle=None
+
 def run_bounded(args,path,timeout,max_bytes=64*1024*1024,cwd=None,stdin_path=None,show_progress=False):
-    """Bound bytes, wall clock and the owned CLI; retain the first failed output."""
-    deadline=time.monotonic()+timeout;overflow=threading.Event();failure=[]
+    """Bound output and the whole owned CLI tree, including inherited pipes."""
+    deadline=time.monotonic()+timeout;overflow=threading.Event();stopped=threading.Event();failure=[]
     source=Path(stdin_path).open('rb') if stdin_path else subprocess.DEVNULL
+    process=None;reader=None;job=None
+    def terminate():
+        if job:job.terminate()
+        elif process:
+            try:os.killpg(process.pid,signal.SIGKILL)
+            except ProcessLookupError:pass
     try:
-        process=subprocess.Popen(args,cwd=cwd,stdin=source,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
-    except BaseException:
-        if stdin_path:source.close()
-        raise
-    try:
-        with Path(path).open('wb') as out:
+        if os.name=='nt':job=_WindowsJob()
+        options={'creationflags':4} if job else {'start_new_session':True}
+        process=subprocess.Popen(args,cwd=cwd,stdin=source,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,bufsize=0,**options)
+        if job:job.attach_and_resume(process)
+        # Unbuffered handles do not take a buffered-reader lock during shutdown.
+        with Path(path).open('wb',buffering=0) as out:
             def copy():
                 count=0;pending=b'';completed=0
                 try:
-                    while True:
-                        data=process.stdout.read1(8192)
-                        if not data:return
+                    while not stopped.is_set():
+                        data=os.read(process.stdout.fileno(),8192)
+                        if not data or stopped.is_set():return
                         remaining=max_bytes-count
-                        out.write(data[:max(0,remaining)]);out.flush();count+=len(data)
+                        out.write(data[:max(0,remaining)]);count+=len(data)
                         if count>max_bytes:overflow.set();return
                         if show_progress:
                             lines=(pending+data).split(b'\n');pending=lines[-1][-1024:]
@@ -102,22 +178,32 @@ def run_bounded(args,path,timeout,max_bytes=64*1024*1024,cwd=None,stdin_path=Non
                                 if line.startswith(b'CASE_END\t'):
                                     completed+=1
                                     if completed%10==0:print('Session controls completed: '+str(completed),flush=True)
-                except OSError:failure.append('CHILD_OUTPUT_IO')
+                except (OSError,ValueError):failure.append('CHILD_OUTPUT_IO')
             reader=threading.Thread(target=copy,daemon=True);reader.start()
             reason=None
             while process.poll() is None:
                 if overflow.is_set():reason='CHILD_OUTPUT_BUDGET';break
+                if failure:reason=failure[0];break
                 if time.monotonic()>=deadline:reason='CHILD_DEADLINE';break
                 threading.Event().wait(.01)
-            if reason is not None:process.kill()
-            process.wait(timeout=5);reader.join(timeout=2)
-            if reader.is_alive():raise GateError('CHILD_OUTPUT_SHUTDOWN')
-            if overflow.is_set():raise GateError('CHILD_OUTPUT_BUDGET')
+            if reason is None:
+                reader.join(timeout=min(2,max(0,deadline-time.monotonic())))
+                if reader.is_alive():reason='CHILD_OUTPUT_SHUTDOWN'
+            # Even a successful parent must not leave background descendants.
+            terminate();process.wait(timeout=5);reader.join(timeout=2)
+            if reader.is_alive() and reason is None:reason='CHILD_OUTPUT_SHUTDOWN'
             if reason:raise GateError(reason)
+            if overflow.is_set():raise GateError('CHILD_OUTPUT_BUDGET')
             if failure:raise GateError(failure[0])
             if process.returncode!=0:raise GateError('CHILD_NONZERO')
             return {'exit_code':0,'bytes':Path(path).stat().st_size}
     finally:
-        if process.poll() is None:process.kill();process.wait(timeout=5)
-        process.stdout.close()
-        if stdin_path:source.close()
+        stopped.set()
+        try:
+            terminate()
+            if process and process.poll() is None:process.kill();process.wait(timeout=5)
+        finally:
+            if reader:reader.join(timeout=2)
+            if process and process.stdout:process.stdout.close()
+            if job:job.close()
+            if stdin_path:source.close()
