@@ -18,3 +18,10 @@ coverage/
 
 __pycache__/
 *.pyc
+
+# Owned FIX runtime build products
+/tools/fix-session/java/lib/
+/tools/fix-session/java/target/
+/verification/fix-peer/go/*.reference
+/verification/fix-peer/go/download.json
+/verification/fix-peer/go/modules.json

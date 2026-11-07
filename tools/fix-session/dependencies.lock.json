@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "scope": "local-synthetic-transport-only",
+  "engine_versions": {
+    "quickfixj": "3.0.2",
+    "quickfixgo": "v0.9.12"
+  },
+  "images": {
+    "go": {
+      "tag": "golang:1.27.3-bookworm",
+      "digest": "sha256:025eefc1e8dbe63201734a72aaa0a55d7a077f2d8410432f8ae2f3e939f32871"
+    },
+    "java_runtime": {
+      "tag": "eclipse-temurin:21-jre-jammy",
+      "digest": "sha256:d4cbe963bb4f3a769d56473b32db2bfb46b0d4b29797c152815da692d9f9aab5"
+    },
+    "python_runtime": {
+      "tag": "python:3.14-slim-bookworm",
+      "digest": "sha256:1faf2343e747208b2a36e5f2b5ff908ec3b2d0078a6a7bfe73b535698fe83909"
+    },
+    "java_builder": {
+      "tag": "maven:3.9.11-eclipse-temurin-21",
+      "digest": "sha256:463a1849665463254b2dd56e3a5b316f1596bc93d0571065c06ea05bb48ab8f4"
+    }
+  },
+  "java_artifacts": [
+    {
+      "file": "HikariCP-4.0.3.jar",
+      "bytes": 159222,
+      "sha256": "7c024aeff1c1063576d74453513f9de6447d8e624d17f8e27f30a2e97688c6c9",
+      "maven": "groupId=com.zaxxer\nartifactId=HikariCP\nversion=4.0.3\n"
+    },
+    {
+      "file": "mina-core-2.2.9.jar",
+      "bytes": 709046,
+      "sha256": "09b4b5e416834e5281dd0dfccac1a10413d6f42c89f133b1c43641e34f33e840",
+      "maven": "artifactId=mina-core\ngroupId=org.apache.mina\nversion=2.2.9\n"
+    },
+    {
+      "file": "quickfixj-base-3.0.2.jar",
+      "bytes": 151408,
+      "sha256": "47ac4aa92410877c9660e8a1f3b04dc988ac3ba813ebc802eabb37e923fd6c3d",
+      "maven": "artifactId=quickfixj-base\ngroupId=org.quickfixj\nversion=3.0.2\n"
+    },
+    {
+      "file": "quickfixj-core-3.0.2.jar",
+      "bytes": 475237,
+      "sha256": "0eda0b8470846eb088126013da20d574f5eef02ed8d04604ca276ad4e6b33008",
+      "maven": "version=3.0.2\ngroupId=org.quickfixj\nartifactId=quickfixj-core\n"
+    },
+    {
+      "file": "quickfixj-messages-fix44-3.0.2.jar",
+      "bytes": 3327171,
+      "sha256": "b07529e6c3f70b2eea8ddabeae03688b093bc769a8bd7a202f1c5bbc9b6e6993",
+      "maven": "artifactId=quickfixj-messages-fix44\ngroupId=org.quickfixj\nversion=3.0.2\n"
+    },
+    {
+      "file": "slf4j-api-2.0.18.jar",
+      "bytes": 69982,
+      "sha256": "44508fd1576500688c790b190acdd16fec4f8c79a3e0b900afd70503cf055f55",
+      "maven": "artifactId=slf4j-api\ngroupId=org.slf4j\nversion=2.0.18\n"
+    },
+    {
+      "file": "slf4j-simple-2.0.17.jar",
+      "bytes": 15716,
+      "sha256": "ddfea59ac074c6d3e24ac2c38622d2d963895e17f70b38ed4bdae4d780be6964",
+      "maven": "artifactId=slf4j-simple\ngroupId=org.slf4j\nversion=2.0.17\n"
+    }
+  ],
+  "go_mod_sha256": "57e39ffd5e2d005398092a791e0ec56ad042cd663ac600c6d8d46029d793d415",
+  "go_sum_sha256": "b60f304d8734e1f00e046b253eba8a4a6d150eab4d5009982dfcc5791981f833",
+  "references": [
+    {
+      "name": "FIX Session Layer Technical Standard - Errata November 2020",
+      "url": "https://fixtrading.org/packages/fix-session-layer-technical-standard/?wpdmdl=2735",
+      "bytes": 1852710,
+      "sha256": "526e60993fce12bddb02add00db43eb762dbf618fad60886f78c33c766e26aa9"
+    },
+    {
+      "name": "FIX Session Layer Test Cases v1.0 - June 2020",
+      "url": "https://fixtrading.org/packages/fix-session-layer-test-cases/?wpdmdl=2736",
+      "bytes": 403523,
+      "sha256": "f08ca0ddcf516f8ac0ba2715077f8d22ee1729d899c9c07563d19845c4b0ba6e"
+    }
+  ]
+}
