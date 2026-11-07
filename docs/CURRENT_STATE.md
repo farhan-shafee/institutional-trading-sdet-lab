@@ -8,6 +8,18 @@ Reviewed **November 6, 2026**. The public institutional workflow is accepted and
 
 The canonical public domain passed analytics/RFQ/execution/cancellation/reconciliation in Chromium, Firefox and WebKit, including 4002-cent execution consideration, genuine clean merge/tree provenance, reload, read-only viewer and cross-visitor isolation. Dedicated PostgreSQL 17.10/TLS and its owner-authorized restart passed. See the [release receipt](PUBLIC_WORKFLOW_RELEASE_2026-11-06.md) and [production runbook](RAILWAY_PRODUCTION.md) for actual deployment IDs, policy, certificate operation, rollback and limits.
 
+## Local session runtime candidate — November 7, 2026
+
+[PR #34](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/34)
+implements the selected local Phase3C1 runtime. Both unchanged engines use an
+explicit TradeFlow matching-TestRequest response guard. The pre-metadata
+qualification passed43/43 cases and78/78 controls; complete candidate results
+and current checks are in the [runtime guide](FIX44_RUNTIME.md) and PR.
+Financial SDK handoff remains unfinished: current engine bytes still return
+FIELD_ORDER in the old decoder. No Phase3C/Phase4, merge, deployment or human
+acceptance follows from this implementation. Earlier accepted milestones and
+public release records below retain their dated scope.
+
 ## Accepted protocol implementation checkpoint
 
 | Item                | Verified result                                                                                                                                                                |

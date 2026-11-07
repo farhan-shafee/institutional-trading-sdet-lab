@@ -1,0 +1,42 @@
+name: TradeFlow local FIX session
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fix-session-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fix-session:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Node 24 LTS
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Python gate
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install locked application verifier
+        run: npm ci
+      - name: Mandatory complete synthetic session matrix
+        run: npm run test:fix-session
+      - name: Retain bounded evidence including first failures
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: fix-session-${{ github.run_attempt }}
+          path: artifacts/fix-session-*/
+          retention-days: 7
+          if-no-files-found: error
