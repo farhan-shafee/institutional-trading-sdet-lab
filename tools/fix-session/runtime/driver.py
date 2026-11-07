@@ -41,7 +41,7 @@ class FaultTransport:
     def __init__(self,lab):
         self.lab=lab;self.listener=None;self.sockets=[];self.stop=threading.Event();self.thread=None
         self.frames=[];self.lock=threading.Lock();self.cv=threading.Condition(self.lock);self.send_lock=threading.Lock()
-        self.rules=[];self.identities={};self.held=[]
+        self.rules=[];self.identities={};self.held=[];self.body_fields=BODY_FIELDS
 
     def start(self):
         self.listener=socket.socket();self.listener.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
@@ -65,7 +65,7 @@ class FaultTransport:
         if (fields['49'],fields['56'])!=expected:raise LabError('COMP_ID_MISMATCH')
         msg=fields['35']
         if msg not in ('A','0','1','2','3','4','5','D','8','F','9'):raise LabError('MESSAGE_UNSUPPORTED')
-        if set(fields)-HEADER_FIELDS-set(BODY_FIELDS[msg].split()):raise LabError('FIELD_UNSUPPORTED')
+        if set(fields)-HEADER_FIELDS-set(self.body_fields[msg].split()):raise LabError('FIELD_UNSUPPORTED')
         sent_at=timestamp(fields['52'])
         if msg=='A' and (fields.get('98')!='0' or fields.get('108')!='30' or fields.get('141','N')!='N'):raise LabError('LOGON_PROFILE')
         if msg=='4' and fields.get('123')!='Y':raise LabError('RESET_UNSUPPORTED')
@@ -79,6 +79,10 @@ class FaultTransport:
             economic={k:v for k,v in fields.items() if k not in ('8','9','10','34','43','52','122')}
             if key in self.identities and self.identities[key]!=economic:raise LabError('DUPLICATE_CONFLICT')
             self.identities[key]=economic
+
+    def forward(self,direction,raw,target):
+        with self.send_lock:target.sendall(raw)
+        self.record(direction,'forwarded_bytes',raw)
 
     def run(self):
         try:
@@ -117,11 +121,9 @@ class FaultTransport:
                                             self.cv.notify_all()
                                         self.record(direction,'held_bytes',raw)
                                         continue
-                                    with self.send_lock:target.sendall(raw)
-                                    self.record(direction,'forwarded_bytes',raw)
+                                    self.forward(direction,raw,target)
                                     if action=='duplicate':
-                                        with self.send_lock:target.sendall(raw)
-                                        self.record(direction,'forwarded_bytes',raw)
+                                        self.forward(direction,raw,target)
                                 if not framers[source].blocked:break
                                 frames=framers[source].feed(b'')
                         if disconnected:break
@@ -264,8 +266,13 @@ class Lab:
             'owned_state_bytes':owned_state_bytes,
         }
         # The outer gate captures this bounded synthetic evidence, including failures.
-        print('LAB_RECEIPT\t'+json.dumps(self.receipt,sort_keys=True),flush=True)
+        self.emit_receipt()
         if kind is None and self.errors:raise LabError(self.errors[0])
+
+    def emit_receipt(self):
+        print('LAB_RECEIPT\t'+json.dumps(self.receipt,sort_keys=True),flush=True)
+
+    def child_event(self,event,payload):pass
 
     def fail(self,code):
         with self.cv:self.errors.append(code);self.cv.notify_all()
@@ -292,7 +299,9 @@ class Lab:
                 with self.cv:
                     if len(self.events)>=1024:raise LabError('CHILD_EVENT_BUDGET')
                     if kind=='LOGON':self.connections[role]+=1
-                    self.events.append({'role':role,'pid':process.pid,'connection_index':self.connections[role],'kind':kind,'fields':fields,'at':time.monotonic()});self.cv.notify_all()
+                    event={'role':role,'pid':process.pid,'connection_index':self.connections[role],'kind':kind,'fields':fields,'at':time.monotonic()}
+                    self.events.append(event);self.cv.notify_all()
+                self.child_event(event,payload)
                 if kind=='ERROR':raise LabError('CHILD_RUNTIME_ERROR')
         except LabError as error:self.fail(str(error))
         except (ValueError,UnicodeError):self.fail('CHILD_PROTOCOL')

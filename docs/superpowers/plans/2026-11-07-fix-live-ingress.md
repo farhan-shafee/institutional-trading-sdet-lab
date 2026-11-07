@@ -40,24 +40,24 @@ Interfaces: `decodeLiveFix44(input:Uint8Array):LiveFixFrame`, `liveFix44Bytes(fr
 
 ### Task 2: Owned schema9 observations and atomic eligibility
 
-Files: add db/live-migrations/009_fix_live_ingress.sql, app/persistence/postgres/live-workflow.ts, app/domain/workflow/live-database-contract.ts, app/server/fix/live-application.ts; tests/postgres/fix-live.test.ts and fixtures.
+Files: add db/live-migrations/009_fix_live_ingress.sql, app/persistence/postgres/live-workflow.ts, app/domain/workflow/live-database-contract.ts, app/server/fix/live-application.ts; tests/fix-live/sql.test.ts and fixtures.
 Interfaces: `LiveWorkflowDatabase` satisfies existing WorkflowDatabase SDK type with exact9 checksums; new `LiveFixApplicationService` default OFF, authorized command/read/apply. Live commands register session/connection, bind profile, observe original raw, accept validated callback, then CLAIM/QUEUE/PREPARE/APPLY through SQL. Fixed safe errors and original-key receipts remain bounded.
 
-- [ ] Reproduce missing schema/ingress with real owned PostgreSQL tests; Expected RED absent009/profile functions.
-- [ ] Implement additive RLS/immutable/composite-key state; live fields parsed independently in SQL, body terms use existing economics. Core admission includes profile/context in fingerprint and live session slots.
-- [ ] Prove raw-only, caller booleans, wrong/cross-sandbox proof, viewer, expired fence/generation and old API calls cannot prepare/apply; forged raw/ID/body conflicts roll back.
-- [ ] Prove actual acknowledgment/fills/cancel/reject through unchanged kernel, effect-backed capacity and zero duplicate money/capacity on replay; original-key unknown-COMMIT recovery.
-- [ ] Verify schema8 frozen tests remain valid, schema9 defaults explicit, source preservation and targeted tests pass; commit.
+- [x] Reproduce missing schema/ingress with real owned PostgreSQL tests; Expected RED absent009/profile functions.
+- [x] Implement additive RLS/immutable/composite-key state; live fields parsed independently in SQL, body terms use existing economics. Core admission includes profile/context in fingerprint and live session slots.
+- [x] Prove raw-only, caller booleans, wrong/cross-sandbox proof, viewer, expired fence/generation and old API calls cannot prepare/apply; forged raw/ID/body conflicts roll back.
+- [x] Prove actual acknowledgment/fills/cancel/reject through unchanged kernel, effect-backed capacity and zero duplicate money/capacity on replay; original-key unknown-COMMIT recovery.
+- [x] Verify schema8 frozen tests remain valid, schema9 defaults explicit, source preservation and targeted tests pass; commit.
 
 ### Task 3: Bounded real-engine bridge
 
-Files: add tools/fix-session/live_bridge.py, app/server/fix/live-controller.ts, new selected-mode settings/allowlists in engine wrappers and runtime helpers, tests/fix-live/*.
+Files: add tools/fix-session/runtime/live_bridge.py, app/server/fix/live-controller.ts, new selected-mode settings/allowlists in engine wrappers and runtime helpers, tests/fix-live/*.
 Interfaces: outer JSONL version1 profile, <=24576 bytes/queue16; session/store/connection/attempt IDs are distinct; raw observation and callback acknowledgment are separate; original child SEND limit remains12000 bytes.
 
-- [ ] Write controls RED for absent bridge, full queue/pipes, no SQL in engine callbacks, wrong connection/field correspondence and FIFO holds.
-- [ ] Implement raw capture before forwarding, actual FromApp event correlation and five-second ACK admission. Keep admin handling and response-guard expiry independent of financial progress.
-- [ ] Exercise real D/8/F/9 financial-valid fixtures, reconnect/store continuity and physical retransmission with no synthetic callback or normalized frame.
-- [ ] Targeted controls and complete89-control standalone runtime pass; commit.
+- [x] Write controls RED for absent bridge, full queue/pipes, no SQL in engine callbacks, wrong connection/field correspondence and FIFO holds.
+- [x] Implement raw capture before forwarding, actual FromApp event correlation and five-second ACK admission. Keep admin handling and response-guard expiry independent of financial progress.
+- [x] Exercise real D/8/F/9 financial-valid fixtures, reconnect/store continuity and physical retransmission with no synthetic callback or normalized frame.
+- [x] Targeted controls and complete89-control standalone runtime pass; commit.
 
 ### Task 4: Independent live evidence and crash recovery
 

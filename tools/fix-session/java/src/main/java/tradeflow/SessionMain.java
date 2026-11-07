@@ -12,13 +12,17 @@ import quickfix.*;
 /** Opt-in, synthetic local initiator. No HTTP, database or financial application. */
 public final class SessionMain implements Application {
     private volatile SessionID id;
+    private static volatile LiveEvents selectedLiveOutput;
     private final ResponseGuard guard=new ResponseGuard();
     private volatile boolean invalidRequest;
     private static final DateTimeFormatter SENDING_TIME=new DateTimeFormatterBuilder().appendPattern("uuuuMMdd-HH:mm:ss").optionalStart().appendFraction(ChronoField.NANO_OF_SECOND,3,9,true).optionalEnd().toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT);
     private static final int[] FIELDS={35,34,49,56,43,52,122,112,7,16,36,123,141,11,41,37,17,150,39,44,38,14,151,6,32,31,54,55};
-    private static synchronized void event(String kind,String payload){
-        System.out.println("EVENT\t"+kind+"\t"+Base64.getEncoder().encodeToString(payload.getBytes(StandardCharsets.US_ASCII)));
-        System.out.flush();
+    private static void event(String kind,String payload){
+        if(selectedLiveOutput!=null){selectedLiveOutput.emit(kind,payload);return;}
+        synchronized(SessionMain.class){
+            System.out.println("EVENT\t"+kind+"\t"+Base64.getEncoder().encodeToString(payload.getBytes(StandardCharsets.US_ASCII)));
+            System.out.flush();
+        }
     }
     private static String fields(Message message){
         StringBuilder out=new StringBuilder();
@@ -52,7 +56,13 @@ public final class SessionMain implements Application {
         }catch(FieldNotFound|DateTimeException ignored){}
     }
     public void toApp(Message message,SessionID session){event("APP_OUT",fields(message));}
-    public void fromApp(Message message,SessionID session){event("APP",fields(message));}
+    public void fromApp(Message message,SessionID session){
+        if(selectedLiveOutput!=null){
+            String raw=message.toRawString();
+            if(raw==null){invalidRequest=true;event("ERROR","LIVE_RAW_REQUIRED");return;}
+            event("LIVE_APP",raw);
+        }else event("APP",fields(message));
+    }
 
     private static final class QuietLog implements Log {
         public void clear(){}
@@ -131,6 +141,10 @@ public final class SessionMain implements Application {
             require(settings,sessionID,"UseDataDictionary","Y");require(settings,sessionID,"ValidateChecksum","Y");
             require(settings,sessionID,"CheckLatency","Y");require(settings,sessionID,"MaxLatency","120");
             require(settings,sessionID,"TradeFlowResponseGuard",ResponseGuard.NAME);
+            if(settings.isSetting(sessionID,"TradeFlowIngressProfile")){
+                require(settings,sessionID,"TradeFlowIngressProfile","live-fix-ingress-v1");
+                selectedLiveOutput=new LiveEvents(System.out);event("LIVE_PROFILE","profile=live-fix-ingress-v1\u0001");
+            }
             SessionMain app=new SessionMain();
             SocketInitiator initiator=new SocketInitiator(app,new FileStoreFactory(settings),settings,new QuietFactory(),new DefaultMessageFactory());
             try{
@@ -139,7 +153,7 @@ public final class SessionMain implements Application {
                 Thread reader=new Thread(()->readCommands(input),"synthetic-command-input");reader.setDaemon(true);reader.start();
                 boolean timedOut=false;
                 for(;;){
-                    if(app.invalidRequest)throw new IllegalArgumentException();
+                    if(app.invalidRequest||(selectedLiveOutput!=null&&selectedLiveOutput.failed()))throw new IllegalArgumentException();
                     String expired=app.guard.expire(System.nanoTime());
                     if(!timedOut&&expired!=null){event("PROFILE_TIMEOUT","112="+expired+"\u0001");initiator.stop(true);timedOut=true;}
                     InputCommand command=input.poll(10,TimeUnit.MILLISECONDS);
@@ -156,7 +170,7 @@ public final class SessionMain implements Application {
                         default -> throw new IllegalArgumentException();
                     }
                 }
-            }finally{initiator.stop(true);}
+            }finally{initiator.stop(true);if(selectedLiveOutput!=null)selectedLiveOutput.close();}
     }
     public static void main(String[] args){
         try{run(args);}catch(Exception error){event("ERROR","RUNTIME_COMMAND_OR_STARTUP");System.exit(2);}

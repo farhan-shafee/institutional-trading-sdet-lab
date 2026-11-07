@@ -137,3 +137,12 @@ Phase 3C2 implementation needs its own reviewed spec, fixtures and additive migr
   terms; old SYN transport probes are negative compatibility fixtures only.
 
 The schema9 migration lives in `db/live-migrations/009_fix_live_ingress.sql` and uses an explicit live loader. The existing default loader discovers every file in db/migrations, so putting009 there would silently upgrade the schema8 default and break its frozen clients. Cost: the live profile has a separate opt-in migration entry point.
+
+Run evidence uses disjoint internal sub-budgets under the same aggregate64MiB:
+32MiB for engine state/wire/child output/bridge events,24MiB for the durable
+host journal, and8MiB for attached host stdio. This prevents two independently
+bounded64MiB components from consuming128MiB together. Quota failure preserves
+original intent and authorized original-key recovery; no data is evicted. The
+container still has the required64MiB tmpfs ceiling and the default standalone
+runtime retains its frozen64MiB behavior. The internal partitions are stricter
+admission limits, not promises that all logical/physical maxima fit together.

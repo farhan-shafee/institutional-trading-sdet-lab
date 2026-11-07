@@ -42,7 +42,7 @@ def main():
         return path
     def source_inputs():
         paths=['package.json','package-lock.json','scripts/test-fix-session.py','scripts/test-fix-session.ts','scripts/verify-fix-session-compatibility.ts','contracts/fix-session-runtime-v1.json','verification/vendor/quickfix/FIX44.xml','tools/fix-session/Dockerfile','tools/fix-session/Dockerfile.dockerignore','tools/fix-session/dependencies.lock.json','tools/fix-session/preservation.json','tools/fix-session/java/pom.xml','verification/fix-peer/go/go.mod','verification/fix-peer/go/go.sum']
-        for pattern in ['tools/fix-session/*.py','tools/fix-session/runtime/*.py','tools/fix-session/calendar/*.go','tools/fix-session/java/src/**/*.java','verification/fix-peer/go/*.go','tests/fix-session/*.py','test-data/fix44/runtime/manifest.json','test-data/fix44/runtime/bindings.json']:
+        for pattern in ['tools/fix-session/*.py','tools/fix-session/runtime/*.py','tools/fix-session/calendar/*.go','tools/fix-session/java/src/**/*.java','verification/fix-peer/go/*.go','tests/fix-session/*.py','tests/fix-live/*.py','test-data/fix44/live/manifest.json','test-data/fix44/runtime/manifest.json','test-data/fix44/runtime/bindings.json']:
             paths.extend(p.relative_to(ROOT).as_posix() for p in ROOT.glob(pattern) if p.is_file())
         return input_identity(ROOT,paths)
     try:

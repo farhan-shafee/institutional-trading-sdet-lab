@@ -14,12 +14,16 @@
 !tests/
 !tests/fix-session/
 !tests/fix-session/**
+!tests/fix-live/
+!tests/fix-live/*.py
 !scripts/
 !scripts/test-fix-session.py
 !contracts/
 !contracts/fix-session-runtime-v1.json
 !test-data/
 !test-data/fix44/
+!test-data/fix44/live/
+!test-data/fix44/live/manifest.json
 !test-data/fix44/runtime/
 !test-data/fix44/runtime/manifest.json
 !test-data/fix44/runtime/bindings.json
