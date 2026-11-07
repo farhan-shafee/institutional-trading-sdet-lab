@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "profile": "live-fix-ingress-v1",
+  "verification_profile": "fix-live-application-v1",
+  "physical_schema_revision": 9,
+  "scope": "synthetic-local-owned-workflow",
+  "feature_default": "OFF",
+  "external_delivery_verified": false,
+  "external_completeness_verified": false,
+  "selected_dealer": "ATLAS",
+  "callback_provenance": "TRUSTED_LOCAL_CONTROLLER",
+  "wire": { "bytes": 8192, "fields": 64, "value_bytes": 256 },
+  "bridge": {
+    "version": 1,
+    "envelope_bytes_including_lf": 24576,
+    "queued_frames": 16,
+    "inflight_application_per_direction": 1,
+    "ack_seconds": 5
+  },
+  "owned_budget": {
+    "aggregate_bytes": 67108864,
+    "runtime_bytes": 33554432,
+    "journal_bytes": 25165824,
+    "host_bytes": 8388608,
+    "host_bridge_stdio_bytes": 7864320,
+    "host_verification_reserve_bytes": 524288
+  },
+  "runtime": {
+    "network": "none",
+    "published_ports": 0,
+    "bind_mounts": 0,
+    "read_only_root": true,
+    "uid_gid": "1000:1000",
+    "cpus": 1,
+    "memory_bytes": 1073741824,
+    "memory_swap_bytes": 1073741824,
+    "pids": 128,
+    "shm_bytes": 67108864,
+    "state_tmpfs_bytes": 67108864,
+    "cap_drop": ["ALL"],
+    "security_opt": ["no-new-privileges"]
+  },
+  "sequence_domain": "VERIFIED_STORE_AND_DIRECTION",
+  "legacy_epoch_domain": "UNCHANGED_OFFLINE_METADATA",
+  "maximum_connections_per_session": 8,
+  "gate_seconds": 900,
+  "required_groups": {
+    "engine_bridge": 16,
+    "independent_python": 6,
+    "sql_admission": 30,
+    "controller": 4,
+    "independent_application": 14,
+    "process_kill_recovery": 6,
+    "lifecycle": 6
+  },
+  "required_controls": 82,
+  "unrecoverable_callback_outcome": "UNRESOLVED",
+  "unknown_commit_recovery": "ORIGINAL_DURABLE_REQUEST_AND_FINANCIAL_KEY"
+}

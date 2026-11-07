@@ -1,7 +1,7 @@
 /** Authored SQL callback witnesses test database admission; real-engine proof is a later gate. */
 import assert from 'node:assert/strict';
 import { before, after, test } from 'node:test';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { startOwnedPostgres } from '../../scripts/owned-postgres.js';
 import { bootstrap, readOwner } from '../../scripts/workflow-database.js';
@@ -16,7 +16,12 @@ import { DomainError } from '../../app/domain/errors.js';
 let owned: Awaited<ReturnType<typeof startOwnedPostgres>> | undefined;
 const prior = process.env['TF_DB_OWNER_FILE'];
 before(async () => {
-  owned = await startOwnedPostgres(process.env['TF_PG_BIN']);
+  owned = await startOwnedPostgres(process.env['TF_PG_BIN'], {
+    onAllocated: async (path) => {
+      const pointer = process.env['TF_LIVE_OWNER_POINTER'];
+      if (pointer) await writeFile(pointer, path + '\n', { mode: 0o600 });
+    },
+  });
   try {
     await bootstrap(owned.path);
     process.env['TF_DB_OWNER_FILE'] = owned.path;

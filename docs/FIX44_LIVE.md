@@ -1,47 +1,119 @@
-# Selected live financial ingress — Phase3C2 work in progress
+# Selected local FIX application — Phase3C2
 
-This implementation is in progress on a branch based on the qualified Phase3C1
-runtime. It is not a completed financial adapter, accepted release, merge or
-deployment. See the [design](superpowers/specs/2026-11-07-fix-live-ingress-design.md)
-and [implementation plan](superpowers/plans/2026-11-07-fix-live-ingress.md).
+The opt-in `live-fix-ingress-v1` path connects the pinned local QuickFIX/J3.0.2
+and Go v0.9.12 peers to the existing owned SQL financial authority. The feature
+remains disabled by default. The implementation is awaiting final qualification
+and human acceptance on its feature branch.
 
-The first boundary is a separate `live-fix-ingress-v1` decoder. It preserves the
-observed bytes and SHA256 in a private provenance registry. Fresh ordered headers
-are8,9,35,34,49,52,56; retransmissions add43=Yafter34 and122after56. Header timestamps
-require real UTC calendar dates and exactly three fractional digits. Only ATLAS
-is selected: D/Fgo TRADEFLOW→ATLAS;8/9return ATLAS→TRADEFLOW. NewOrderSingle requires
-transport field21=1. Existing business value/required-field rules remain intact.
+The selected environment is Linux or WSL with Docker and Node24. Data, orders,
+RFQs and dealer responses are synthetic. The peer session selects ATLAS; D/F
+travel TRADEFLOW→ATLAS and8/9travel ATLAS→TRADEFLOW. External delivery and external
+completeness remain unverified. Callback provenance is a trusted local controller
+witness rather than cryptographic external provenance.
 
-A parsed-field projection validates business terms; it is never encoded into
-replacement wire or admitted to the legacy decoder trust registry. Calling
-`decodeFix44` on these actual header layouts still rejects FIELD_ORDER. A live
-parsed result proves neither ownership nor financial eligibility. SQL observation,
-validated engine callback, fenced preparation/application and independent financial
-verification follow separate boundaries; the financial kernel remains authoritative.
+See the [design](superpowers/specs/2026-11-07-fix-live-ingress-design.md),
+[plan](superpowers/plans/2026-11-07-fix-live-ingress.md) and versioned
+[contract](../contracts/fix-live-application-v1.json).
 
-The additive database boundary now uses opt-in migration009 in
-`db/live-migrations`, `LiveWorkflowDatabase` and `LiveFixApplicationService`.
-Bootstrap the existing owned schema8 first, then explicitly call `migrateLive`.
-Repeated live migration verifies the exact nine checksums; default schema8
-clients reject schema9. No default loader, public route or legacy migration is
-changed. The SDK is disabled unless explicitly constructed with `enabled=true`.
+## Boundaries
 
-SQL retains original observations, accepts a separate matching callback witness,
-checks owned order terms itself and stores engine sequence slots by store and
-direction. Connection ordinals fence earlier process connections. Raw evidence
-alone cannot prepare or apply. Existing public metadata, ingest and apply entry
-points reject a live binding; private snapshots preserve their proven command
-and financial application bodies. Live request fingerprints extend receipts
-with the full profile/context without another quota charge. Rollback removes
-financial effects and capacity consumption together. An unknown COMMIT is never
-retried internally; recovery uses the original key and intent.
+| Component                  | Responsibility                                                                                                                                                                          |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Live decoder               | Validate exact captured bytes, framing, dictionary/profile, ordered headers and business strings; retain bytes/SHA256 in its separate private provenance registry.                      |
+| Private engine bridge      | Hold application wire before forwarding; emit a separate actual FromApp callback; preserve FIFO across application/admin frames and stop when evidence is unresolved.                   |
+| Durable controller journal | Retain original observation, request, callback witness, work and financial keys before dispatch; permit one writer and read-only original-intent inspection after a crash.              |
+| Opt-in schema9 SDK/SQL     | Verify current proof/generation, owned terms, immutable session/store/connection and byte/callback correlation; fence the lane and apply through the unchanged atomic financial kernel. |
+| Independent verifier       | Use a SELECT-only schema9 client, pinned independent SQL, original journal and Python dictionary/rational oracle in one authorized repeatable-read snapshot.                            |
 
-The database admission tests author callback witnesses solely to test SQL. They
-are not evidence that a real engine emitted those callbacks. The real-engine
-bridge and independent financial/crash qualification remain unfinished.
+No public HTTP route or database credential is added to the peer container.
+Migration009 is explicitly loaded from `db/live-migrations` after owned schema8
+bootstrap. Default schema8 loaders/clients and historical reports retain their
+existing contracts. Migrations001–008, financial fingerprints/kernel/effect bodies,
+legacy byte trust and434 preserved files remain frozen.
 
-`npm run test:fix-live` verifies20 literal wire vectors through TypeScript and an
-independent Python/dictionary oracle. Fourteen authored financial-valid frames
-are distinguished from six unmodified captured3C1 transport probes. The latter
-remain negative cases: some have synthetic non-UUID references and others lack
-required business fields such as59/37/60. Nothing silently repairs those bytes.
+Fresh header order is8,9,35,34,49,52,56. Retransmissions insert43=Yafter34 and122after56.
+Header timestamps use real UTC calendar dates and exactly three fractional digits.
+NewOrderSingle additionally requires21=1 as transport metadata. Original raw bytes
+are never re-encoded to obtain admission. The20 literal corpus keeps the six old
+captured transport probes as negative cases; only the new profile accepts its
+fourteen authored valid vectors. The legacy decoder still rejects the captured
+engine header layout with `FIELD_ORDER`.
+
+## Ownership, replay and bounds
+
+Each physical connection receives a fresh registered UUID. Verified process
+restarts retain the session/store incarnation and native sequence progression.
+SQL sequence slots use store/direction; legacy epoch1 remains offline metadata.
+Repeated logical messages reuse their original work and financial key. Current
+proof/generation is checked before original-key replay. New progress also needs
+an authorized owner/fence. Missing callback evidence does not become eligibility.
+
+The queue holds at most16 frames and one application per direction is in flight.
+Both durable acknowledgment phases are bounded to five seconds. Wire remains
+8192 bytes/64 fields/256 bytes per value; envelopes remain24576 bytes including LF.
+The64MiB owned budget uses disjoint32MiB runtime,24MiB journal and8MiB host partitions.
+Host bridge stdio is capped at7.5MiB with512KiB reserved for verification output.
+Control envelopes share the runtime budget. Exhaustion retains existing evidence
+and stops admission. Independent quota maxima are not simultaneously promised.
+
+The guest has networknone, no published ports/binds, a read-only root, UID/GID1000,
+capdropALL/no-new-privileges,1CPU,1GiB memory/swap,128PIDs,64MiBshm and64MiB state tmpfs.
+The application SDK retains pool4/pending12 and the existing connection/query/
+statement/lock/idle/transaction bounds. Retry is limited to known pre-COMMIT
+40001/40P01 failures. Unknown COMMIT is recovered explicitly with the original key.
+The independent reader retains the existing SELECT-only verifier's pool2/pending4
+and transaction bounds.
+
+## Crash outcomes
+
+The process-kill controls target an actual fill after an owned acknowledgment.
+They kill the controller with SIGKILL at a real transaction/callback barrier.
+
+| Window                                 | Required observed outcome                                                                              |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Before observation COMMIT              | Original OBSERVE may commit once; the missing callback keeps the fill unapplied.                       |
+| After observation COMMIT               | Original OBSERVE replays; raw evidence remains insufficient to apply.                                  |
+| Native callback before durable journal | No original ACCEPT request exists; recovery refuses to reconstruct it and the fill remains unresolved. |
+| ACCEPT COMMIT before acknowledgment    | Original ACCEPT replays; financial work remains incomplete.                                            |
+| Before financial COMMIT                | Original APPLY uses the retained prepared financial key and produces one fill/cash/position effect.    |
+| After financial COMMIT before response | Original APPLY replays the existing result with no second execution or capacity consumption.           |
+
+`recoverLiveRequest` defaults off and reads retained intent without clearing a
+stale writer lock. `LiveFixController.recoverKnown` uses the same admission.
+Current authority and unchanged payload remain required. Store loss, missing
+native evidence or an unrecoverable fence stays unresolved; a replacement store,
+callback or financial key is never invented. An actual duplicate-order rejection
+(103=6) also remains unresolved under the existing financial rule. A supported
+synthetic rejection uses103=99 and the existing rejection reason.
+
+## Running the complete gate
+
+```sh
+npm ci
+npm run test:fix-live-application
+```
+
+The mandatory82-control gate builds a fresh pinned image, creates private owned
+PostgreSQL instances, installs schema9 explicitly, checks runtime isolation,
+freezes source inputs and retains failed attempts with ownership-checked cleanup.
+Its groups are16 bridge/native,6 independent Python,30 SQL admission,4 controller,
+14 independent application/reconciliation,6 real process-kill recovery and6
+lifecycle controls. The lifecycle set includes both conventions/BUY/SELL fills,
+rejection, cancel rejection/acknowledgment, partial cancel, pending-cancel fills,
+too-late cancellation, logical replay and verified peer restarts.
+
+The new CI workflow runs this gate independently. `npm run validate:all` includes
+it after the unchanged legacy gates. Normal validation, repeated browsers, two
+full PostgreSQL runs, workstation baseline/repeat, public-demo and the standalone
+43-scenario/89-control runtime are still required for release qualification.
+Gate logs/summary are under `artifacts/fix-live-application-*`; durable private
+case evidence stays under ignored `.local/fix-live-gates`.
+
+Independent live reports carry their own schema9/profile, SQL/source hashes,
+snapshot ID and financial/protocol/live observation/live acceptance watermarks.
+They check accepted bytes against the journal's actual callback witness, correlate
+original keys/work/effects and recompute each fill using rational arithmetic.
+SQL and controlled corruption cases cover raw/callback bytes, process IDs, live
+sequence slots, request/financial fingerprints, capacity and missing witnesses.
+A report can establish observed local application consistency; external delivery
+and external completeness remain false.

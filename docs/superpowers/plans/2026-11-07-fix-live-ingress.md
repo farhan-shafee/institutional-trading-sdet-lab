@@ -64,10 +64,10 @@ Interfaces: outer JSONL version1 profile, <=24576 bytes/queue16; session/store/c
 Files: add verification/sql/fix_live_application_v1.sql, verification/python/fix_live_application.py, app/server/fix/live-reconciliation.ts, scripts/test-fix-live.ts and owned live-runtime fixtures.
 Interfaces: new schema9/live-v1 snapshot/watermarks bind observation/callback/store and actual financial commands; external delivery/completeness alwaysfalse.
 
-- [ ] Literal independent verifier tests RED for missing implementation; isolated corruption must produce named findings.
-- [ ] Actual process kills before/after observation, callback acknowledgment and financial COMMIT; unrecoverable callback evidence blocks the lane. No reset/new key/retry-after-unknown-COMMIT.
-- [ ] Full authorized lifecycle BUY/SELL/conventions, original-key replay, rotation, quotas, authority and atomicity pass with independent per-fill rational results.
-- [ ] Commit complete new gate with all outcomes/uncertainty retained.
+- [x] Literal independent verifier tests RED for missing implementation; isolated corruption must produce named findings.
+- [x] Actual process kills before/after observation, callback acknowledgment and financial COMMIT; unrecoverable callback evidence blocks the lane. No reset/new key/retry-after-unknown-COMMIT.
+- [x] Full authorized lifecycle BUY/SELL/conventions, original-key replay, rotation, quotas, authority and atomicity pass with independent per-fill rational results.
+- [x] Commit complete new gate with all outcomes/uncertainty retained.
 
 ### Task 5: Qualification and reviewable delivery
 

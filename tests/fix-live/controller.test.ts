@@ -2,8 +2,6 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { randomUUID } from 'node:crypto';
-import { execFile, spawn } from 'node:child_process';
-import { promisify } from 'node:util';
 import { join } from 'node:path';
 import { rm, writeFile } from 'node:fs/promises';
 import { startOwnedPostgres } from '../../scripts/owned-postgres.js';
@@ -14,11 +12,9 @@ import { LiveFixApplicationService } from '../../app/server/fix/live-application
 import { LiveFixController } from '../../app/server/fix/live-controller.js';
 import { LiveJournal } from '../../app/server/fix/live-journal.js';
 import { DomainError } from '../../app/domain/errors.js';
+import { runtime as createLiveRuntime } from './runtime-fixture.js';
 import { fixture, report } from '../postgres/fix-fixture.js';
 
-const execute = promisify(execFile);
-const docker = (...args: string[]) =>
-  execute('docker', args, { encoding: 'utf8', timeout: 15000, maxBuffer: 131072 });
 let owned: Awaited<ReturnType<typeof startOwnedPostgres>> | undefined;
 const previousOwner = process.env['TF_DB_OWNER_FILE'];
 const image = process.env['TF_FIX_LIVE_IMAGE'] ?? '';
@@ -202,135 +198,9 @@ after(async () => {
 });
 
 async function runtime() {
-  const identity = {
-    run_id: randomUUID(),
-    session_id: randomUUID(),
-    store_id: randomUUID(),
-    connection_id: randomUUID(),
-    runtime_hash: image.slice(7),
-  };
-  const name = 'tradeflow-live-integration-' + identity.run_id;
-  async function remove() {
-    let inspected: unknown;
-    try {
-      inspected = JSON.parse((await docker('inspect', name)).stdout) as unknown;
-    } catch (error) {
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'stderr' in error &&
-        typeof error.stderr === 'string' &&
-        /No such|no such/.test(error.stderr)
-      )
-        return;
-      throw error;
-    }
-    assert.ok(Array.isArray(inspected));
-    const item = inspected[0] as {
-      Id: string;
-      Name: string;
-      Config: { Labels: Record<string, string> };
-    };
-    assert.equal(item.Name, '/' + name);
-    assert.equal(item.Config.Labels['tradeflow.run_id'], identity.run_id);
-    assert.equal(item.Config.Labels['tradeflow.scope'], 'synthetic-fix-live-integration');
-    await docker('rm', '--force', item.Id);
-  }
-  try {
-    const created = await docker(
-      'create',
-      '--interactive',
-      '--name',
-      name,
-      '--label',
-      'tradeflow.run_id=' + identity.run_id,
-      '--label',
-      'tradeflow.scope=synthetic-fix-live-integration',
-      '--log-driver',
-      'none',
-      '--network',
-      'none',
-      '--read-only',
-      '--cap-drop',
-      'ALL',
-      '--security-opt',
-      'no-new-privileges',
-      '--cpus',
-      '1',
-      '--memory',
-      '1g',
-      '--memory-swap',
-      '1g',
-      '--pids-limit',
-      '128',
-      '--shm-size',
-      '64m',
-      '--tmpfs',
-      '/state:rw,nosuid,nodev,noexec,size=64m,uid=1000,gid=1000,mode=0700',
-      image,
-      'python',
-      'tools/fix-session/runtime/live_bridge.py',
-      '--root',
-      '/state/' + identity.run_id,
-      '--run-id',
-      identity.run_id,
-      '--session-id',
-      identity.session_id,
-      '--store-id',
-      identity.store_id,
-      '--connection-id',
-      identity.connection_id,
-      '--runtime-hash',
-      identity.runtime_hash,
-    );
-    const id = created.stdout.trim();
-    assert.match(id, /^[a-f0-9]{64}$/);
-    const inspected = JSON.parse((await docker('inspect', id)).stdout) as Array<{
-      Image: string;
-      HostConfig: {
-        NetworkMode: string;
-        ReadonlyRootfs: boolean;
-        Binds: unknown;
-        PortBindings: unknown;
-        CapDrop: string[];
-        Memory: number;
-        MemorySwap: number;
-        NanoCpus: number;
-        PidsLimit: number;
-        ShmSize: number;
-        SecurityOpt: string[];
-        LogConfig: { Type: string; Config: unknown };
-      };
-      Config: { User: string };
-      Mounts: Array<{ Type: string }>;
-    }>;
-    const item = inspected[0]!;
-    assert.equal(item.Image, image);
-    const h = item.HostConfig;
-    assert.equal(h.NetworkMode, 'none');
-    assert.equal(h.ReadonlyRootfs, true);
-    assert.deepEqual(h.Binds ?? [], []);
-    assert.deepEqual(h.PortBindings ?? {}, {});
-    assert.deepEqual(h.CapDrop, ['ALL']);
-    assert.equal(h.Memory, 1073741824);
-    assert.equal(h.MemorySwap, 1073741824);
-    assert.equal(h.NanoCpus, 1000000000);
-    assert.equal(h.PidsLimit, 128);
-    assert.equal(h.ShmSize, 67108864);
-    assert.ok(h.SecurityOpt.includes('no-new-privileges'));
-    assert.equal(h.LogConfig.Type, 'none');
-    assert.deepEqual(h.LogConfig.Config, {});
-    assert.equal(item.Config.User, '1000:1000');
-    assert.ok(item.Mounts.every((m) => m.Type !== 'bind'));
-    const child = spawn('docker', ['start', '--attach', '--interactive', id], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    return { identity, child, remove };
-  } catch (error) {
-    await remove();
-    throw error;
-  }
+  return createLiveRuntime();
 }
+
 function body(fields: Record<string, string>) {
   return Object.fromEntries(
     Object.entries(fields).filter(

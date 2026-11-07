@@ -140,6 +140,10 @@ class LiveRuntime(Lab):
     def _publish(self,event):
         event={**event,'session_id':self.session_id,'store_id':self.store_id,'connection_id':self.connection_id}
         if event['kind']=='OBSERVED':event['sender_pid']=str(self.children['java' if event['direction']=='J_TO_G' else 'go'].pid)
+        self.emit(event)
+
+    def emit(self,event):
+        # Control envelopes and application evidence use the same owned budget.
         with self.publish_lock:
             size=len(encode_envelope(event['kind'],**{k:v for k,v in event.items() if k not in ('version','profile','kind')}))
             if self.bridge_bytes+size+self.owner.budget()+self.output_bytes>MAX_RUNTIME_BYTES:raise BridgeError('LIVE_AGGREGATE_BUDGET')
@@ -183,7 +187,7 @@ def main():
     for name in ['root','run-id','session-id','store-id','connection-id','runtime-hash']:parser.add_argument('--'+name,required=True)
     args=parser.parse_args()
     stop=threading.Event();commands=queue.Queue(16);failures=queue.Queue(1);seen={}
-    channel=OutputChannel(1);reader=None;prior_stdin=os.get_blocking(0);os.set_blocking(0,False)
+    channel=OutputChannel(1);reader=None;lab=None;prior_stdin=os.get_blocking(0);os.set_blocking(0,False)
     def failed(code):
         try:failures.put_nowait(code)
         except queue.Full:pass
@@ -207,7 +211,7 @@ def main():
                     if kind=='ACK':
                         lab.gate.ack(_uuid(value['observation_id']),value['phase']);continue
                     if kind=='ARM':
-                        lab.arm(value['connection_id']);channel.emit({'version':1,'profile':PROFILE,'kind':'ARMED','session_id':lab.session_id,'store_id':lab.store_id,'connection_id':lab.connection_id});continue
+                        lab.arm(value['connection_id']);lab.emit({'version':1,'profile':PROFILE,'kind':'ARMED','session_id':lab.session_id,'store_id':lab.store_id,'connection_id':lab.connection_id});continue
                     _uuid(value['command_id'])
                     if kind=='RECONNECT':
                         if value['restart_role'] not in ('none','go','java'):raise BridgeError('RECONNECT_PROFILE')
@@ -227,7 +231,7 @@ def main():
     try:
         with LiveRuntime(Path(args.root),args.run_id,args.session_id,args.store_id,args.connection_id,args.runtime_hash,channel.emit) as lab:
             lab.start()
-            channel.emit({'version':1,'profile':PROFILE,'kind':'READY','run_id':lab.identity,'session_id':lab.session_id,'store_id':lab.store_id,'connection_id':lab.connection_id,'runtime_hash':lab.runtime_hash,'store_hash':lab.store_hash,'go_pid':str(lab.children['go'].pid),'java_pid':str(lab.children['java'].pid)})
+            lab.emit({'version':1,'profile':PROFILE,'kind':'READY','run_id':lab.identity,'session_id':lab.session_id,'store_id':lab.store_id,'connection_id':lab.connection_id,'runtime_hash':lab.runtime_hash,'store_hash':lab.store_hash,'go_pid':str(lab.children['go'].pid),'java_pid':str(lab.children['java'].pid)})
             arm_deadline=time.monotonic()+5
             reader=threading.Thread(target=receive,args=(lab,),daemon=True);reader.start()
             while not stop.is_set():
@@ -244,15 +248,19 @@ def main():
                 seen[key]=hashlib.sha256(json.dumps(command,sort_keys=True,separators=(',',':')).encode('ascii')).hexdigest()
                 if command['kind']=='RECONNECT':
                     if not commands.empty():raise BridgeError('RECONNECT_COMMANDS_PENDING')
-                    channel.emit(lab.reconnect(command['restart_role']));arm_deadline=time.monotonic()+5;commands.task_done();continue
+                    lab.emit(lab.reconnect(command['restart_role']));arm_deadline=time.monotonic()+5;commands.task_done();continue
                 lab.send(command['role'],command['fields']);commands.task_done()
             if not failures.empty():raise BridgeError(failures.get_nowait())
-        channel.emit({'version':1,'profile':PROFILE,'kind':'STOPPED','session_id':lab.session_id,'store_id':lab.store_id,'connection_id':lab.connection_id,'pending':lab.gate.pending,'financial_application_verified':False,'transport_evidence_complete':lab.receipt['transport_evidence_complete'],'child_exit_codes':lab.receipt['child_exit_codes']})
+        lab.emit({'version':1,'profile':PROFILE,'kind':'STOPPED','session_id':lab.session_id,'store_id':lab.store_id,'connection_id':lab.connection_id,'pending':lab.gate.pending,'financial_application_verified':False,'transport_evidence_complete':lab.receipt['transport_evidence_complete'],'child_exit_codes':lab.receipt['child_exit_codes']})
         channel.flush()
         return 0
     except BaseException as error:
         code=str(error) if isinstance(error,(BridgeError,LabError)) and re.fullmatch('[A-Z0-9_]{1,100}',str(error)) else 'LIVE_BRIDGE_FAILURE'
-        try:channel.emit({'version':1,'profile':PROFILE,'kind':'ERROR','code':code});channel.flush()
+        try:
+            event={'version':1,'profile':PROFILE,'kind':'ERROR','code':code}
+            if lab is None:channel.emit(event)
+            else:lab.emit(event)
+            channel.flush()
         except (OSError,ValueError):pass
         sys.stderr.write('LIVE_BRIDGE_FAILED '+code+'\n')
         return 2

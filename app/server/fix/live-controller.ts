@@ -9,6 +9,7 @@ import { decodeLiveFix44, type LiveFixFrame } from '../../protocol/fix44-live/in
 import type { Binding } from '../fixed-income-workflow/bindings.js';
 import type { LiveFixApplicationService, LiveFixOperation } from './live-application.js';
 import type { LiveJournal } from './live-journal.js';
+import { recoverLiveRequest } from './live-recovery.js';
 
 const uuid = z.uuid();
 const pid = z
@@ -151,18 +152,6 @@ export function decodeLiveBridgeEnvelope(input: Uint8Array): Envelope {
 type Result = z.infer<typeof workflowResultSchema>;
 type Params = Record<string, string>;
 type Action = LiveFixOperation | 'APPLY';
-const actions = [
-  'BIND',
-  'CONNECT',
-  'OBSERVE',
-  'ACCEPT',
-  'CLAIM',
-  'QUEUE',
-  'PREPARE',
-  'RESOLVE_METADATA',
-  'RELEASE',
-  'APPLY',
-] as const;
 const witnessSchema = z
   .object({
     profile: z.literal(liveProfile),
@@ -177,17 +166,6 @@ const witnessSchema = z
   })
   .strict();
 type Witness = z.infer<typeof witnessSchema>;
-const requestSchema = z
-  .object({
-    kind: z.enum(['COMMAND', 'APPLY']),
-    action: z.enum(actions),
-    order_id: uuid,
-    sandbox_id: uuid,
-    actor_id: uuid,
-    input: z.record(z.string(), z.string()),
-    witness: witnessSchema.optional(),
-  })
-  .strict();
 const workSchema = z
   .object({
     message_id: uuid,
@@ -328,7 +306,7 @@ export class LiveFixController {
     options.process.stdout.on('data', (chunk: Buffer) => this.receive(chunk));
     options.process.stderr.on('data', (chunk: Buffer) => {
       this.outputBytes += chunk.length;
-      if (this.outputBytes > 8388608) this.fail(unavailable('FIX_LIVE_OUTPUT_BOUND'));
+      if (this.outputBytes > 7864320) this.fail(unavailable('FIX_LIVE_OUTPUT_BOUND'));
     });
     options.process.stdin.on('error', () => this.fail(unavailable('FIX_LIVE_PIPE')));
     options.process.stdout.on('error', () => this.fail(unavailable('FIX_LIVE_PIPE')));
@@ -371,7 +349,7 @@ export class LiveFixController {
   private receive(chunk: Buffer): void {
     try {
       this.outputBytes += chunk.length;
-      if (this.outputBytes > 8388608) throw unavailable('FIX_LIVE_OUTPUT_BOUND');
+      if (this.outputBytes > 7864320) throw unavailable('FIX_LIVE_OUTPUT_BOUND');
       this.buffer = Buffer.concat([this.buffer, chunk]);
       let end: number;
       while ((end = this.buffer.indexOf(10)) !== -1) {
@@ -441,10 +419,10 @@ export class LiveFixController {
       sandbox_id: context.binding.sandboxId,
       actor_id: context.actor_id,
       input,
-      ...(witness ? { witness } : {}),
+      ...(witness ? { witness: witnessSchema.parse(witness) } : {}),
     };
     await this.options.journal.retain('request', key, request);
-    if ((await this.options.journal.usage()) + this.outputBytes > 8388608)
+    if ((await this.options.journal.usage()) + this.outputBytes > 7864320)
       throw unavailable('FIX_LIVE_EVIDENCE_BOUND');
     const verify = () => {
       context.verify();
@@ -848,26 +826,23 @@ export class LiveFixController {
   }
   async recoverKnown(key: string): Promise<Result> {
     if (!this.options.enabled) throw unavailable('FIX_LIVE_DISABLED');
-    const retained = requestSchema.parse(await this.options.journal.read('request', key));
-    const context = this.context(retained.order_id);
-    if (retained.sandbox_id !== context.binding.sandboxId) throw unavailable('FIX_LIVE_CONTEXT');
-    return retained.action === 'APPLY'
-      ? this.options.service.apply(
-          context.binding,
-          retained.actor_id,
-          retained.input,
-          key,
-          context.verify,
-        )
-      : this.options.service.command(
-          context.binding,
-          retained.actor_id,
-          retained.action,
-          retained.input,
-          key,
-          context.verify,
-        );
+    const retained = z
+      .object({ order_id: uuid })
+      .passthrough()
+      .safeParse(await this.options.journal.read('request', key));
+    if (!retained.success) throw unavailable('FIX_LIVE_ORIGINAL_INTENT_REQUIRED');
+    const context = this.context(retained.data.order_id);
+    return recoverLiveRequest(
+      this.options.service,
+      context.binding,
+      context.actor_id,
+      this.options.journal,
+      key,
+      context.verify,
+      true,
+    );
   }
+
   stop(): Promise<void> {
     return (this.stopping ??= this.finish());
   }

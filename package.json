@@ -35,7 +35,7 @@
     "test:financial": "tsx scripts/verify-financial.ts",
     "test:postgres": "node --import tsx scripts/test-postgres.ts",
     "test:workflow-browser": "node --import tsx scripts/test-workflow-browser.ts",
-    "validate:all": "npm run validate && npm test -- --repeat-each=2 && npm run test:postgres && npm run test:postgres && npm run build:ui && npm run test:workflow-browser && npm run test:workflow-browser -- --repeat-each=2 && npm run test:public-demo && npm run test:fix-session",
+    "validate:all": "npm run validate && npm test -- --repeat-each=2 && npm run test:postgres && npm run test:postgres && npm run build:ui && npm run test:workflow-browser && npm run test:workflow-browser -- --repeat-each=2 && npm run test:public-demo && npm run test:fix-session && npm run test:fix-live-application",
     "db:local": "node --import tsx scripts/workflow-local.ts",
     "sandbox:client": "node --import tsx scripts/sandbox-client.ts",
     "reconcile:local": "node --import tsx scripts/reconcile.ts",
@@ -45,7 +45,8 @@
     "test:public-demo": "npm run build:ui && python3 scripts/test-public-demo.py --verify",
     "test:fix-session": "node --import tsx scripts/test-fix-session.ts",
     "test:fix-live": "node --import tsx scripts/verify-fix-live.ts",
-    "test:fix-live-sql": "node --import tsx --test --test-timeout=30000 tests/fix-live/sql.test.ts"
+    "test:fix-live-sql": "node --import tsx --test --test-timeout=30000 tests/fix-live/sql.test.ts",
+    "test:fix-live-application": "node --import tsx scripts/test-fix-live-application.ts"
   },
   "dependencies": {
     "decimal.js": "10.6.0",

@@ -6,18 +6,34 @@ import socket
 import sys
 import time
 import unittest
+import tempfile
 from uuid import uuid4
 from types import SimpleNamespace
 
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'tools/fix-session/runtime'))
 from live_protocol import BridgeError,LaneGate,OutputChannel,decode_line,encode_envelope
-from live_bridge import LiveTransport
+from live_bridge import LiveTransport,LiveRuntime,MAX_RUNTIME_BYTES
 from wire import encode_fault_frame
 
 PROFILE='live-fix-ingress-v1'
 
 class BridgeProtocolTests(unittest.TestCase):
+    def test_control_envelopes_share_the_actual_owned_runtime_budget_at_the_exact_boundary(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            run,session,store,connection=[str(uuid4()) for unused in range(4)];events=[]
+            lab=LiveRuntime(Path(temporary)/run,run,session,store,connection,'a'*64,events.append)
+            with lab.owner:
+                event={'version':1,'profile':PROFILE,'kind':'ARMED','session_id':session,'store_id':store,'connection_id':connection}
+                size=len(encode_envelope('ARMED',session_id=session,store_id=store,connection_id=connection))
+                remaining=MAX_RUNTIME_BYTES-lab.owner.budget()-size
+                path=lab.root/'budget.dat'
+                with path.open('xb') as file:file.truncate(remaining+1)
+                with self.assertRaisesRegex(BridgeError,'LIVE_AGGREGATE_BUDGET'):lab.emit(event)
+                self.assertEqual(events,[])
+                with path.open('r+b') as file:file.truncate(remaining)
+                lab.emit(event);self.assertEqual(events,[event]);self.assertEqual(lab.bridge_bytes+lab.owner.budget(),MAX_RUNTIME_BYTES)
+
     def frame(self):
         rows=json.loads((ROOT/'test-data/fix44/live/manifest.json').read_text())
         return bytes.fromhex(next(row['raw_hex'] for row in rows if row['accepted'] and row['fields']['35']=='D'))
