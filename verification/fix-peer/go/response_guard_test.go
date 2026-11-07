@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/quickfixgo/quickfix"
 )
 
 var guardEpoch = time.Date(2026, time.November, 7, 0, 0, 0, 0, time.UTC)
@@ -127,5 +129,21 @@ func TestConnectionResetClearsPendingWithoutCreatingReceipt(t *testing.T) {
 	}
 	if id, expired := guard.expire(moment(76)); !expired || id != "NEW" {
 		t.Fatal("new connection deadline incorrect")
+	}
+}
+
+func TestWrapperRejectsStaleAcceptedHeartbeatForGuardAcknowledgment(t *testing.T) {
+	app := newApplication()
+	app.now = func() time.Time { return moment(201) }
+	app.guard.request(moment(200), "REQ")
+	message := quickfix.NewMessage()
+	message.Header.SetString(35, "0")
+	message.Header.SetString(52, moment(81).Format("20060102-15:04:05.000"))
+	message.Body.SetString(112, "REQ")
+	if reject := app.FromAdmin(message, quickfix.SessionID{}); reject != nil {
+		t.Fatal(reject)
+	}
+	if _, expired := app.guard.expire(moment(236)); !expired {
+		t.Fatal("stale accepted callback cleared the wrapper deadline")
 	}
 }

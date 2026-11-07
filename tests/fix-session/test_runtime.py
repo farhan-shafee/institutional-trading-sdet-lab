@@ -33,6 +33,8 @@ class RuntimeTests(unittest.TestCase):
         self.assertTrue(lab.receipt['wire'])
         self.assertTrue(lab.receipt['config_sha256']['java'])
         self.assertTrue(lab.receipt['store_inventory']['go'])
+        self.assertIsInstance(lab.receipt['owned_state_bytes'],int)
+        self.assertGreater(lab.receipt['owned_state_bytes'],sum(file['bytes'] for files in lab.receipt['store_inventory'].values() for file in files.values()))
         for process in lab.children.values():
             self.assertTrue(process.stdin.closed)
             self.assertTrue(process.stdout.closed)

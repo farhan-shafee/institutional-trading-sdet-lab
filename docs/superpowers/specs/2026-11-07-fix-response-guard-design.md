@@ -14,8 +14,8 @@ an ordinary heartbeat without112. Its latest release and main head are both
 eff945dd59a41caeaed20f71916f08d37e0fda99; November7 read-only retrieval found no
 newer upstream implementation. Historical failed acceptance remains retained.
 
-1. **Selected: explicit TradeFlow response guard around the unmodified Go
-   engine.** Uses its public validated callbacks and a monotonic deadline.
+1. **Selected: explicit TradeFlow response guards around the unmodified
+   engines.** Use public validated callbacks and monotonic deadlines.
    Avoids an upstream fork, adds a small independently tested profile policy.
 2. Patch/fork Go. Fixes internal behavior but makes this lab responsible for
    upstream state-machine and timer maintenance, including resend transitions.
@@ -23,21 +23,23 @@ newer upstream implementation. Historical failed acceptance remains retained.
    compatibility and complete protocol qualification; no replacement has been
    established as correct for this profile.
 
-The selected option does not claim that unmodified Go itself now meets this
+The selected option does not claim that either unmodified engine itself meets this
 matching-ID requirement. Acceptance belongs to the explicitly named composite
 of the engine and TradeFlow guard. It neither alters peer bytes nor substitutes
 for engine sequence, dictionary or store validation.
 
 ## Guard contract
 
-File verification/fix-peer/go/response_guard.go owns one pending request per
-connection. It has no networking, SDK, DB, floating-point or store imports.
-All guard decisions take an explicit time.Time; runtime calls use time.Now's
-monotonic component, deterministic tests use literal instants.
+Each wrapper owns one pending request per connection. Go uses
+verification/fix-peer/go/response_guard.go; Java uses
+tools/fix-session/java/src/main/java/tradeflow/ResponseGuard.java. Neither has
+networking, SDK, DB, floating-point or store imports. Decisions take explicit
+clock observations: Go time.Time with monotonic component, Java nanoTime plus
+Instant for freshness; deterministic tests use literal instants.
 
 - ToAdmin observes a TestRequest with a nonempty printable ASCII112 of at most
-  256bytes. The first request anchors a36second response deadline:30second
-  HeartBtInt plus the pinned1.2 response allowance. Repeating the same request
+  256bytes. The first request anchors the profile's36second response deadline:
+  30second HeartBtInt plus the published test's20% allowance. Repeating the same request
   cannot extend it. A different request while one is pending fails closed.
 - Only a Heartbeat delivered to FromAdmin with matching112 strictly before
   that deadline clears it. The wrapper additionally requires its SendingTime
@@ -51,15 +53,17 @@ monotonic component, deterministic tests use literal instants.
   FromAdmin is not described as unconditional freshness assurance. Configuration
   requires CheckLatency=Y and MaxLatency=120. The adapter never treats raw proxy
   bytes alone as an accepted response.
-- The wrapper's main control loop checks deadlines with a10ms ticker. Expiry
-  emits one PROFILE_TIMEOUT event then stops only its own Acceptor through the
-  public Stop API. Stop runs outside callbacks so it cannot wait on itself.
+- Each wrapper's main control loop checks deadlines at10ms intervals. Expiry
+  emits one PROFILE_TIMEOUT event then stops only its own engine through its
+  public API (Go Acceptor.Stop; Java SocketInitiator.stop(true)). Stop runs
+  outside callbacks so it cannot wait on itself.
 - OnLogon and OnLogout clear connection-scoped pending state. Sequence stores,
   original run identity and automatic-reset settings remain unchanged.
-- A bounded one-element stdin command channel replaces the blocking main
-  Scanner loop. One reader goroutine feeds it; command/line limits remain.
-- VERSION reports engine=v0.9.12 and profile_guard=matching-testreq-v1
-  separately. Configuration requires TradeFlowResponseGuard=matching-testreq-v1,
+- A bounded one-element stdin command queue replaces each blocking main input
+  loop. One Go reader goroutine or Java daemon reader feeds it. Java's reader
+  enforces12000characters while reading, not only after an unbounded readLine.
+- VERSION reports each unchanged engine version and profile_guard=matching-testreq-v1
+  separately. Both wrappers require TradeFlowResponseGuard=matching-testreq-v1,
   consumed by the wrapper, not claimed as an upstream engine setting.
 
 No externally configurable timeout is added. No response is manufactured.
@@ -83,7 +87,19 @@ Preserve source/dictionary/goldens, limits, no-network/no-host-port isolation,
 and financial_application_verified=false. Build all Go source files and run
 its package tests; no test skipping or compiler/engine pin replacement.
 
-This revision resolves only the named peer blocker. Existing Tasks2-5 still
+The initial Go live blocker passed unchanged after integration; Java's pinned
+source also clears test-request bookkeeping on general verified traffic. A
+symmetric live acceptance control is required before claiming both directions.
+Java source archive3.0.2 SHA256:
+4ad70989c631f4e05db5b05e5d9f50d84ce2fb90c2c10624161aa578453a37cf.
+Do not change initial engine timer multipliers to make these controls pass;
+record their actual elapsed behavior. Only the response-guard deadline is36s.
+
+The Java guard has eight explicit standard-library checks compiled and run by
+the locked Maven image, without adding a test-framework dependency. The image
+build invokes these checks and Go package tests explicitly.
+
+This revision resolves only the named response-policy blocker. Existing Tasks2-5 still
 require the remaining43-case matrix, actual crash/restart, deterministic
 calendar/resource/failure controls, portable gate/CI, full original regressions
 and final review. Financial mapping in3C2 requires its own concrete contract.

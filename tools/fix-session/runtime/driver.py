@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import re
+import signal
 import select
 import socket
 import subprocess
@@ -16,7 +17,7 @@ from uuid import uuid4
 
 sys.path.insert(0,str(Path(__file__).parent))
 from wire import Framer,decode_frame,WireError
-from ownership import StoreOwner,check_configuration
+from ownership import StoreOwner,OwnershipError,check_configuration
 
 class LabError(RuntimeError):pass
 
@@ -55,6 +56,7 @@ class FaultTransport:
             self.frames.append(observation)
             with (self.lab.root/'wire.jsonl').open('a',encoding='utf-8') as out:
                 out.write(json.dumps(observation,sort_keys=True)+'\n')
+            self.cv.notify_all()
         self.lab.owner.budget()
         return fields
 
@@ -105,7 +107,7 @@ class FaultTransport:
                                     action=None
                                     with self.lock:
                                         for index,rule in enumerate(self.rules):
-                                            if rule['direction']==direction and rule['type']==fields['35']:
+                                            if rule['direction']==direction and rule['type']==fields['35'] and ('possdup' not in rule or rule['possdup']==(fields.get('43')=='Y')):
                                                 action=self.rules.pop(index)['action'];break
                                     if action=='drop':continue
                                     if action=='hold':
@@ -117,6 +119,9 @@ class FaultTransport:
                                         continue
                                     with self.send_lock:target.sendall(raw)
                                     self.record(direction,'forwarded_bytes',raw)
+                                    if action=='duplicate':
+                                        with self.send_lock:target.sendall(raw)
+                                        self.record(direction,'forwarded_bytes',raw)
                                 if not framers[source].blocked:break
                                 frames=framers[source].feed(b'')
                         if disconnected:break
@@ -125,16 +130,24 @@ class FaultTransport:
                         try:channel.close()
                         except OSError:pass
                     self.sockets=[]
-        except (OSError,WireError,LabError) as error:
-            if not self.stop.is_set():self.lab.fail('TRANSPORT_'+str(error) if isinstance(error,(WireError,LabError)) else 'TRANSPORT_IO')
+        except (OSError,WireError,LabError,OwnershipError) as error:
+            if not self.stop.is_set():self.lab.fail('TRANSPORT_'+str(error) if isinstance(error,(WireError,LabError,OwnershipError)) else 'TRANSPORT_IO')
 
     def drop_next(self,direction,msg):
-        with self.lock:self.rules.append({'direction':direction,'type':msg,'action':'drop'})
+        with self.lock:
+            if len(self.rules)>=16:raise LabError('FAULT_RULE_LIMIT')
+            self.rules.append({'direction':direction,'type':msg,'action':'drop'})
 
     def hold_next(self,direction,msg):
         with self.lock:
             if len(self.rules)>=16:raise LabError('FAULT_RULE_LIMIT')
             self.rules.append({'direction':direction,'type':msg,'action':'hold'})
+
+    def duplicate_next(self,direction,msg,possdup):
+        if not isinstance(possdup,bool):raise LabError('FAULT_RULE')
+        with self.lock:
+            if len(self.rules)>=16:raise LabError('FAULT_RULE_LIMIT')
+            self.rules.append({'direction':direction,'type':msg,'action':'duplicate','possdup':possdup})
 
     def wait_held(self,index,timeout=15):
         if not isinstance(index,int) or not 0<=index<16:raise LabError('HELD_INDEX')
@@ -146,6 +159,17 @@ class FaultTransport:
                 if remaining<=0:raise LabError('HELD_FRAME_DEADLINE')
                 self.cv.wait(min(remaining,.1))
             return {'fields':dict(self.held[index]['fields'])}
+
+    def wait_frames(self,predicate,count=1,timeout=15):
+        deadline=time.monotonic()+timeout
+        with self.cv:
+            while True:
+                if self.lab.errors:raise LabError(self.lab.errors[0])
+                found=[frame for frame in self.frames if predicate(frame)]
+                if len(found)>=count:return found
+                remaining=deadline-time.monotonic()
+                if remaining<=0:raise LabError('WIRE_OBSERVATION_DEADLINE')
+                self.cv.wait(min(.1,remaining))
 
     def release_held(self,index):
         with self.lock:
@@ -172,10 +196,19 @@ class Lab:
         self.root=Path(root);self.identity=identity or str(uuid4());self.owner=StoreOwner(self.root,self.identity)
         self.events=[];self.errors=[];self.cv=threading.Condition();self.children={};self.stderr={};self.closing=False;self.readers=[];self.output_bytes=0
         self.transport=FaultTransport(self);self.established=False;self._started=set()
+        self.expected_exits=set();self.paused=set();self.lifetimes=[];self.restarts=[];self.barriers=[]
+        self.connections={'go':0,'java':0}
 
     def __enter__(self):self.owner.__enter__();return self
     def __exit__(self,kind,value,trace):
+        try:return self._close(kind,value,trace)
+        finally:self.owner.__exit__(kind,value,trace)
+
+    def _close(self,kind,value,trace):
         self.closing=True
+        if kind is not None:self.errors.append('SCENARIO_EXCEPTION')
+        for role,process in self.children.items():
+            if process in self.paused and process.poll() is None:self.resume(role)
         for role,process in self.children.items():
             if process.poll() is None:
                 try:self.command(role,'STOP')
@@ -194,24 +227,34 @@ class Lab:
         inventories={}
         for role in self.children:
             try:inventories[role]=self.owner.inventory(role)
-            except ValueError:self.errors.append('STORE_FINAL_INVENTORY')
+            except (ValueError,OSError):self.errors.append('STORE_FINAL_INVENTORY')
         codes={role:process.returncode for role,process in self.children.items()}
         if any(code!=0 for code in codes.values()):self.errors.append('CHILD_NONZERO')
         if forced:self.errors.append('OWNED_CHILD_FORCED_CLEANUP')
         if not (self.established and set(self.children)=={'java','go'} and all(self.count(role,'LOGON')>0 for role in ('java','go')) and self.transport.frames and set(inventories)=={'java','go'}):
             self.errors.append('RUNTIME_NOT_ESTABLISHED')
+        configs={}
+        for role in self.children:
+            try:configs[role]=hashlib.sha256((self.root/(role+'.cfg')).read_bytes()).hexdigest()
+            except OSError:self.errors.append('CONFIG_FINAL_INVENTORY')
+        owned_state_bytes=None
+        try:owned_state_bytes=self.owner.budget()
+        except (ValueError,OSError):self.errors.append('STATE_FINAL_BUDGET')
         self.receipt={
             'version':1,'run_id':self.identity,**self.claims(),
             'transport_evidence_complete':kind is None and not self.errors,
             'synthetic_peer_callback_count':sum(e['kind']=='APP' for e in self.events),
             'errors':list(self.errors),'child_exit_codes':codes,
+            'process_lifetimes':[{'role':role,'pid':process.pid,'exit_code':process.returncode,'expected_kill':process in self.expected_exits} for role,process in self.lifetimes],
+            'crash_barriers':list(self.barriers),'restarts':list(self.restarts),
+            'session_continuity_verified':bool(self.restarts) and all(item.get('continuity_verified',False) for item in self.restarts),
             'processes':{role:{'pid':process.pid} for role,process in self.children.items()},
-            'config_sha256':{role:hashlib.sha256((self.root/(role+'.cfg')).read_bytes()).hexdigest() for role in self.children},
+            'config_sha256':configs,
             'store_inventory':inventories,'wire':list(self.transport.frames),'events':list(self.events),
+            'owned_state_bytes':owned_state_bytes,
         }
         # The outer gate captures this bounded synthetic evidence, including failures.
         print('LAB_RECEIPT\t'+json.dumps(self.receipt,sort_keys=True),flush=True)
-        self.owner.__exit__(kind,value,trace)
         if kind is None and self.errors:raise LabError(self.errors[0])
 
     def fail(self,code):
@@ -238,12 +281,13 @@ class Lab:
                 fields=dict(part.split('=',1) for part in payload.split('\x01') if '=' in part)
                 with self.cv:
                     if len(self.events)>=1024:raise LabError('CHILD_EVENT_BUDGET')
-                    self.events.append({'role':role,'kind':kind,'fields':fields,'at':time.monotonic()});self.cv.notify_all()
+                    if kind=='LOGON':self.connections[role]+=1
+                    self.events.append({'role':role,'pid':process.pid,'connection_index':self.connections[role],'kind':kind,'fields':fields,'at':time.monotonic()});self.cv.notify_all()
                 if kind=='ERROR':raise LabError('CHILD_RUNTIME_ERROR')
         except LabError as error:self.fail(str(error))
         except (ValueError,UnicodeError):self.fail('CHILD_PROTOCOL')
         finally:
-            if not self.closing:self.fail('CHILD_EXIT_'+role)
+            if not self.closing and process not in self.expected_exits:self.fail('CHILD_EXIT_'+role)
 
     def wait(self,role,kind,after=0,timeout=15,predicate=None):
         deadline=time.monotonic()+timeout
@@ -258,14 +302,19 @@ class Lab:
                 self.cv.wait(remaining)
 
     def _config(self,role):
+        if role not in ('go','java'):raise LabError('STORE_ROLE')
         common={'BeginString':'FIX.4.4','FileStorePath':str(self.root/role),'PersistMessages':'Y','FileStoreSync':'Y','UseDataDictionary':'Y','DataDictionary':'/lab/dictionary/FIX44.xml','ResetOnLogon':'N','ResetOnLogout':'N','ResetOnDisconnect':'N','RefreshOnLogon':'Y','CheckLatency':'Y','MaxLatency':'120','LogonTimeout':'5','LogoutTimeout':'5'}
-        if role=='java':common.update({'ConnectionType':'initiator','SenderCompID':'TRADEFLOW','TargetCompID':'ATLAS','SocketConnectHost':'127.0.0.1','SocketConnectPort':'19875','HeartBtInt':'30','NonStopSession':'Y','ResetOnError':'N','ReconnectInterval':'1','SocketConnectTimeout':'5','ValidateChecksum':'Y','ValidateIncomingMessage':'Y','ValidateFieldsOutOfOrder':'Y'})
-        else:common.update({'ConnectionType':'acceptor','SenderCompID':'ATLAS','TargetCompID':'TRADEFLOW','SocketAcceptHost':'127.0.0.1','SocketAcceptPort':'19876','HeartBtInt':'30'})
+        if role=='java':common.update({'ConnectionType':'initiator','SenderCompID':'TRADEFLOW','TargetCompID':'ATLAS','SocketConnectHost':'127.0.0.1','SocketConnectPort':'19875','HeartBtInt':'30','NonStopSession':'Y','ResetOnError':'N','ReconnectInterval':'1','SocketConnectTimeout':'5','ValidateChecksum':'Y','ValidateIncomingMessage':'Y','ValidateFieldsOutOfOrder':'Y','TradeFlowResponseGuard':'matching-testreq-v1'})
+        else:common.update({'ConnectionType':'acceptor','SenderCompID':'ATLAS','TargetCompID':'TRADEFLOW','SocketAcceptHost':'127.0.0.1','SocketAcceptPort':'19876','HeartBtInt':'30','TradeFlowResponseGuard':'matching-testreq-v1'})
         defaults={k:v for k,v in common.items() if k not in ('BeginString','SenderCompID','TargetCompID')}
         text='[DEFAULT]\n'+''.join(k+'='+v+'\n' for k,v in defaults.items())+'[SESSION]\n'+''.join(k+'='+v+'\n' for k,v in common.items())
         path=self.root/(role+'.cfg');path.write_text(text,encoding='ascii');return path
 
     def spawn(self,role):
+        if role not in ('go','java'):raise LabError('STORE_ROLE')
+        if self.owner.lock is None:raise LabError('RUN_NOT_OWNED')
+        if len(self.lifetimes)>=8:raise LabError('PROCESS_LIFETIME_LIMIT')
+        if role in self.children and self.children[role].poll() is None:raise LabError('CHILD_ALREADY_RUNNING')
         path=self.root/role
         if self.owner.reopened or role in self._started:self.owner.verify(role)
         elif path.exists() and any(path.iterdir()):raise LabError('STORE_NOT_FRESH')
@@ -275,11 +324,78 @@ class Lab:
         else:args=['/opt/runtime/peer',str(config)]
         out=(self.root/(role+'.stderr')).open('ab');self.stderr[role]=out
         env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','GOMAXPROCS':'1','GOMEMLIMIT':'128MiB'}
-        process=subprocess.Popen(args,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=out,env=env)
+        mark=self.mark()
+        try:process=subprocess.Popen(args,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=out,env=env)
+        except BaseException:out.close();raise
         self.children[role]=process;self._started.add(role)
+        self.lifetimes.append((role,process))
         reader=threading.Thread(target=self._reader,args=(role,process),daemon=True)
         self.readers.append(reader);reader.start()
-        self.wait(role,'READY')
+        self.wait(role,'READY',after=mark)
+
+    def state(self,role,sender_min=1,target_min=1):
+        deadline=time.monotonic()+15
+        while True:
+            mark=self.mark();self.command(role,'STATE')
+            fields=self.wait(role,'STATE',after=mark,timeout=max(.001,deadline-time.monotonic()))['fields']
+            try:state={key:int(fields[key]) for key in ('sender','target')}
+            except (KeyError,ValueError):raise LabError('STATE_PROTOCOL') from None
+            if state['sender']>=sender_min and state['target']>=target_min:return state
+            if time.monotonic()>=deadline:raise LabError('PERSISTED_STATE_DEADLINE')
+            threading.Event().wait(.01)
+
+    def pause(self,role):
+        if role not in self.children:raise LabError('COMMAND')
+        process=self.children[role]
+        if process.poll() is not None:raise LabError('CHILD_NOT_RUNNING')
+        process.send_signal(signal.SIGSTOP);self.paused.add(process)
+        deadline=time.monotonic()+2
+        while True:
+            try:status=Path('/proc',str(process.pid),'status').read_text()
+            except FileNotFoundError:raise LabError('CHILD_NOT_RUNNING') from None
+            if re.search(r'^State:\s+T',status,re.MULTILINE):return
+            if time.monotonic()>=deadline:raise LabError('CHILD_PAUSE_DEADLINE')
+            threading.Event().wait(.005)
+
+    def resume(self,role):
+        if role not in self.children:raise LabError('COMMAND')
+        process=self.children[role]
+        if process not in self.paused or process.poll() is not None:raise LabError('CHILD_NOT_PAUSED')
+        process.send_signal(signal.SIGCONT);self.paused.remove(process)
+
+    def checkpoint_kill(self,role,sender_min,target_min):
+        state=self.state(role,sender_min,target_min);self.pause(role)
+        process=self.children[role]
+        prefix='FIX.4.4-'+('TRADEFLOW-ATLAS' if role=='java' else 'ATLAS-TRADEFLOW')
+        expected={prefix+'.'+suffix for suffix in ('body','header','senderseqnums','targetseqnums','session')}
+        files=self.owner.inventory(role)
+        if set(files)!=expected:raise LabError('STORE_FILE_SET')
+        checkpoint=self.owner.checkpoint(role)
+        self.expected_exits.add(process);process.kill();code=process.wait(timeout=5)
+        self.paused.discard(process)
+        if code!=-signal.SIGKILL:raise LabError('EXPECTED_KILL_NOT_OBSERVED')
+        process.stdin.close()
+        for reader in self.readers:
+            reader.join(timeout=.1)
+        process.stdout.close();self.stderr[role].close()
+        barrier={'role':role,'pid':process.pid,'exit_code':code,'barrier':'persisted-counter-and-file-snapshot','state':state,'files':checkpoint}
+        self.barriers.append(barrier);return barrier
+
+    def restart(self,role):
+        if role not in ('go','java'):raise LabError('STORE_ROLE')
+        if role not in self.children or self.children[role] not in self.expected_exits:raise LabError('RESTART_NOT_CHECKPOINTED')
+        files=self.owner.verify(role)
+        record={'role':role,'old_pid':self.children[role].pid,'store_verified_before_spawn':True,'files':files,'event_mark':self.mark(),'continuity_verified':False}
+        self.spawn(role);record['new_pid']=self.children[role].pid;self.restarts.append(record)
+
+    def prove_restart(self,role):
+        if not self.restarts or self.restarts[-1]['role']!=role:raise LabError('RESTART_PROOF')
+        record=self.restarts[-1];barrier=next(item for item in reversed(self.barriers) if item['role']==role)
+        self.wait(role,'LOGON',after=record['event_mark'],predicate=lambda e:e['pid']==record['new_pid'])
+        state=self.state(role,barrier['state']['sender']+1,barrier['state']['target']+1)
+        if record['new_pid']==record['old_pid']:raise LabError('RESTART_PROCESS_ID')
+        record['continuity_verified']=True;record['state_after_logon']=state
+        return state
 
     def start(self):
         self.spawn('go');self.transport.start();self.spawn('java')
@@ -287,6 +403,7 @@ class Lab:
 
     def command(self,role,action,payload=''):
         if role not in self.children or action not in ('SEND','STATE','LOGOUT','STOP'):raise LabError('COMMAND')
+        if action=='SEND':self.owner.budget()
         line=action+('\t'+payload if payload else '')+'\n'
         if len(line)>12000:raise LabError('COMMAND_BOUND')
         child=self.children[role]

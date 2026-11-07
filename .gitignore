@@ -25,3 +25,5 @@ __pycache__/
 /verification/fix-peer/go/*.reference
 /verification/fix-peer/go/download.json
 /verification/fix-peer/go/modules.json
+
+/.superpowers/

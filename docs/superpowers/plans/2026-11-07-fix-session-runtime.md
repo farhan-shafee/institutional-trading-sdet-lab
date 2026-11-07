@@ -9,7 +9,7 @@
 
 ## Global Constraints
 
-- One runtime container, no external runtime network, no host ports, no host networking; loopback port 19876 only.
+- One runtime container, no external runtime network, no host ports, no host networking; private loopback proxy19875 and acceptor19876 only (recorded implementation ruling).
 - Runtime: 1 CPU, 1 GiB memory, 128 PIDs, 64 MiB shm, 64 MiB total owned store/log/evidence budget.
 - Fixture framing: 8192-byte frame, 16384-byte input buffer, 64 fields, 256 bytes/value; preserve original application codec limits.
 - HeartBtInt 30; both CompIDs TRADEFLOW/ATLAS; automatic resets disabled. Separate original session identity from connection/attempt identity.
@@ -54,7 +54,7 @@
 
 ## Task 3: Literal session matrix, bounded fault proxy and replay
 
-**Files:** contracts/fix-session-runtime-v1.yaml; test-data/fix44/runtime/manifest.json and raw fixtures; tools/fix-session/runtime/{driver.py,transport.py}; tests/fix-session/test_transport.py.
+**Files:** contracts/fix-session-runtime-v1.json; test-data/fix44/runtime/manifest.json and raw fixtures; tools/fix-session/runtime/{driver.py,transport.py}; tests/fix-session/test_transport.py.
 **Interfaces:** bounded transport preserves raw bytes and direction; declared per-case fault actions drop/duplicate/disconnect named frames. Each result records peer receipt, session continuity, evidence completeness and financial_application_verified=false separately.
 
 - [ ] Freeze all S01-S15 case IDs and expected literal outcomes against admitted source section/test references before implementation.

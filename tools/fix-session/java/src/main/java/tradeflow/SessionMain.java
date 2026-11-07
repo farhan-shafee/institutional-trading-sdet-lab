@@ -2,12 +2,19 @@ package tradeflow;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.time.*;
+import java.time.format.*;
+import java.time.temporal.ChronoField;
 import java.util.*;
+import java.util.concurrent.*;
 import quickfix.*;
 
 /** Opt-in, synthetic local initiator. No HTTP, database or financial application. */
 public final class SessionMain implements Application {
     private volatile SessionID id;
+    private final ResponseGuard guard=new ResponseGuard();
+    private volatile boolean invalidRequest;
+    private static final DateTimeFormatter SENDING_TIME=new DateTimeFormatterBuilder().appendPattern("uuuuMMdd-HH:mm:ss").optionalStart().appendFraction(ChronoField.NANO_OF_SECOND,3,9,true).optionalEnd().toFormatter(Locale.ROOT).withResolverStyle(ResolverStyle.STRICT);
     private static final int[] FIELDS={35,34,49,56,43,52,122,112,7,16,36,123,141,11,41,37,17,150,39,44,38,14,151,6,32,31,54,55};
     private static synchronized void event(String kind,String payload){
         System.out.println("EVENT\t"+kind+"\t"+Base64.getEncoder().encodeToString(payload.getBytes(StandardCharsets.US_ASCII)));
@@ -22,10 +29,28 @@ public final class SessionMain implements Application {
         return out.toString();
     }
     public void onCreate(SessionID session){id=session;event("CREATE","");}
-    public void onLogon(SessionID session){event("LOGON","");}
-    public void onLogout(SessionID session){event("LOGOUT","");}
-    public void toAdmin(Message message,SessionID session){event("ADMIN_OUT",fields(message));}
-    public void fromAdmin(Message message,SessionID session){event("ADMIN_IN",fields(message));}
+    public void onLogon(SessionID session){guard.reset();event("LOGON","");}
+    public void onLogout(SessionID session){guard.reset();event("LOGOUT","");}
+    public void toAdmin(Message message,SessionID session){
+        try{
+            if("1".equals(message.getHeader().getString(35))){
+                String requestID=message.getString(112);
+                if(!guard.request(System.nanoTime(),requestID)){invalidRequest=true;event("ERROR","PROFILE_REQUEST");}
+                else event("PROFILE_REQUEST","112="+requestID+"\u0001");
+            }
+        }catch(FieldNotFound error){invalidRequest=true;event("ERROR","PROFILE_REQUEST");}
+        event("ADMIN_OUT",fields(message));
+    }
+    public void fromAdmin(Message message,SessionID session){
+        event("ADMIN_IN",fields(message));
+        try{
+            if("0".equals(message.getHeader().getString(35))&&message.isSetField(112)){
+                String requestID=message.getString(112);
+                Instant sentAt=LocalDateTime.parse(message.getHeader().getString(52),SENDING_TIME).toInstant(ZoneOffset.UTC);
+                if(guard.acknowledge(System.nanoTime(),Instant.now(),requestID,sentAt))event("PROFILE_ACK","112="+requestID+"\u0001");
+            }
+        }catch(FieldNotFound|DateTimeException ignored){}
+    }
     public void toApp(Message message,SessionID session){event("APP_OUT",fields(message));}
     public void fromApp(Message message,SessionID session){event("APP",fields(message));}
 
@@ -63,8 +88,26 @@ public final class SessionMain implements Application {
         catch(FieldNotFound error){throw new IllegalArgumentException();}
         return message;
     }
-    public static void main(String[] args){
+    private record InputCommand(String line,boolean eof,boolean invalid){}
+    private static void readCommands(BlockingQueue<InputCommand> output){
         try{
+            BufferedReader input=new BufferedReader(new InputStreamReader(System.in,StandardCharsets.US_ASCII));
+            for(;;){
+                StringBuilder line=new StringBuilder();int next;
+                while((next=input.read())!=-1&&next!='\n'){
+                    if(line.length()>=12000){output.put(new InputCommand("",false,true));return;}
+                    line.append((char)next);
+                }
+                if(next==-1&&line.isEmpty()){output.put(new InputCommand("",true,false));return;}
+                if(!line.isEmpty()&&line.charAt(line.length()-1)=='\r')line.setLength(line.length()-1);
+                output.put(new InputCommand(line.toString(),false,false));
+                if(next==-1){output.put(new InputCommand("",true,false));return;}
+            }
+        }catch(IOException error){
+            try{output.put(new InputCommand("",false,true));}catch(InterruptedException interrupted){Thread.currentThread().interrupt();}
+        }catch(InterruptedException interrupted){Thread.currentThread().interrupt();}
+    }
+    private static void run(String[] args) throws Exception {
             if(args.length!=1)throw new IllegalArgumentException();
             Properties metadata=new Properties();
             try(InputStream manifest=Session.class.getResourceAsStream("/META-INF/maven/org.quickfixj/quickfixj-core/pom.properties")){
@@ -73,7 +116,7 @@ public final class SessionMain implements Application {
             }
             String engine=metadata.getProperty("version");
             if(!"3.0.2".equals(engine))throw new IllegalArgumentException();
-            event("VERSION","engine="+engine+"\u0001toolchain="+Runtime.version()+"\u0001");
+            event("VERSION","engine="+engine+"\u0001toolchain="+Runtime.version()+"\u0001profile_guard="+ResponseGuard.NAME+"\u0001");
             SessionSettings settings=new SessionSettings(args[0]);
             Iterator<SessionID> ids=settings.sectionIterator();
             if(!ids.hasNext())throw new ConfigError("ONE_SESSION_REQUIRED");
@@ -86,23 +129,36 @@ public final class SessionMain implements Application {
             for(String key:List.of("ResetOnLogon","ResetOnLogout","ResetOnDisconnect","ResetOnError"))require(settings,sessionID,key,"N");
             require(settings,sessionID,"FileStoreSync","Y");require(settings,sessionID,"PersistMessages","Y");
             require(settings,sessionID,"UseDataDictionary","Y");require(settings,sessionID,"ValidateChecksum","Y");
+            require(settings,sessionID,"CheckLatency","Y");require(settings,sessionID,"MaxLatency","120");
+            require(settings,sessionID,"TradeFlowResponseGuard",ResponseGuard.NAME);
             SessionMain app=new SessionMain();
             SocketInitiator initiator=new SocketInitiator(app,new FileStoreFactory(settings),settings,new QuietFactory(),new DefaultMessageFactory());
-            initiator.start();event("READY","");
-            BufferedReader input=new BufferedReader(new InputStreamReader(System.in,StandardCharsets.US_ASCII));
-            for(String line;(line=input.readLine())!=null;){
-                if(line.length()>12000)throw new IllegalArgumentException();
-                String[] parts=line.split("\t",2);
-                Session session=Session.lookupSession(app.id);
-                switch(parts[0]){
-                    case "SEND" -> {if(parts.length!=2||!Session.sendToTarget(commandMessage(parts[1]),app.id))throw new IllegalArgumentException();event("SENT","");}
-                    case "STATE" -> event("STATE","sender="+session.getExpectedSenderNum()+"\u0001target="+session.getExpectedTargetNum()+"\u0001");
-                    case "LOGOUT" -> session.logout("SYNTHETIC_STOP");
-                    case "STOP" -> {initiator.stop(true);event("STOPPED","");return;}
-                    default -> throw new IllegalArgumentException();
+            try{
+                initiator.start();event("READY","");
+                BlockingQueue<InputCommand> input=new ArrayBlockingQueue<>(1);
+                Thread reader=new Thread(()->readCommands(input),"synthetic-command-input");reader.setDaemon(true);reader.start();
+                boolean timedOut=false;
+                for(;;){
+                    if(app.invalidRequest)throw new IllegalArgumentException();
+                    String expired=app.guard.expire(System.nanoTime());
+                    if(!timedOut&&expired!=null){event("PROFILE_TIMEOUT","112="+expired+"\u0001");initiator.stop(true);timedOut=true;}
+                    InputCommand command=input.poll(10,TimeUnit.MILLISECONDS);
+                    if(command==null)continue;
+                    if(command.invalid())throw new IllegalArgumentException();
+                    if(command.eof())return;
+                    String[] parts=command.line().split("\t",2);
+                    Session session=Session.lookupSession(app.id);
+                    switch(parts[0]){
+                        case "SEND" -> {if(parts.length!=2||!Session.sendToTarget(commandMessage(parts[1]),app.id))throw new IllegalArgumentException();event("SENT","");}
+                        case "STATE" -> event("STATE","sender="+session.getExpectedSenderNum()+"\u0001target="+session.getExpectedTargetNum()+"\u0001");
+                        case "LOGOUT" -> session.logout("SYNTHETIC_STOP");
+                        case "STOP" -> {initiator.stop(true);event("STOPPED","");return;}
+                        default -> throw new IllegalArgumentException();
+                    }
                 }
-            }
-            initiator.stop(true);
-        }catch(Exception error){event("ERROR","RUNTIME_COMMAND_OR_STARTUP");System.exit(2);}
+            }finally{initiator.stop(true);}
+    }
+    public static void main(String[] args){
+        try{run(args);}catch(Exception error){event("ERROR","RUNTIME_COMMAND_OR_STARTUP");System.exit(2);}
     }
 }
