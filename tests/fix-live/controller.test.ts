@@ -511,3 +511,135 @@ void test('real reconnect and both process restarts fence connections without re
     await h.close();
   }
 });
+
+function stopBarrier() {
+  let release!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { promise, release };
+}
+function observeSend<T>(pending: Promise<T>) {
+  return pending.then(
+    (value) => ({ state: 'resolved' as const, value }),
+    (error: unknown) => ({ state: 'rejected' as const, error }),
+  );
+}
+async function settledSend<T>(observed: ReturnType<typeof observeSend<T>>) {
+  return Promise.race([observed, Promise.resolve({ state: 'pending' as const })]);
+}
+async function outgoingOrder(h: Awaited<ReturnType<typeof scenario>>) {
+  const order = body(await report(h.s, { '35': 'D', '21': '1' }));
+  for (const tag of ['37', '17', '150', '39', '14', '151', '6']) delete order[tag];
+  return order;
+}
+
+void test('stop settles a send still yielding in startup without dispatching it afterward', async () => {
+  const h = await scenario(true);
+  try {
+    await h.controller.start();
+    const order = await outgoingOrder(h);
+    const sending = observeSend(h.controller.send(h.s.order, order));
+    await h.controller.stop();
+    const result = await settledSend(sending);
+    assert.equal(result.state, 'rejected', 'Shutdown must settle the admitted caller.');
+    if (result.state !== 'rejected') throw new Error('The send did not reject before shutdown.');
+    assert.ok(result.error instanceof DomainError);
+    assert.equal(result.error.code, 'FIX_LIVE_STOPPING');
+    assert.equal((await h.journal.entries('send')).length, 0);
+    assert.equal(
+      (
+        await h.s.app.query<{ n: number }>(
+          'SELECT count(*)::int n FROM fi.fix_live_observations WHERE sandbox_id=$1',
+          [h.s.id],
+        )
+      ).rows[0]!.n,
+      0,
+    );
+  } finally {
+    await h.close();
+  }
+});
+
+void test('stop waits for durable send admission and rejects it before any wire dispatch', async () => {
+  const h = await scenario(true);
+  const entered = stopBarrier(),
+    release = stopBarrier();
+  const retain = h.journal.retain.bind(h.journal);
+  try {
+    await h.controller.start();
+    const order = await outgoingOrder(h);
+    h.journal.retain = async (...args: Parameters<LiveJournal['retain']>) => {
+      if (args[0] === 'send') {
+        entered.release();
+        await release.promise;
+      }
+      return retain(...args);
+    };
+    const sending = observeSend(h.controller.send(h.s.order, order));
+    await entered.promise;
+    const stopping = h.controller.stop();
+    release.release();
+    await stopping;
+    const result = await settledSend(sending);
+    assert.equal(result.state, 'rejected', 'The original caller cannot remain pending.');
+    if (result.state !== 'rejected') throw new Error('The retained send was not rejected.');
+    assert.ok(result.error instanceof DomainError);
+    assert.equal(result.error.code, 'FIX_LIVE_STOPPING');
+    assert.equal((await h.journal.entries('send')).length, 1, 'Keep the original durable intent.');
+    assert.equal(
+      (
+        await h.s.app.query<{ n: number }>(
+          'SELECT count(*)::int n FROM fi.fix_live_observations WHERE sandbox_id=$1',
+          [h.s.id],
+        )
+      ).rows[0]!.n,
+      0,
+    );
+  } finally {
+    release.release();
+    h.journal.retain = retain;
+    await h.close();
+  }
+});
+
+void test('stop drains an already dispatched application through its original callback before exiting', async () => {
+  const h = await scenario(true);
+  const entered = stopBarrier(),
+    release = stopBarrier();
+  const retain = h.journal.retain.bind(h.journal);
+  try {
+    await h.controller.start();
+    const order = await outgoingOrder(h);
+    h.journal.retain = async (...args: Parameters<LiveJournal['retain']>) => {
+      if (args[0] === 'frame') {
+        entered.release();
+        await release.promise;
+      }
+      return retain(...args);
+    };
+    const sending = observeSend(h.controller.send(h.s.order, order));
+    await entered.promise;
+    const stopping = h.controller.stop();
+    release.release();
+    await stopping;
+    const result = await settledSend(sending);
+    assert.equal(result.state, 'resolved', 'A dispatched application must finish before STOP.');
+    if (result.state !== 'resolved') throw new Error('The dispatched send did not complete.');
+    assert.equal(result.value.status, 201);
+    assert.equal((await h.journal.entries('send')).length, 1);
+    assert.equal(
+      (
+        await h.s.app.query<{ n: number }>(
+          'SELECT count(*)::int n FROM fi.fix_live_callbacks WHERE sandbox_id=$1',
+          [h.s.id],
+        )
+      ).rows[0]!.n,
+      1,
+    );
+  } finally {
+    release.release();
+    h.journal.retain = retain;
+    await h.close();
+  }
+});

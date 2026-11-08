@@ -80,6 +80,14 @@ remain unchanged. The mandatory native regression exercises immediate reconnect
 and both peer restarts; four socket controls force retired-admin interruption and
 check that unplanned I/O and retired application input remain fail-closed.
 
+Shutdown closes new send admission synchronously. A send still starting or
+retaining its original intent rejects with FIX_LIVE_STOPPING before any later
+wire dispatch; already retained intent is kept. An already dispatched send is
+allowed to complete its original callback/application before STOP is written.
+Caller settlement, event draining and STOP confirmation share the existing
+15-second shutdown budget; process exit retains its five-second bound. An
+unexpected process exit with outstanding sends fails closed.
+
 ## Crash outcomes
 
 The process-kill controls target an actual fill after an owned acknowledgment.
@@ -111,10 +119,10 @@ npm ci
 npm run test:fix-live-application
 ```
 
-The mandatory94-control gate builds a fresh pinned image, creates private owned
+The mandatory97-control gate builds a fresh pinned image, creates private owned
 PostgreSQL instances, installs schema9 explicitly, checks runtime isolation,
 freezes source inputs and retains failed attempts with ownership-checked cleanup.
-Its groups are21 bridge/native,10 independent Python,30 SQL admission,5 controller,
+Its groups are21 bridge/native,10 independent Python,30 SQL admission,8 controller,
 14 independent application/reconciliation,8 real process-kill recovery and6
 lifecycle controls. The lifecycle set includes both conventions/BUY/SELL fills,
 rejection, cancel rejection/acknowledgment, partial cancel, pending-cancel fills,

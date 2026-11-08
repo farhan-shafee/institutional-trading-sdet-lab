@@ -257,6 +257,7 @@ export class LiveFixController {
   private processing: Promise<void> = Promise.resolve();
   private processingActive = false;
   private stopping: Promise<void> | undefined;
+  private readonly pendingSends = new Set<Promise<Result>>();
   private readonly active = new Map<
     'J_TO_G' | 'G_TO_J',
     {
@@ -319,7 +320,8 @@ export class LiveFixController {
     options.process.on('error', () => this.fail(unavailable('FIX_LIVE_PROCESS')));
     options.process.on('close', (code) => {
       this.exited.resolve(code);
-      if (!this.stopping || code !== 0) this.fail(unavailable('FIX_LIVE_PROCESS_EXIT'));
+      if (!this.stopping || code !== 0 || this.pendingSends.size)
+        this.fail(unavailable('FIX_LIVE_PROCESS_EXIT'));
     });
   }
   async start(): Promise<void> {
@@ -330,6 +332,10 @@ export class LiveFixController {
   }
   private healthy(): void {
     if (this.failure) throw this.failure;
+  }
+  private requireSendAdmission(): void {
+    this.healthy();
+    if (this.stopping) throw unavailable('FIX_LIVE_STOPPING');
   }
   private fail(error: DomainError): void {
     this.failure ??= error;
@@ -773,10 +779,28 @@ export class LiveFixController {
     this.success(result, 200);
     return result;
   }
-  async send(order_id: string, fields: Params): Promise<Result> {
-    if (this.failure) throw this.failure;
-    if (this.stopping) throw unavailable('FIX_LIVE_STOPPING');
+  send(order_id: string, fields: Params): Promise<Result> {
+    try {
+      this.requireSendAdmission();
+    } catch (error) {
+      const failure = error instanceof DomainError ? error : unavailable();
+      const rejected = Promise.reject<Result>(failure);
+      void rejected.catch(() => undefined);
+      return rejected;
+    }
+    const pending = this.sendFrame(order_id, fields);
+    this.pendingSends.add(pending);
+    const settled = () => {
+      this.pendingSends.delete(pending);
+    };
+    // Observe the same promise returned to the caller, including rejection, so
+    // waiting for stop() before observing that caller cannot become unhandled.
+    void pending.then(settled, settled);
+    return pending;
+  }
+  private async sendFrame(order_id: string, fields: Params): Promise<Result> {
     await this.start();
+    this.requireSendAdmission();
     if (this.reconnecting) throw unavailable('FIX_LIVE_RECONNECTING');
     const context = this.context(order_id);
     const direction = fields['35'] === 'D' || fields['35'] === 'F' ? 'J_TO_G' : 'G_TO_J';
@@ -795,7 +819,8 @@ export class LiveFixController {
       done = deferred<Result>(),
       copy = { ...parsed };
     // Reserve ownership before the first durable write yields to another caller.
-    this.active.set(direction, { command_id, order_id, fields: copy, done });
+    const pending = { command_id, order_id, fields: copy, done };
+    this.active.set(direction, pending);
     try {
       await this.options.journal.retain('send', command_id, {
         order_id: context.order_id,
@@ -804,13 +829,18 @@ export class LiveFixController {
         direction,
         fields: copy,
       });
+      this.requireSendAdmission();
       await this.write('SEND', {
         command_id,
         role: direction === 'J_TO_G' ? 'java' : 'go',
         fields: copy,
       });
     } catch (error) {
-      this.fail(error instanceof DomainError ? error : unavailable());
+      const failure = error instanceof DomainError ? error : unavailable();
+      if (this.stopping && failure.code === 'FIX_LIVE_STOPPING') {
+        if (this.active.get(direction) === pending) this.active.delete(direction);
+        done.reject(failure);
+      } else this.fail(failure);
     }
     return done.promise;
   }
@@ -866,19 +896,33 @@ export class LiveFixController {
     return (this.stopping ??= this.finish());
   }
   private async finish(): Promise<void> {
-    await this.processing;
-    if (this.options.process.exitCode !== null) {
-      if (this.failure) throw this.failure;
-      return;
-    }
+    // Admission closes synchronously in stop(). Draining callers, event handling
+    // and STOP confirmation share the original15s budget; process exit keeps5s.
+    const deadline = performance.now() + 15000;
+    const remaining = () => {
+      const milliseconds = deadline - performance.now();
+      if (milliseconds <= 0) throw unavailable('FIX_LIVE_DEADLINE');
+      return milliseconds;
+    };
     try {
-      await this.write('STOP');
-      await bounded(this.stopped.promise, 15000);
+      await bounded(Promise.allSettled([...this.pendingSends]), remaining());
+      await bounded(this.processing, remaining());
+      this.healthy();
+      if (this.options.process.exitCode !== null) {
+        if (this.options.process.exitCode !== 0) throw unavailable('FIX_LIVE_PROCESS_EXIT');
+        return;
+      }
+      await bounded(this.write('STOP'), remaining());
+      await bounded(this.stopped.promise, remaining());
       const code = await bounded(this.exited.promise, 5000);
       if (code !== 0) throw unavailable('FIX_LIVE_PROCESS_EXIT');
+    } catch (error) {
+      const failure = error instanceof DomainError ? error : unavailable();
+      this.fail(failure);
+      throw this.failure ?? failure;
     } finally {
       this.options.process.stdin.end();
     }
-    if (this.failure) throw this.failure;
+    this.healthy();
   }
 }
