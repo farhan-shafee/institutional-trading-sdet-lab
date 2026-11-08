@@ -1,6 +1,6 @@
 # Phase4B synthetic curve analytics
 
-This local/CI candidate implements the owner-approved [Phase4B contract](PHASE4_COMPLETION_CONTRACT.md). Phase4A is merged at52c76dacc84c9770af6e42a7468b982085746ff9. Phase4B is under qualification and review; Phase4C-F remain unfinished. No public deployment is included.
+This local/CI candidate implements the owner-approved [Phase4B contract](PHASE4_COMPLETION_CONTRACT.md). Phase4A is merged at52c76dacc84c9770af6e42a7468b982085746ff9. Phase4B has passed its application gates and awaits review/preservation acceptance; Phase4C-F remain unfinished. No public deployment is included.
 
 ## Numerical model and identity
 
@@ -47,7 +47,7 @@ The CLI caps stdin at16384 bytes, emits the typed result on stdout and safe JSON
 
 Observed RED before implementation: missing domain modules, missing independent oracle, missing CLI, and11 HTTP404 failures out of12 discovered cases. All first-failure logs and25 generated HTTP failure evidence files remain retained.
 
-Thirty-one new Node tests cover exact rationals, original accrual/flow semantics, canonical immutability/identity, interpolation, spreads, input/wire rejection, numerical ambiguity, global Decimal isolation and actual CLI execution. The prior full suite plus29 curve tests passed1075/1075 before CLI/original-version regression additions; full candidate qualification including both is pending.
+Thirty-one new Node tests cover exact rationals, original accrual/flow semantics, canonical immutability/identity, interpolation, spreads, input/wire rejection, numerical ambiguity, global Decimal isolation and actual CLI execution. Candidate3f6cf1c9a69fe578a5e3c1dbb12649af1ecf6672/treebb8f45b4009611870463c20e93f992650c9ac3c5 passed the complete validate command:1077/1077 units, audits/static/contracts/workflows, independent financial/native-byte checks, build/production smoke and252 API/three-browser cases. A separate configured repeat passed504 cases with no retries. All original assertions remain intact.
 
 A separately authored Python125-digit Decimal/Fraction oracle uses forward cash-flow construction, log-DF interpolation and safeguarded analytic-Newton inversion. All147 forward cases and19 exact quote targets agree: prices5e-10 per100, spread2e-11 annual decimal, DF5e-20, mark cents identical. The oracle imports no application code or generated expected results. Shared written conventions remain a modeling assumption.
 
@@ -60,6 +60,8 @@ A separately authored Python125-digit Decimal/Fraction oracle uses forward cash-
 
 All12 new real HTTP cases pass, including current viewer/trader,401/400 envelopes, independent OpenAPI validation and unchanged original books/catalogues. Existing40 paths and64 schemas are structurally identical; only2 new paths and5 new schemas were added.
 
-Full validate, repeat-each2, source-preservation disposition and whole-branch review are still required. The current approved preservation-v2 contract pins the exact Phase4A bytes for two API files. These new curve route/schema bytes are outside that exact exception. Do not refresh hashes, widen that exception or claim complete native qualification without an approved subsequent exact contract.
+Both full application gates passed for3f6cf1c. Both actual native gates then failed SOURCE_PRESERVATION with owned cleanup complete, as required by the still-unchanged exact Phase4A pins; their first-failure artifacts were preserved byte-identically outside source. Independent hashing confirms432 original files unchanged and only the same two API files differ. No native pass or preservation acceptance is claimed. Whole-branch review remains pending. The current approved preservation-v2 contract pins the exact Phase4A bytes for two API files. These new curve route/schema bytes are outside that exact exception. Do not refresh hashes, widen that exception or claim complete native qualification without an approved subsequent exact contract.
 
 Portfolio risk, corrections/busts, settlement, FIFO P&L, migration010 and their authoritative inventory/recovery/capacity proof belong to subsequent approved slices. No remaining-scope completion is claimed here.
+
+The first full candidatef8e7b0c failed lint because an ignored authoring.mjs helper was still discovered. The helper was moved byte-identically outside source without changing any lint/ignore rule. A source audit also found the original database definition IDs; the new identity regression failed on the temporary source/ID wrapper and passed after restoring phase1-ust-1/phase1-corp-1 in the new responses. Those superseded candidates/failures remain retained.

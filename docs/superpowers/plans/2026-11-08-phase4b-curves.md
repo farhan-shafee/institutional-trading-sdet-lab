@@ -88,11 +88,11 @@
 **Files:** Modify app/server/fixed-income.ts and contracts/openapi.yaml additively; create tests/api/fixed-income-curves.spec.ts; docs/PHASE4B_CURVES.md; CLI scripts/curve-analytics.ts; update docs/PHASE4_ECONOMICS.md.
 **Interfaces:** GET /api/fixed-income/v3/curves?fixture_id=&as_of_date=; GET /api/fixed-income/v3/analytics with Task3 query. Both current roles read; no writes; unknown/repeated parameters rejected. CLI reads JSON query input and emits the same typed result without credentials or network.
 
-- [ ] Write failing HTTP tests for401 anonymous,200 trader/viewer, unchanged owned books/v1/v2 catalogue, independent OpenAPI validation,400 missing/extra/duplicate/prototype/scientific/range inputs, safe explicit numerical-ambiguity response. Assert actual status and body.
-- [ ] Run focused HTTP tests RED.
-- [ ] Implement additive route dispatch and independently authored OpenAPI schemas; leave original paths/schemas structurally identical.
-- [ ] Run focused HTTP tests, full validate and repeat-each2, no retries. Independently verify source preservation changes and retain any exact native gate refusal; no automatic hash acceptance.
-- [ ] Document oracle discovery/counts, accepted numerical rules, explicit unsupported states and current integration boundary; commit.
+- [x] Write failing HTTP tests for401 anonymous,200 trader/viewer, unchanged owned books/v1/v2 catalogue, independent OpenAPI validation,400 missing/extra/duplicate/prototype/scientific/range inputs, safe explicit numerical-ambiguity response. Assert actual status and body.
+- [x] Run focused HTTP tests RED.
+- [x] Implement additive route dispatch and independently authored OpenAPI schemas; leave original paths/schemas structurally identical.
+- [x] Run focused HTTP tests, full validate and repeat-each2, no retries. Independently verify source preservation changes and retain any exact native gate refusal; no automatic hash acceptance.
+- [x] Document oracle discovery/counts, accepted numerical rules, explicit unsupported states and current integration boundary; commit.
 - [ ] One fresh whole-branch review; Important/Critical fixes RED->GREEN then green full suite, deferred minor ledger. Human final code/model/test acceptance and exact future preservation changes remain explicit before protected integration.
 
 ## Pre-flight and self-review

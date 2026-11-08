@@ -2,7 +2,7 @@
 
 Status: owner approved the finite financial scope and exact Phase4A two-file preservation exception on November8,2026. Implementation continues against [the approved completion contract](PHASE4_COMPLETION_CONTRACT.md); native qualification/integration and later implementation evidence remain separate. No deployment is authorized.
 
-Phase4A is normally merged through PR37 as52c76dacc84c9770af6e42a7468b982085746ff9 with the qualified449 tree. All20 pre-merge jobs passed on attempt1; all10 post-merge jobs also passed on attempt1. [Phase4B curve analytics](PHASE4B_CURVES.md) now has a concrete local candidate with166 independent oracle cases,12 passing new HTTP cases and an actual CLI. Its full qualification/review and exact later preservation contract remain pending;4C-F are unfinished.
+Phase4A is normally merged through PR37 as52c76dacc84c9770af6e42a7468b982085746ff9 with the qualified449 tree. All20 pre-merge jobs passed on attempt1; all10 post-merge jobs also passed on attempt1. [Phase4B curve analytics](PHASE4B_CURVES.md) now has a concrete local candidate with166 independent oracle cases,12 passing new HTTP cases and an actual CLI. Its complete application validation passed1077 units and252/504 API/browser cases. Native gates correctly retain SOURCE_PRESERVATION for the unapproved newer API bytes; independent review and exact later preservation acceptance remain pending.4C-F are unfinished.
 
 ## Delivery boundary
 
