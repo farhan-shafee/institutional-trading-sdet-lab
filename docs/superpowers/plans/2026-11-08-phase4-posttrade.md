@@ -118,11 +118,11 @@
 - Risk/P&L queries accept fixture/asof and bounded source cutoffs only; never client positions. Both returned assessment identities bind sandbox/generation/source sequences/window/instrument/curve/model.
 - Net equity=available cash+signed unsettled cash+signed adjusted marks; equity-opening funding=realized+unrealized. Expose aggregate presentation rounding differences.
 
-- [ ] RED tests: uninitialized/empty/offset/unregistered/ninth/unsupported/weekend/out-of-window/closed-flat roots, asof before value date, missing marks, historical cutoff/restatement, no assessment writes.
-- [ ] RED exact FIFO/equity bridge for buys/sells/short-cover/partial lots/corrections/busts and FAILED/SETTLED/REVERSED settlement; never double realize.
-- [ ] RED real HTTP status/body tests for roles, cross-sandbox/revoked capabilities, malformed/duplicate/prototype payloads, source-binding and original-key recovery.
-- [ ] Implement authorized DAO/source admission, pure kernels, strict available/unavailable contracts and additive routes/OpenAPI. Preserve original raw inspection and all old contracts.
-- [ ] Run independent numerical/accounting comparisons, realSQL/HTTP security/cleanup and full affected suites; commit.
+- [x] RED tests: uninitialized/empty/offset/unregistered/ninth/unsupported/weekend/out-of-window/closed-flat roots, asof before value date, missing marks, historical cutoff/restatement, no assessment writes.
+- [x] RED exact FIFO/equity bridge for buys/sells/short-cover/partial lots/corrections/busts and FAILED/SETTLED/REVERSED settlement; never double realize.
+- [x] RED real HTTP status/body tests for roles, cross-sandbox/revoked capabilities, malformed/duplicate/prototype payloads, source-binding and original-key recovery.
+- [x] Implement authorized DAO/source admission, pure kernels, strict available/unavailable contracts and additive routes/OpenAPI. Preserve original raw inspection and all old contracts.
+- [x] Run independent numerical/accounting comparisons, realSQL/HTTP security/cleanup and full affected suites; commit.
 
 ### Task7: Inspectable report, actual native journey and recovery
 

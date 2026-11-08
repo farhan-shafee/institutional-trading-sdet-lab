@@ -20,6 +20,9 @@ import { handleReconciliation } from '../reconciliation/routes.js';
 import type { RunnerHooks } from '../reconciliation/runner.js';
 import { handleRfq } from './rfq-routes.js';
 import type { DatabaseTarget } from '../public-demo/configuration.js';
+import { PostTradeWorkflowDatabase } from '../../persistence/postgres/post-trade-workflow.js';
+import { PostTradeService } from '../post-trade/service.js';
+import { handlePostTrade } from '../post-trade/routes.js';
 
 export type WorkflowContext = {
   request: IncomingMessage;
@@ -37,6 +40,7 @@ export class WorkflowRoutes {
   readonly bindings: WorkflowBindings;
   readonly service: WorkflowService | undefined;
   readonly reconciliation: ReconciliationService | undefined;
+  readonly postTrade: PostTradeService | undefined;
   constructor(
     databaseUrl?: DatabaseTarget,
     now?: () => number,
@@ -48,6 +52,10 @@ export class WorkflowRoutes {
     this.service = databaseUrl
       ? new WorkflowService(database ?? new WorkflowDatabase(databaseUrl))
       : undefined;
+    this.postTrade =
+      typeof databaseUrl === 'string' && database instanceof PostTradeWorkflowDatabase
+        ? new PostTradeService(database)
+        : undefined;
     this.reconciliation = this.service
       ? new ReconciliationService(this.service.database, reconcilerUrl, hooks)
       : undefined;
@@ -59,6 +67,8 @@ export class WorkflowRoutes {
   async handle(context: WorkflowContext): Promise<boolean> {
     const { request, response, url, token, authenticate, respond } = context;
     const method = request.method ?? 'GET';
+    if (this.postTrade && (await handlePostTrade(context, this.bindings, this.postTrade)))
+      return true;
     if (
       this.reconciliation &&
       (await handleReconciliation(context, this.bindings, this.reconciliation))

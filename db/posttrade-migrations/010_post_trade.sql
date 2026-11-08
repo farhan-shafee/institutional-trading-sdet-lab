@@ -490,7 +490,7 @@ BEGIN
  'raw_recorded_at',x.recorded_at,'registered',r.execution_id IS NOT NULL,
  'registration_seq',r.registration_seq::text,'current_revision',v.revision,
  'active_clean_price',v.clean_price,'active_consideration_cents',v.consideration_cents::text,
- 'busted',bu.execution_id IS NOT NULL,'settlement_state',CASE WHEN bu.execution_id IS NOT NULL THEN 'VOIDED' ELSE COALESCE(o.outcome,'PENDING') END
+ 'busted',bu.execution_id IS NOT NULL,'settlement_state',CASE WHEN r.execution_id IS NULL THEN NULL WHEN bu.execution_id IS NOT NULL THEN 'VOIDED' ELSE COALESCE(o.outcome,'PENDING') END
  ) ORDER BY x.command_seq,x.id),'[]'::jsonb) INTO roots
  FROM fi.executions x JOIN fi.instrument_versions iv ON iv.id=x.instrument_revision
  LEFT JOIN fi.posttrade_roots r ON (r.sandbox_id,r.execution_id)=(x.sandbox_id,x.id) AND r.registration_seq<=post_seq
@@ -699,3 +699,80 @@ DO $integrity$ DECLARE t text;BEGIN
  EXECUTE format('CREATE CONSTRAINT TRIGGER settlement_complete AFTER INSERT OR UPDATE ON fi.%I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fi_control.posttrade_settlements_consistent()',t);
  END LOOP;
 END $integrity$;
+
+
+-- Bounded read-only RPCs keep new tables private to their owner role.
+CREATE FUNCTION fi_control.posttrade_readable(sid uuid,proof text,scope text,generation bigint) RETURNS boolean
+LANGUAGE sql STABLE SET search_path=pg_catalog AS $$
+ SELECT EXISTS(SELECT 1 FROM fi.sandboxes s WHERE s.id=sid AND s.generation=$4
+ AND fi_control.proof_valid(sid,proof,scope))
+$$;
+CREATE FUNCTION fi_control.read_posttrade_command(sid uuid,proof text,scope text,generation bigint,p_key text) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
+DECLARE c fi.posttrade_commands%ROWTYPE;
+BEGIN
+ IF NOT fi_control.posttrade_readable(sid,proof,scope,generation) THEN RETURN fi_control.failure(404,'SANDBOX_NOT_FOUND');END IF;
+ IF p_key IS NULL OR p_key !~ '^[A-Za-z0-9_-]{8,128}$' THEN RETURN fi_control.failure(400,'VALIDATION_ERROR');END IF;
+ SELECT * INTO c FROM fi.posttrade_commands WHERE sandbox_id=sid AND idempotency_key=p_key;
+ IF NOT FOUND THEN RETURN fi_control.failure(404,'COMMAND_NOT_FOUND');END IF;
+ RETURN fi_control.result(200,jsonb_build_object('command',jsonb_build_object('id',c.id,'idempotency_key',c.idempotency_key,
+ 'operation',c.operation,'command_seq',c.command_seq::text,'capability_generation',c.capability_generation::text,
+ 'actor_id',c.actor_id,'http_status',c.http_status,'request_hash',c.request_hash,'request_payload',c.request_payload,
+ 'response_body',c.response_body,'recorded_at',to_char(c.recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'))));
+END $$;
+CREATE FUNCTION fi_control.read_posttrade_history(sid uuid,proof text,scope text,generation bigint,root_id uuid) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
+DECLARE x fi.executions%ROWTYPE;instrument text;revisions jsonb;outcomes jsonb;bust jsonb;registered boolean;
+BEGIN
+ IF NOT fi_control.posttrade_readable(sid,proof,scope,generation) THEN RETURN fi_control.failure(404,'SANDBOX_NOT_FOUND');END IF;
+ SELECT * INTO x FROM fi.executions WHERE sandbox_id=sid AND id=root_id;
+ IF NOT FOUND THEN RETURN fi_control.failure(404,'EXECUTION_NOT_FOUND');END IF;
+ SELECT instrument_id INTO STRICT instrument FROM fi.instrument_versions WHERE id=x.instrument_revision;
+ registered:=EXISTS(SELECT 1 FROM fi.posttrade_roots WHERE sandbox_id=sid AND execution_id=root_id);
+ SELECT COALESCE(jsonb_agg(jsonb_build_object('revision',v.revision,'clean_price',v.clean_price,
+ 'consideration_cents',v.consideration_cents::text,'posttrade_command_seq',v.command_seq::text,
+ 'recorded_at',to_char(v.recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')) ORDER BY v.revision),'[]') INTO revisions
+ FROM fi.posttrade_revisions v WHERE v.sandbox_id=sid AND v.execution_id=root_id;
+ SELECT COALESCE(jsonb_agg(jsonb_build_object('outcome_id',o.id,'revision',o.revision,'outcome',o.outcome,
+ 'processing_date',o.processing_date,'reason',o.reason,'posting_id',o.posting_id,'posttrade_command_seq',o.command_seq::text,
+ 'recorded_at',to_char(o.recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')) ORDER BY o.command_seq),'[]') INTO outcomes
+ FROM fi.posttrade_settlement_outcomes o WHERE o.sandbox_id=sid AND o.execution_id=root_id;
+ SELECT jsonb_build_object('revision',b.revision,'posttrade_command_seq',b.command_seq::text,
+ 'recorded_at',to_char(b.recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')) INTO bust
+ FROM fi.posttrade_busts b WHERE b.sandbox_id=sid AND b.execution_id=root_id;
+ RETURN fi_control.result(200,jsonb_build_object('registered',registered,'original_execution',jsonb_build_object(
+ 'execution_id',x.id,'source_event_id',x.source_event_id,'order_id',x.order_id,'fill_sequence',x.fill_sequence,
+ 'raw_command_seq',x.command_seq::text,'instrument_id',instrument,'definition_version',x.instrument_revision,
+ 'side',x.side,'par_amount',x.par_amount::text,'quoted_settlement_date',x.settlement_date,'original_clean_price',x.clean_price,
+ 'original_consideration_cents',x.consideration_cents::text,
+ 'raw_decided_at',to_char(x.decided_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+ 'raw_recorded_at',to_char(x.recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')),
+ 'revisions',revisions,'bust',bust,'settlement_outcomes',outcomes));
+END $$;
+CREATE FUNCTION fi_control.read_posttrade_audit(sid uuid,proof text,scope text,generation bigint,
+ upper_seq bigint,after_seq bigint,after_index integer,p_limit integer) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
+DECLARE current_seq bigint;events jsonb;
+BEGIN
+ IF NOT fi_control.posttrade_readable(sid,proof,scope,generation) THEN RETURN fi_control.failure(404,'SANDBOX_NOT_FOUND');END IF;
+ SELECT command_count INTO current_seq FROM fi.posttrade_books WHERE sandbox_id=sid;
+ current_seq:=COALESCE(current_seq,0);
+ IF upper_seq IS NULL OR after_seq IS NULL OR after_index IS NULL OR p_limit IS NULL
+ OR upper_seq<0 OR upper_seq>current_seq OR after_seq<0 OR after_seq>upper_seq OR after_index NOT BETWEEN -1 AND 1 OR p_limit NOT BETWEEN 1 AND 100
+ THEN RETURN fi_control.failure(400,'VALIDATION_ERROR');END IF;
+ SELECT COALESCE(jsonb_agg(page.body ORDER BY page.command_seq,page.event_index),'[]') INTO events FROM(
+ SELECT e.command_seq,e.event_index,jsonb_build_object(
+ 'command_seq',e.command_seq::text,'event_index',e.event_index,'event_type',e.event_type,'execution_id',e.execution_id,
+ 'definition_version',e.instrument_revision,'economic_cash_cents',e.economic_cash_cents::text,
+ 'economic_par_change',e.economic_par_amount::text,'available_cash_cents',e.cash_cents::text,
+ 'available_par_change',e.par_amount::text,'counterparty_cash_cents',e.counterparty_cash_cents::text,
+ 'counterparty_par_change',e.counterparty_par::text,'actor_id',c.actor_id,
+ 'recorded_at',to_char(e.recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')) body
+ FROM fi.posttrade_events e JOIN fi.posttrade_commands c USING(sandbox_id,command_seq)
+ WHERE e.sandbox_id=sid AND e.command_seq<=upper_seq AND(e.command_seq,e.event_index)>(after_seq,after_index)
+ ORDER BY e.command_seq,e.event_index LIMIT p_limit+1) page;
+ RETURN fi_control.result(200,jsonb_build_object('events',events));
+END $$;
+GRANT EXECUTE ON FUNCTION fi_control.read_posttrade_command(uuid,text,text,bigint,text),
+ fi_control.read_posttrade_history(uuid,text,text,bigint,uuid),
+ fi_control.read_posttrade_audit(uuid,text,text,bigint,bigint,bigint,integer,integer) TO tf_app;
