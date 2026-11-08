@@ -14,7 +14,7 @@ DISCOUNT_LOG_LINEAR_ACT365F_V1 discounts the original contractual future cash fl
 
 The strict Gregorian asof range is2025-01-15 through2031-01-14. The two original coupon instruments retain their existing semiannual cash amounts, dates, day-count accrual and settlement-day exclusion; zero retains its one100-per100 redemption and zero accrual. No scalar v1 or simple-yield v2 formula is substituted.
 
-Original coupon definition identity is the immutable legacy financialSource6016fb700840d081fe1fba651c918f0a7e709383 followed by slash/instrumentID. Zero retains SYN-ZERO-2031_V1. This identity is added only to the new v3 response.
+Original coupon definition versions are the existing immutable database IDs phase1-ust-1 and phase1-corp-1 from preserved migration001. Their financial source6016fb700840d081fe1fba651c918f0a7e709383 is unchanged. Zero retains SYN-ZERO-2031_V1. These existing identities appear only in the new v3 response; no legacy definition is renamed.
 
 Snapshot SHA256 binds JSON.stringify in this property order: version1, model_version, currency, fixture_id, as_of_date, nodes. Each node contains offset_days then zero_rate fixed12 decimals; the four offsets retain their declared order. The displayed20-decimal discount_factor is derived and excluded from the identity. Canonical snapshots/nodes are deeply immutable; numerical helpers accept only snapshots created by the internal fixed-fixture factory.
 
@@ -47,7 +47,7 @@ The CLI caps stdin at16384 bytes, emits the typed result on stdout and safe JSON
 
 Observed RED before implementation: missing domain modules, missing independent oracle, missing CLI, and11 HTTP404 failures out of12 discovered cases. All first-failure logs and25 generated HTTP failure evidence files remain retained.
 
-Thirty new Node tests cover exact rationals, original accrual/flow semantics, canonical immutability/identity, interpolation, spreads, input/wire rejection, numerical ambiguity, global Decimal isolation and actual CLI execution. The prior full suite plus29 curve tests passed1075/1075 before CLI addition; full candidate qualification including CLI is pending.
+Thirty-one new Node tests cover exact rationals, original accrual/flow semantics, canonical immutability/identity, interpolation, spreads, input/wire rejection, numerical ambiguity, global Decimal isolation and actual CLI execution. The prior full suite plus29 curve tests passed1075/1075 before CLI/original-version regression additions; full candidate qualification including both is pending.
 
 A separately authored Python125-digit Decimal/Fraction oracle uses forward cash-flow construction, log-DF interpolation and safeguarded analytic-Newton inversion. All147 forward cases and19 exact quote targets agree: prices5e-10 per100, spread2e-11 annual decimal, DF5e-20, mark cents identical. The oracle imports no application code or generated expected results. Shared written conventions remain a modeling assumption.
 

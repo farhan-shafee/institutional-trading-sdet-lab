@@ -40,7 +40,7 @@
 
 - Rational immutable normalized numerator/denominator bigint; decimal(text), add/sub/mul/div, isZero, toDecimal(), fixed(places).
 - curveCashFlows(instrumentId: CurveInstrumentId, asOf: string): { instrument_id, definition_version, accrued: Rational, remaining: readonly {payment_date, amount_per_100: Rational, days: number}[] }.
-- CurveInstrumentId is the union of original two IDs and SYN-ZERO-2031. Original coupon definition versions are explicitly tied to their existing immutable v1 financial source identity; no replacement definitions.
+- CurveInstrumentId is the union of original two IDs and SYN-ZERO-2031. Original coupon definition versions reuse the existing immutable database IDs phase1-ust-1 and phase1-corp-1; no replacement definitions.
 
 - [x] Write failing tests: correct zero redemption, coupon-date exclusion, maturity principal, leap-day accrual(UST45/91, CORP22/45 per100), strict dates/unsupported IDs, exact signed HALF_EVEN ±1.275 ->±1.28 and ±1.265 ->±1.26, rational partial allocation.
 - [x] Run focused tests; expect missing-module failure before implementation.

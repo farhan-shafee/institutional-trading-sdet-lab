@@ -1,7 +1,6 @@
 import { instruments } from '../fixed-income/contracts.js';
 import { actualDays, couponDates, dayCountUS, parseDate } from '../fixed-income/dates.js';
 import { zeroInstruments } from '../fixed-income-v2/zero.js';
-import { financialSource } from '../workflow/database-contract.js';
 import { Rational } from './numbers.js';
 
 export const curveInstrumentIds = Object.freeze([
@@ -11,8 +10,8 @@ export const curveInstrumentIds = Object.freeze([
 ] as const);
 export type CurveInstrumentId = (typeof curveInstrumentIds)[number];
 export const curveDefinitionVersions: Readonly<Record<CurveInstrumentId, string>> = Object.freeze({
-  'SYN-UST-2031': financialSource + '/SYN-UST-2031',
-  'SYN-CORP-2031': financialSource + '/SYN-CORP-2031',
+  'SYN-UST-2031': 'phase1-ust-1',
+  'SYN-CORP-2031': 'phase1-corp-1',
   'SYN-ZERO-2031': zeroInstruments[0]!.definition_version,
 });
 export interface CurveCashFlow {

@@ -3447,7 +3447,7 @@ components:
             definition_version:
               type: string
               enum:
-                - 6016fb700840d081fe1fba651c918f0a7e709383/SYN-UST-2031
+                - phase1-ust-1
         - type: object
           required:
             - instrument_id
@@ -3460,7 +3460,7 @@ components:
             definition_version:
               type: string
               enum:
-                - 6016fb700840d081fe1fba651c918f0a7e709383/SYN-CORP-2031
+                - phase1-corp-1
         - type: object
           required:
             - instrument_id

@@ -70,7 +70,7 @@ void test('coupon-date valuation excludes same-day payment and preserves maturit
   assert.equal(c.remaining[1]!.payment_date, '2031-01-15');
   assert.equal(c.remaining[1]!.amount_per_100.fixed(0), '102');
   assert.equal(c.accrued.isZero(), true);
-  assert.equal(c.definition_version, '6016fb700840d081fe1fba651c918f0a7e709383/SYN-UST-2031');
+  assert.equal(c.definition_version, 'phase1-ust-1');
   assert.equal(curveCashFlows('SYN-CORP-2031', '2025-01-15').remaining.length, 12);
 });
 
@@ -101,4 +101,12 @@ void test('curve flow dates and unsupported instrument identity fail closed', ()
   for (const bad of ['2025-01-14', '2031-01-15', '2027-02-29', '2026-1-15', '2026-01-15T00:00:00Z'])
     assert.throws(() => curveCashFlows('SYN-UST-2031', bad));
   assert.throws(() => curveCashFlows('UNKNOWN' as CurveInstrumentId, '2026-01-15'));
+});
+
+void test('curve definitions reuse the existing immutable database instrument version IDs', () => {
+  for (const [id, version] of [
+    ['SYN-UST-2031', 'phase1-ust-1'],
+    ['SYN-CORP-2031', 'phase1-corp-1'],
+  ] as const)
+    assert.equal(curveCashFlows(id, '2030-01-15').definition_version, version);
 });
