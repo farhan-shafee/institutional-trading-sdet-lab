@@ -87,6 +87,13 @@ class FaultTransport:
     def receive(self,source,size):
         return source.recv(size)
 
+    def transport_failed(self,error):
+        if not self.stop.is_set():self.lab.fail('TRANSPORT_'+str(error) if isinstance(error,(WireError,LabError,OwnershipError)) else 'TRANSPORT_IO')
+
+    def connection_opened(self,channels):pass
+
+    def connection_closing(self,channels,framers):pass
+
     def run(self):
         try:
             while not self.stop.is_set():
@@ -97,6 +104,7 @@ class FaultTransport:
                 left.settimeout(2);right.settimeout(2)
                 self.sockets=[left,right];framers={left:Framer(),right:Framer()}
                 try:
+                    self.connection_opened((left,right))
                     while not self.stop.is_set():
                         readable,_,_=select.select([left,right],[],[],.1)
                         disconnected=False
@@ -131,12 +139,14 @@ class FaultTransport:
                                 frames=framers[source].feed(b'')
                         if disconnected:break
                 finally:
-                    for channel in (left,right):
-                        try:channel.close()
-                        except OSError:pass
-                    self.sockets=[]
+                    try:self.connection_closing((left,right),framers)
+                    finally:
+                        for channel in (left,right):
+                            try:channel.close()
+                            except OSError:pass
+                        self.sockets=[]
         except (OSError,WireError,LabError,OwnershipError) as error:
-            if not self.stop.is_set():self.lab.fail('TRANSPORT_'+str(error) if isinstance(error,(WireError,LabError,OwnershipError)) else 'TRANSPORT_IO')
+            self.transport_failed(error)
 
     def drop_next(self,direction,msg):
         with self.lock:
@@ -192,7 +202,9 @@ class FaultTransport:
 
     def close(self):
         self.stop.set();self.disconnect()
-        if self.thread:self.thread.join(timeout=4)
+        if self.thread:
+            self.thread.join(timeout=4)
+            if self.thread.is_alive():self.lab.fail('TRANSPORT_SHUTDOWN')
         if self.listener:self.listener.close()
 
 class Lab:

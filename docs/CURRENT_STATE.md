@@ -1,6 +1,6 @@
 # TradeFlow current state and evidence
 
-Reviewed **November 6, 2026**. The public institutional workflow is accepted and deployed at `b021602`. The app remains explicitly pinned when subsequent documentation commits merge. Earlier milestones below retain their exact source/counts and first-failure evidence.
+Reviewed **November 8, 2026**. The public institutional workflow is accepted and deployed at `b021602`. The app remains explicitly pinned when subsequent documentation commits merge. Earlier milestones below retain their exact source/counts and first-failure evidence.
 
 ## Current public release
 
@@ -8,7 +8,7 @@ Reviewed **November 6, 2026**. The public institutional workflow is accepted and
 
 The canonical public domain passed analytics/RFQ/execution/cancellation/reconciliation in Chromium, Firefox and WebKit, including 4002-cent execution consideration, genuine clean merge/tree provenance, reload, read-only viewer and cross-visitor isolation. Dedicated PostgreSQL 17.10/TLS and its owner-authorized restart passed. See the [release receipt](PUBLIC_WORKFLOW_RELEASE_2026-11-06.md) and [production runbook](RAILWAY_PRODUCTION.md) for actual deployment IDs, policy, certificate operation, rollback and limits.
 
-## Local FIX runtime and financial ingress - November 7, 2026
+## Local FIX runtime and financial ingress - November 8, 2026
 
 [PR #34](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/34)
 merged normally as GitHub-verified
@@ -18,8 +18,9 @@ All nine post-merge CI jobs passed. The standalone Phase 3C1 matrix remains
 matching-TestRequest response guard; no upstream FIX certification is claimed.
 
 [PR #35](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/35)
-contains the opt-in Phase 3C2 application path and its protected-main integration
-record. Actual native D/8/F/9 bytes and validated FromApp callbacks bind to owned
+merged normally as GitHub-verified d92c91321758e6beff5d52c58c565bc3a29be51a with the qualified108-control tree. Its first resulting main live run42452152303 failed during native cleanup with LIVE_FORWARD_OS_9 after persisted-order replay; that first-attempt evidence is retained. The follow-up corrects normal shutdown retirement and producer/writer ordering and preserves partial received frames as failures.
+
+The opt-in Phase 3C2 application path retains its protected-main integration record. Actual native D/8/F/9 bytes and validated FromApp callbacks bind to owned
 schema9 evidence before the existing SQL financial authority applies them.
 The separate live decoder preserves the old decoder's FIELD_ORDER negatives.
 
@@ -29,8 +30,8 @@ Interrupted admin bytes are retained separately from forwarded bytes; unexpected
 I/O and application bytes from a retired socket remain unresolved. Shutdown also
 settles startup, send and reconnect callers before STOP and rejects command admission
 that resumes after stopping. Accepted same-order work waits for outstanding callbacks
-without blocking their processing, then applies in retained observation order. The mandatory live matrix is now 108 controls, retaining
-all 89 earlier controls and adding five native/socket plus seven lifecycle regressions, two same-order duplex controls and five host filesystem controls. Exact source, complete qualification, first failures,
+without blocking their processing, then applies in retained observation order. The mandatory live matrix is now 118 controls, retaining
+all 108 previously qualified controls and adding ten normal-shutdown, producer/writer and EOF regressions. The preceding108 included five native/socket, seven lifecycle, two same-order duplex and five host filesystem additions to the original89. Exact source, complete qualification, first failures,
 review disposition and CI receipts are recorded in PR #35. See the
 [live application guide](FIX44_LIVE.md) for recovery and profile limits.
 

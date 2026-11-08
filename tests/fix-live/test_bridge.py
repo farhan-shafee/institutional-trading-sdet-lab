@@ -42,7 +42,7 @@ class BridgeProtocolTests(unittest.TestCase):
     def write_pending(self,transport):
         worker=threading.Thread(target=transport._write,args=('J_TO_G',),daemon=True);worker.start()
         try:transport.drain()
-        finally:transport.stop.set();worker.join(timeout=1)
+        finally:transport.writer_stop.set();worker.join(timeout=1)
         self.assertFalse(worker.is_alive())
 
     def test_reconnect_retirement_retains_interrupted_admin_without_writing_the_closed_socket(self):
@@ -93,6 +93,168 @@ class BridgeProtocolTests(unittest.TestCase):
                 self.assertEqual(len(transport.retired_receive_errors),1)
                 with self.assertRaises(OSError):transport.receive(foreign,8192)
                 self.assertEqual(len(transport.retired_receive_errors),1)
+
+
+    def heartbeat(self):
+        return encode_fault_frame({'35':'0','49':'TRADEFLOW','56':'ATLAS','34':'3','52':'20261107-12:00:00.000'})
+
+    def test_normal_close_retires_the_selected_pair_before_child_stop_can_emit_late_admin(self):
+        from unittest.mock import patch
+        from driver import Lab
+        with tempfile.TemporaryDirectory() as temporary:
+            lab=self.transport_case(temporary);transport=lab.transport
+            source,target=socket.socketpair()
+            with source,target,lab.owner:
+                transport.sockets=[source,target];lab.gate.resume();lab.armed=True
+                def stop_children(unused_lab,kind,value,trace):
+                    self.assertFalse(lab.armed)
+                    self.assertFalse(lab.gate.active)
+                    transport.forward('J_TO_G',self.heartbeat(),source);source.close()
+                    self.write_pending(transport);transport.close()
+                with patch.object(Lab,'_close',stop_children):lab._close(None,None,None)
+                self.assertEqual(lab.errors,[]);self.assertEqual(lab.gate.pending,0)
+                self.assertEqual([f['stage'] for f in transport.frames],['interrupted_admin_bytes'])
+
+    def test_shutdown_drains_admin_enqueued_by_the_last_producer_after_network_stop(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            lab=self.transport_case(temporary);transport=lab.transport;failures=[]
+            source,target=socket.socketpair()
+            with source,target,lab.owner:
+                transport.sockets=[source,target]
+                def last_batch():
+                    try:
+                        if not transport.stop.wait(1):raise AssertionError('network stop missing')
+                        transport.forward('J_TO_G',self.heartbeat(),source);source.close()
+                        worker=threading.Thread(target=transport._write,args=('J_TO_G',),daemon=True)
+                        transport.writers.append(worker);worker.start()
+                    except BaseException as error:failures.append(repr(error))
+                producer=threading.Thread(target=last_batch,daemon=True);transport.thread=producer;producer.start()
+                transport.close()
+                self.assertFalse(producer.is_alive());self.assertEqual(failures,[])
+                self.assertEqual(transport.writes['J_TO_G'].unfinished_tasks,0)
+                self.assertEqual(lab.gate.pending,0);self.assertEqual(lab.errors,[])
+                self.assertEqual([f['stage'] for f in transport.frames],['interrupted_admin_bytes'])
+
+    def test_a_foreign_closed_target_still_fails_after_network_stop(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            lab=self.transport_case(temporary);transport=lab.transport
+            source,target=socket.socketpair()
+            with source,target,lab.owner:
+                transport.forward('J_TO_G',self.heartbeat(),source);source.close();transport.stop.set()
+                worker=threading.Thread(target=transport._write,args=('J_TO_G',),daemon=True);worker.start()
+                try:
+                    worker.join(timeout=.1)
+                    self.assertTrue(any(code.startswith('LIVE_FORWARD_') for code in lab.errors))
+                    self.assertEqual(transport.frames,[]);self.assertEqual(lab.gate.pending,1)
+                finally:
+                    getattr(transport,'writer_stop',transport.stop).set();worker.join(timeout=1)
+                self.assertFalse(worker.is_alive())
+
+    def test_final_shutdown_cannot_report_clean_with_an_application_still_held(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            lab=self.transport_case(temporary)
+            with lab.owner:
+                lab.gate.offer('J_TO_G',self.frame(),lambda raw:None)
+                lab.transport.close()
+                self.assertIn('LIVE_APPLICATION_UNRESOLVED',lab.errors)
+                self.assertEqual(lab.gate.pending_application,1)
+
+    def test_opposite_partial_frame_is_retained_as_failure_on_eof_and_producer_stop(self):
+        from unittest.mock import patch
+        for stopped in (False,True):
+            with self.subTest(stopped=stopped),tempfile.TemporaryDirectory() as temporary:
+                lab=self.transport_case(temporary);transport=lab.transport
+                left,left_peer=socket.socketpair();right,right_peer=socket.socketpair()
+                with left,left_peer,right,right_peer,lab.owner:
+                    class Listener:
+                        accepted=False
+                        def accept(inner):
+                            if not inner.accepted:inner.accepted=True;return left,('local',0)
+                            transport.stop.set();raise socket.timeout()
+                    transport.listener=Listener();right_peer.sendall(self.heartbeat()[:12]);left_peer.shutdown(socket.SHUT_WR)
+                    calls=[0]
+                    def ready(*unused):
+                        calls[0]+=1
+                        if calls[0]==1:return [right],[],[]
+                        if stopped:transport.stop.set();return [],[],[]
+                        return [left],[],[]
+                    with patch('driver.socket.create_connection',return_value=right),patch('driver.select.select',side_effect=ready):transport.run()
+                    self.assertIn('TRANSPORT_TRUNCATED',lab.errors)
+                    self.assertEqual(transport.frames,[])
+
+    def test_shutdown_retires_a_concurrently_installed_owned_pair_without_authorizing_foreign_sockets(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            lab=self.transport_case(temporary);transport=lab.transport
+            source,target=socket.socketpair();foreign,peer=socket.socketpair()
+            with source,target,foreign,peer,lab.owner:
+                transport.begin_shutdown()
+                transport.connection_opened((source,target))
+                self.assertTrue(transport.retired(source));self.assertTrue(transport.retired(target))
+                self.assertFalse(transport.retired(foreign))
+                source.close();foreign.close()
+                self.assertEqual(transport.receive(source,8192),b'')
+                with self.assertRaises(OSError):transport.receive(foreign,8192)
+
+    def test_failed_gate_and_partial_startup_still_complete_shutdown_without_resetting_failure(self):
+        for channel_count in (0,1):
+            with self.subTest(channel_count=channel_count),tempfile.TemporaryDirectory() as temporary:
+                lab=self.transport_case(temporary);transport=lab.transport
+                source,target=socket.socketpair()
+                with source,target,lab.owner:
+                    transport.sockets=[source][:channel_count];lab.gate.failed=True;lab.armed=True
+                    transport.close()
+                    self.assertTrue(lab.gate.failed);self.assertFalse(lab.gate.active);self.assertFalse(lab.armed)
+                    self.assertIn('LIVE_LANE_FAILED',lab.errors)
+                    self.assertEqual([q.unfinished_tasks for q in transport.writes.values()],[0,0])
+
+    def test_a_producer_surviving_its_existing_join_bound_prevents_clean_shutdown(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            lab=self.transport_case(temporary);bounds=[]
+            class Producer:
+                def join(self,timeout):bounds.append(timeout)
+                def is_alive(self):return True
+            with lab.owner:
+                lab.transport.thread=Producer();lab.transport.close()
+                self.assertEqual(bounds,[4])
+                self.assertIn('TRANSPORT_SHUTDOWN',lab.errors)
+
+
+    def test_shutdown_cannot_retroactively_retire_a_pair_that_closed_unplanned(self):
+        from wire import Framer
+        with tempfile.TemporaryDirectory() as temporary:
+            lab=self.transport_case(temporary);transport=lab.transport
+            source,target=socket.socketpair()
+            with source,target,lab.owner:
+                transport.sockets=[source,target];transport.connection_opened((source,target))
+                transport.connection_closing((source,target),{source:Framer(),target:Framer()})
+                source.close();target.close()
+                # The producer has not cleared its public snapshot yet.
+                transport.begin_shutdown()
+                transport.forward('J_TO_G',self.heartbeat(),source);self.write_pending(transport)
+                self.assertFalse(transport.retired(source))
+                self.assertTrue(any(code.startswith('LIVE_FORWARD_') for code in lab.errors))
+                self.assertEqual(transport.frames,[]);self.assertEqual(lab.gate.pending,1)
+
+    def test_last_producer_application_or_protocol_error_survives_network_stop_before_lane_admission(self):
+        from unittest.mock import patch
+        for malformed in (False,True):
+            with self.subTest(malformed=malformed),tempfile.TemporaryDirectory() as temporary:
+                lab=self.transport_case(temporary);transport=lab.transport
+                left,left_peer=socket.socketpair();right,right_peer=socket.socketpair()
+                with left,left_peer,right,right_peer,lab.owner:
+                    class Listener:
+                        def accept(inner):return left,('local',0)
+                    transport.listener=Listener()
+                    raw=self.frame()
+                    if malformed:raw=raw[:-4]+b'999'+raw[-1:]
+                    left_peer.sendall(raw)
+                    def last_batch(*unused):
+                        transport.begin_shutdown();transport.stop.set();return [left],[],[]
+                    with patch('driver.socket.create_connection',return_value=right),patch('driver.select.select',side_effect=last_batch):transport.run()
+                    expected='TRANSPORT_CHECKSUM' if malformed else 'TRANSPORT_LIVE_RETIRED_APPLICATION_UNRESOLVED'
+                    self.assertIn(expected,lab.errors)
+                    self.assertEqual(lab.gate.pending,0)
+                    self.assertFalse(any(f['stage']=='forwarded_bytes' for f in transport.frames))
 
     def frame(self):
         rows=json.loads((ROOT/'test-data/fix44/live/manifest.json').read_text())
