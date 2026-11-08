@@ -25,14 +25,14 @@
 
 ### Task1: strict versioned preservation
 
-**Files:** Create tools/fix-session/preservation-v2.json, tools/fix-session/preservation_v2.py, tests/preservation-v2/test_controls.py. Modify scripts/test-fix-session.py, scripts/test-fix-live-application.py, tests/fix-session/test_gate_controls.py and tools/fix-session/Dockerfile.
+**Files:** Create tools/fix-session/preservation-v2.json, tools/fix-session/preservation_v2.py, tests/preservation-v2/test_controls.py, tests/preservation-admission/test_admission.py and tools/fix-session/preservation_controls.py. Modify scripts/test-fix-session.py, scripts/test-fix-live-application.py, tests/fix-session/test_gate_controls.py and tools/fix-session/Dockerfile.
 **Interfaces:** load_preservation(root: Path) returns version2 dictionary with exact434-file map; existing verify_preserved(root, files) unchanged.
 
 - [ ] Write and observe new tests RED because the approved loader is missing.
 - [ ] Implement fixed-digest metadata loader and literal exact-two-file overlay.
 - [ ] Integrate both native callers; freeze new metadata, reload at final validation.
 - [ ] Preserve existing daemon controls using authentic metadata fixtures and assert capture of new build inputs.
-- [ ] Run all host tests GREEN and all relevant required checks.
+- [ ] Run all13 host admission/preservation controls and existing14 daemon controls GREEN; then all relevant required checks.
 
 ### Task2: full qualification and integration
 

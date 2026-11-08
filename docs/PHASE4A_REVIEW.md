@@ -2,6 +2,14 @@
 
 The owner accepted the proposed model and exact two-file API exception on November8,2026. Versioned preservation implementation and complete native qualification now proceed within that approved scope. Production deployment remains separate. The pre-approval review record below is retained as historical evidence.
 
+## Approved exception verification
+
+The original manifest and strict verifier remain unchanged. A pinned version2 contract checks432 original file hashes plus exactly two reviewed replacements. Missing/modified/symbolic metadata, changed source bytes and third-path exceptions fail closed.
+
+The13-control host harness admits exactly eight preservation tests and five negative admission tests with no missing, extra, duplicate, skipped, expected-failure or unexpected-success result. Both gates validate its typed receipt before image construction. Actual isolated probes for seven passing tests, eight skipped tests, eight expected failures and eight unexpected successes all returned nonzero. Existing14 daemon safety controls retain their ownership/cleanup assertions and verify the new command/input/receipt boundary.
+
+Candidatec03f0cb passed the complete native43/89 and118/118 matrices with owned cleanup true. That candidate's later broad validation failed formatting on its generated ownership-intent record. Its two evidence folders were relocated outside source with every file hash unchanged; no evidence was reformatted. The stricter admission fix requires fresh final-source qualification; see PR37 for actual results.
+
 ## Pre-approval review record
 
 This is a reviewable candidate, not an accepted Phase4 completion or production release.

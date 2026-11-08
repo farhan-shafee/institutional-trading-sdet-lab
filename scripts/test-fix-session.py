@@ -13,6 +13,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools/fix-session'))
 from gate import GateError,admit_log_driver,admit_manifest,admit_pins,admit_results,input_identity,require_same_inputs,require_tool,run_bounded,verify_preserved
 from preservation_v2 import load_preservation
+from preservation_controls import admit_control_receipt
 from preflight import validate_reference
 
 MAX_BYTES=67108864
@@ -43,7 +44,7 @@ def main():
         return path
     def source_inputs():
         paths=['package.json','package-lock.json','scripts/test-fix-session.py','scripts/test-fix-session.ts','scripts/verify-fix-session-compatibility.ts','contracts/fix-session-runtime-v1.json','verification/vendor/quickfix/FIX44.xml','tools/fix-session/Dockerfile','tools/fix-session/Dockerfile.dockerignore','tools/fix-session/dependencies.lock.json','tools/fix-session/preservation.json','tools/fix-session/preservation-v2.json','tools/fix-session/java/pom.xml','verification/fix-peer/go/go.mod','verification/fix-peer/go/go.sum']
-        for pattern in ['tools/fix-session/*.py','tools/fix-session/runtime/*.py','tools/fix-session/calendar/*.go','tools/fix-session/java/src/**/*.java','verification/fix-peer/go/*.go','tests/fix-session/*.py','tests/preservation-v2/*.py','tests/fix-live/*.py','test-data/fix44/live/manifest.json','test-data/fix44/runtime/manifest.json','test-data/fix44/runtime/bindings.json']:
+        for pattern in ['tools/fix-session/*.py','tools/fix-session/runtime/*.py','tools/fix-session/calendar/*.go','tools/fix-session/java/src/**/*.java','verification/fix-peer/go/*.go','tests/fix-session/*.py','tests/preservation-v2/*.py','tests/preservation-admission/*.py','tests/fix-live/*.py','test-data/fix44/live/manifest.json','test-data/fix44/runtime/manifest.json','test-data/fix44/runtime/bindings.json']:
             paths.extend(p.relative_to(ROOT).as_posix() for p in ROOT.glob(pattern) if p.is_file())
         return input_identity(ROOT,paths)
     try:
@@ -80,7 +81,7 @@ def main():
         (out/'build-inputs.json').write_text(encoded,encoding='utf-8',newline='\n')
         report['build_inputs_sha256']=hashlib.sha256(encoded.encode()).hexdigest()
         report['preserved_original_files']=baseline['preserved_original_files'];report['reviewed_replacements']=baseline['reviewed_replacements'];report['preservation_version']=baseline['version'];report['preservation_contract_sha256']=baseline['preservation_contract_sha256']
-        run([sys.executable,'-m','unittest','discover','-s','tests/preservation-v2','-p','test_*.py','-v'],'preservation-v2-controls')
+        admit_control_receipt(run([sys.executable,'tools/fix-session/preservation_controls.py'],'preservation-v2-controls').read_text())
         print('Building pinned session peers',flush=True)
         intend('image',image)
         run([docker,'build','--platform=linux/amd64','--progress=plain','--label','tradeflow.scope=synthetic-fix-session','--label','tradeflow.run_id='+identity,'-f',str(ROOT/'tools/fix-session/Dockerfile'),'-t',image,str(ROOT)],'build',cap=900)
