@@ -1,10 +1,13 @@
+import { zeroAnalytics, zeroInstruments } from '../domain/fixed-income-v2/zero.js';
 import { DomainError } from '../domain/errors.js';
 import { analytics, instruments } from '../domain/fixed-income/analytics.js';
 
 /** Called only after ordinary session authentication and global request admission. */
 export function fixedIncomeRead(path: string, parameters: URLSearchParams): unknown {
   const root = '/api/fixed-income/v1';
-  if (path !== `${root}/instruments` && path !== `${root}/analytics`) return undefined;
+  const zeroRoot = '/api/fixed-income/v2';
+  const zero = path === `${zeroRoot}/instruments` || path === `${zeroRoot}/analytics`;
+  if (!zero && path !== `${root}/instruments` && path !== `${root}/analytics`) return undefined;
   try {
     const query = Object.create(null) as Record<string, string>;
     for (const [key, value] of parameters) {
@@ -13,9 +16,9 @@ export function fixedIncomeRead(path: string, parameters: URLSearchParams): unkn
     }
     if (path.endsWith('/instruments')) {
       if (parameters.size) throw new Error('Catalogue takes no parameters.');
-      return { instruments };
+      return { instruments: zero ? zeroInstruments : instruments };
     }
-    return analytics(query);
+    return zero ? zeroAnalytics(query) : analytics(query);
   } catch {
     throw new DomainError(
       400,

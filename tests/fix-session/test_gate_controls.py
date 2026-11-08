@@ -52,9 +52,8 @@ class GateControls(unittest.TestCase):
         host=importlib.util.module_from_spec(spec);spec.loader.exec_module(host)
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)
-            for name in ['tools/fix-session/dependencies.lock.json','tools/fix-session/Dockerfile','test-data/fix44/runtime/manifest.json','test-data/fix44/runtime/bindings.json','contracts/fix-session-runtime-v1.json']:
+            for name in ['tools/fix-session/dependencies.lock.json','tools/fix-session/Dockerfile','test-data/fix44/runtime/manifest.json','test-data/fix44/runtime/bindings.json','contracts/fix-session-runtime-v1.json','tools/fix-session/preservation.json','tools/fix-session/preservation-v2.json','tools/fix-session/preservation_v2.py','tools/fix-session/preservation_controls.py']:
                 target=root/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((ROOT/name).read_bytes())
-            (root/'tools/fix-session/preservation.json').write_text(json.dumps({'files':{'fixture':'0'*64}}))
             lock_path=root/'tools/fix-session/dependencies.lock.json';lock=json.loads(lock_path.read_text())
             for name,key in [('go.mod','go_mod_sha256'),('go.sum','go_sum_sha256')]:
                 target=root/'verification/fix-peer/go'/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(b'isolated daemon-boundary fixture\n')
@@ -63,7 +62,10 @@ class GateControls(unittest.TestCase):
             resources={};removed=[];identity=[]
             def run(args,path,*unused,**kwargs):
                 text='';name=Path(path).stem
-                if args[0]=='node':text='v24.22.0\n'
+                if name=='preservation-v2-controls':
+                    self.assertEqual(args,[sys.executable,'tools/fix-session/preservation_controls.py'])
+                    text=json.dumps({'version':1,'scope':'phase4a-preservation-controls-v2','preservation_controls':8,'admission_controls':5,'passed':13,'failures':0,'errors':0,'skipped':0,'expected_failures':0,'unexpected_successes':0})+'\n'
+                elif args[0]=='node':text='v24.22.0\n'
                 elif args[1]=='build':
                     tag=args[args.index('-t')+1];run_id=tag.split('run-',1)[1];identity.append(run_id)
                     labels={'tradeflow.scope':'synthetic-fix-session','tradeflow.run_id':run_id}
@@ -83,10 +85,18 @@ class GateControls(unittest.TestCase):
                 elif args[1]!='version':self.fail('unexpected command '+repr(args))
                 Path(path).write_text(text)
                 return {'exit_code':0,'bytes':len(text)}
-            with patch.object(host,'ROOT',root),patch.object(host,'require_tool',side_effect=lambda name:name),patch.object(host,'verify_preserved'),patch.object(host,'input_identity',return_value={'fixture':'immutable'}),patch.object(host,'run_bounded',side_effect=run),contextlib.redirect_stdout(io.StringIO()):
+            def frozen_inputs(actual_root,paths):
+                self.assertEqual(actual_root,root)
+                for required in ['tools/fix-session/preservation.json','tools/fix-session/preservation-v2.json','tools/fix-session/preservation_v2.py','tools/fix-session/preservation_controls.py']:
+                    self.assertIn(required,paths)
+                return {'fixture':'immutable'}
+            with patch.object(host,'ROOT',root),patch.object(host,'require_tool',side_effect=lambda name:name),patch.object(host,'verify_preserved'),patch.object(host,'input_identity',side_effect=frozen_inputs),patch.object(host,'run_bounded',side_effect=run),contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaisesRegex(host.GateError,'^'+('CONTAINER_ID' if fault=='invalid-create' else 'CHILD_DEADLINE')+'$'):host.main()
             summary=json.loads(next(root.rglob('summary.json')).read_text())
             self.assertEqual(summary['status'],'failed')
+            self.assertEqual(summary['preserved_original_files'],432)
+            self.assertEqual(summary['reviewed_replacements'],2)
+            self.assertEqual(summary['preservation_version'],2)
             self.assertEqual(summary['error'],'CONTAINER_ID' if fault=='invalid-create' else 'CHILD_DEADLINE')
             self.assertIn('image',removed)
             if fault!='build' and not foreign:self.assertIn('container',removed)

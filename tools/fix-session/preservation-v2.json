@@ -1,0 +1,17 @@
+{
+  "approved_source_commit": "6bb7741a8664ccd5ae0f078dc86423dfe3eb25bd",
+  "approved_specification": "TradeFlow_Phase4_Completion_Contract_2026-11-08.md version 1; owner accepted financial scope and exact API exception",
+  "baseline_sha256": "d75f72090bafb12f51990bbe8e95aaba5a72c014fed291a3a8199c2303fc5f07",
+  "replacements": {
+    "app/server/fixed-income.ts": {
+      "original_sha256": "a12cc4c7168aa2faacbc9c0adcc3902faae8b1f2a12b2ca8d1ad18f5e646a6b5",
+      "sha256": "cca68918c45ecac3fce25649211466b30a1dc76c7759e89656ded72a5868fcf6"
+    },
+    "contracts/openapi.yaml": {
+      "original_sha256": "4648c000f86b5eb4bd0838755e7bc4971ffc09903391e1249ed10ce03ed4dd17",
+      "sha256": "dfb15fb8ddef03b35950c9fdb1276e860a280bf111209ea2164341b5522154c9"
+    }
+  },
+  "scope": "phase4a-zero-coupon-read-api-v1",
+  "version": 2
+}

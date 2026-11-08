@@ -24,7 +24,7 @@ COPY --from=go-build /out/licenses /opt/runtime/licenses
 WORKDIR /lab
 COPY tools/fix-session/runtime ./tools/fix-session/runtime
 COPY tools/fix-session/preflight.py ./tools/fix-session/preflight.py
-COPY tools/fix-session/gate.py tools/fix-session/run_matrix.py tools/fix-session/dependencies.lock.json tools/fix-session/Dockerfile ./tools/fix-session/
+COPY tools/fix-session/gate.py tools/fix-session/run_matrix.py tools/fix-session/dependencies.lock.json tools/fix-session/Dockerfile tools/fix-session/preservation_v2.py tools/fix-session/preservation_controls.py tools/fix-session/preservation.json tools/fix-session/preservation-v2.json ./tools/fix-session/
 COPY tests/fix-session ./tests/fix-session
 COPY tests/fix-live/*.py ./tests/fix-live/
 COPY test-data/fix44/live/manifest.json ./test-data/fix44/live/
