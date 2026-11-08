@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 /** Direct native test invocation has the same exact source/dependency boundary. No bypass flag. */
 export function admitPostTradeNative(): void {
   const program =
-    "import json,sys;from pathlib import Path;r=Path.cwd();sys.path.insert(0,str(r/'tools/fix-session'));from gate import verify_preserved,admit_pins;from preservation_v2 import load_preservation;verify_preserved(r,load_preservation(r)['files']);admit_pins(json.loads((r/'tools/fix-session/dependencies.lock.json').read_text()),(r/'tools/fix-session/Dockerfile').read_text())";
+    "import json,sys;from pathlib import Path;r=Path.cwd();sys.path.insert(0,str(r/'tools/fix-session'));from gate import verify_preserved,admit_pins;from preservation_v3 import load_preservation;verify_preserved(r,load_preservation(r)['files']);admit_pins(json.loads((r/'tools/fix-session/dependencies.lock.json').read_text()),(r/'tools/fix-session/Dockerfile').read_text())";
   const result = spawnSync(process.env['PYTHON'] ?? 'python3', ['-c', program], {
     encoding: 'utf8',
     timeout: 15000,

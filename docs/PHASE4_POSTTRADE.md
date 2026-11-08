@@ -53,7 +53,7 @@ The original shared512-command/1024-event ceilings and existing admission, pool,
 
 New real PostgreSQL suites cover SQL reconstruction, concurrency, settlement chronology, exact capacity, current ownership and uncertain-commit recovery. Independent Python Decimal125/Fraction calculations check risk, corrected execution cash and exact FIFO/equity. Actual HTTP bodies are validated against separately authored additive OpenAPI schemas.
 
-Native FIX integration, complete qualification, final model/test acceptance and any later exact source-preservation exception remain pending. A source-preservation refusal must remain visible; it is not a passing native journey.
+The owner approved exactly the three additional source exceptions for native testing; see the [source-admission contract](PHASE4_SOURCE_ADMISSION.md). Native FIX qualification, resolution of the retained local financial finding, final model/test acceptance and integration remain pending. A source-preservation refusal must remain visible; it is not a passing native journey.
 
 ## Private local commands and report
 
@@ -86,4 +86,4 @@ This additional schema10 journey requires the existing exact preservation contra
 
 The candidate sends actual D/8/F/9 frames, replays five original financial application receipts, retains three raw execution roots, then runs correction, failed/successful DVP, reversal, terminal bust and independent risk/FIFO reconstruction. Its own expected result is14 financial commands and22 events. It compares original raw/order/FIX evidence before and after financial adjustments. The original43-case/89-control session and118-control application gates remain separate required qualification.
 
-The recorded first attempt on2026-11-08 returned SOURCE_PRESERVATION before allocating native or database resources; owned cleanup was complete. The exact source contract has not been refreshed. Native journey behavior beyond admission is therefore unexecuted and pending exact owner acceptance and subsequent real qualification. No native pass is claimed.
+The recorded first attempt on2026-11-08 returned SOURCE_PRESERVATION before allocating native or database resources; owned cleanup was complete. That original refusal remains retained. The subsequent explicit owner approval is represented by a separate fixed-digest v3 contract; the original manifest and v2 contract remain immutable. Native behavior beyond admission still requires actual qualification. No native pass is claimed.
