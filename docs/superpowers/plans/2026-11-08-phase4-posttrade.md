@@ -81,11 +81,11 @@
 - Global key domain POSTTRADE extends007 by a checked exact CASE insertion, retaining private FIX_PREPARED transfer. Shared reservation guards include legacy count writers, PT initialization and FIX reservation insertion.
 - New complete test command runs original455 schema8 through existing runPostgresVerification, then a fresh owned010 child suite through the same unchanged cancellation/cleanup wrapper.
 
-- [ ] Write real SQL failing schema/ownership/default-off/forced-RLS/least-privilege/unknown-checksum tests, current-generation reauthorization and key conflict/replay across old/new families.
-- [ ] Write exact independent SQL physical count tests for initialization1/1, registration1/1,97/161 allocation incl own receipt, free/reserved boundary refusal and INIT/FIX-BIND/legacy-writer/rotation races; no effect on denial.
-- [ ] Run RED on missing010/client/RPC.
-- [ ] Implement bounded tables, immutable receipts, exact raw-root registration and window, current source read, private consistency constraints and full cascade cleanup. Do not change original counter meaning or001-009 files.
-- [ ] Run real010 suite plus original455, full unit/static checks; verify cleanup/retained zero and unchanged8/9 fail-closed behavior, commit.
+- [x] Write real SQL failing schema/ownership/default-off/forced-RLS/least-privilege/unknown-checksum tests, current-generation reauthorization and key conflict/replay across old/new families.
+- [x] Write exact independent SQL physical count tests for initialization1/1, registration1/1,97/161 allocation incl own receipt, free/reserved boundary refusal and INIT/FIX-BIND/legacy-writer/rotation races; no effect on denial.
+- [x] Run RED on missing010/client/RPC.
+- [x] Implement bounded tables, immutable receipts, exact raw-root registration and window, current source read, private consistency constraints and full cascade cleanup. Do not change original counter meaning or001-009 files.
+- [x] Run real010 suite plus original455, full unit/static checks; verify cleanup/retained zero and unchanged8/9 fail-closed behavior, commit.
 
 ### Task4: Append-only correction and terminal bust
 

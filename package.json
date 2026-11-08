@@ -46,7 +46,8 @@
     "test:fix-session": "node --import tsx scripts/test-fix-session.ts",
     "test:fix-live": "node --import tsx scripts/verify-fix-live.ts",
     "test:fix-live-sql": "node --import tsx --test --test-timeout=30000 tests/fix-live/sql.test.ts",
-    "test:fix-live-application": "node --import tsx scripts/test-fix-live-application.ts"
+    "test:fix-live-application": "node --import tsx scripts/test-fix-live-application.ts",
+    "test:posttrade": "node --import tsx scripts/test-posttrade.ts"
   },
   "dependencies": {
     "decimal.js": "10.6.0",
