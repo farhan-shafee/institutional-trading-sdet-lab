@@ -6,13 +6,13 @@ No Critical or Important implementation finding. Implementation is ready for own
 
 ## Independently checked
 
--162 endpoint round trips: three fixtures, three instruments and nine dates including coupon/leap/near-maturity boundaries; all passed.
--40 prior OpenAPI paths and64 schemas structurally unchanged.
--434 protected original files rehashed:432 unchanged, only the same two API files differ. Original manifest and v2 overlay unchanged.
--Actual full-gate logs/exits:1077 units,252 baseline and504 repeated cases, all exit0 on3f6cf1c.
--Both native failure receipts and relocated file hashes: SOURCE_PRESERVATION and owned cleanup true; no downstream native pass claimed.
--Authentication precedes calculation; duplicate/null-prototype query parsing and runtime schema boundaries inspected.
--Independent Python125 oracle, exact rational/Decimal80 calculations, cancellation, inversion and numerical ambiguity reviewed.
+- 162 endpoint round trips: three fixtures, three instruments and nine dates including coupon/leap/near-maturity boundaries; all passed.
+- 40 prior OpenAPI paths and64 schemas structurally unchanged.
+- 434 protected original files rehashed:432 unchanged, only the same two API files differ. Original manifest and v2 overlay unchanged.
+- Actual full-gate logs/exits:1077 units,252 baseline and504 repeated cases, all exit0 on3f6cf1c.
+- Both native failure receipts and relocated file hashes: SOURCE_PRESERVATION and owned cleanup true; no downstream native pass claimed.
+- Authentication precedes calculation; duplicate/null-prototype query parsing and runtime schema boundaries inspected.
+- Independent Python125 oracle, exact rational/Decimal80 calculations, cancellation, inversion and numerical ambiguity reviewed.
 
 ## Deferred Minor
 
