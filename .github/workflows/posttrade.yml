@@ -40,6 +40,14 @@ jobs:
         run: npm run workflow:validate
       - name: Original foundation then complete owned post-trade on fresh databases
         run: npm run test:posttrade
+      - name: Retain bounded original capacity findings on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: financial-findings-${{ github.job }}-${{ github.run_attempt }}
+          path: artifacts/financial-findings-*/finding-*.json
+          retention-days: 7
+          if-no-files-found: ignore
 
   posttrade-run-b:
     needs: posttrade-run-a
@@ -69,6 +77,14 @@ jobs:
         run: npm run workflow:validate
       - name: Second full original and post-trade verification on fresh databases
         run: npm run test:posttrade
+      - name: Retain bounded original capacity findings on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: financial-findings-${{ github.job }}-${{ github.run_attempt }}
+          path: artifacts/financial-findings-*/finding-*.json
+          retention-days: 7
+          if-no-files-found: ignore
 
   posttrade-native:
     needs: posttrade-run-b

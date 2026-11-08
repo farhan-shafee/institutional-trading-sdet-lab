@@ -1,6 +1,7 @@
 import { runPostgresVerification, VerificationCancelled } from './test-postgres.js';
+import { runCapturedPostgresVerification } from './postgres-capture-runner.js';
 try {
-  await runPostgresVerification();
+  await runCapturedPostgresVerification();
   await runPostgresVerification({
     arguments: ['--import', 'tsx', 'scripts/run-posttrade-tests.ts'],
   });
