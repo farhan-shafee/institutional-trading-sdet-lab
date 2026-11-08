@@ -12,6 +12,8 @@ import { LiveFixApplicationService } from '../../app/server/fix/live-application
 import { LiveFixController } from '../../app/server/fix/live-controller.js';
 import { LiveJournal } from '../../app/server/fix/live-journal.js';
 import { DomainError } from '../../app/domain/errors.js';
+import { setTimeout as waitForLease } from 'node:timers/promises';
+import { z } from 'zod';
 import { runtime as createLiveRuntime } from './runtime-fixture.js';
 import { fixture, report } from '../postgres/fix-fixture.js';
 
@@ -208,6 +210,84 @@ function body(fields: Record<string, string>) {
     ),
   );
 }
+
+void test('fresh work after the actual 15-second lease expires reclaims durably without changing original fill intent', async () => {
+  const h = await scenario(true);
+  try {
+    await h.controller.start();
+    const order = body(await report(h.s, { '35': 'D', '21': '1' }));
+    for (const tag of ['37', '17', '150', '39', '14', '151', '6']) delete order[tag];
+    assert.equal((await h.controller.send(h.s.order, order)).status, 201);
+    assert.equal((await h.controller.send(h.s.order, body(await report(h.s)))).status, 200);
+    const oldWork = await h.journal.entries('work');
+    const claims = (await h.journal.entries('request')).filter(
+      (entry) => z.object({ action: z.string() }).parse(entry.value).action === 'CLAIM',
+    );
+    const lease = (
+      await h.s.app.query<{ remaining_ms: number; fence: string }>(
+        'SELECT ceil(greatest(0,extract(epoch FROM lease_expires_at-clock_timestamp())*1000))::int remaining_ms,fence::text FROM fi.fix_lanes WHERE sandbox_id=$1 AND order_id=$2',
+        [h.s.id, h.s.order],
+      )
+    ).rows[0]!;
+    assert.ok(lease.remaining_ms > 0 && lease.remaining_ms <= 15000);
+    await waitForLease(lease.remaining_ms + 1);
+    assert.equal(
+      (
+        await h.s.app.query<{ expired: boolean }>(
+          'SELECT lease_expires_at<=clock_timestamp() expired FROM fi.fix_lanes WHERE sandbox_id=$1 AND order_id=$2',
+          [h.s.id, h.s.order],
+        )
+      ).rows[0]!.expired,
+      true,
+    );
+    await h.controller.reconnect('go');
+    const terms = await report(h.s);
+    const fill = body(
+      await report(h.s, {
+        '17': 'ATLAS-' + randomUUID().toUpperCase(),
+        '150': 'F',
+        '39': '2',
+        '32': '100.00',
+        '31': terms['44'],
+        '6': terms['44'],
+        '14': '100.00',
+        '151': '0.00',
+      }),
+    );
+    assert.equal((await h.controller.send(h.s.order, fill)).status, 200);
+    const newWork = await h.journal.entries('work');
+    for (const original of oldWork)
+      assert.deepEqual(await h.journal.read('work', original.id), original.value);
+    assert.equal(newWork.length, oldWork.length + 1);
+    const fillIntent = newWork.find((entry) => !oldWork.some((old) => old.id === entry.id))!;
+    assert.ok(
+      BigInt(z.object({ fence: z.string() }).parse(fillIntent.value).fence) > BigInt(lease.fence),
+    );
+    const afterClaims = (await h.journal.entries('request')).filter(
+      (entry) => z.object({ action: z.string() }).parse(entry.value).action === 'CLAIM',
+    );
+    assert.equal(afterClaims.length, claims.length + 1);
+    assert.equal((await h.controller.send(h.s.order, fill)).replayed, true);
+    assert.deepEqual(await h.journal.read('work', fillIntent.id), fillIntent.value);
+    assert.equal(
+      (await h.journal.entries('request')).filter(
+        (entry) => z.object({ action: z.string() }).parse(entry.value).action === 'CLAIM',
+      ).length,
+      afterClaims.length,
+    );
+    assert.equal(
+      (
+        await h.s.app.query<{ n: number }>(
+          'SELECT count(*)::int n FROM fi.executions WHERE sandbox_id=$1 AND order_id=$2',
+          [h.s.id, h.s.order],
+        )
+      ).rows[0]!.n,
+      1,
+    );
+  } finally {
+    await h.close();
+  }
+});
 
 void test('real engine callbacks apply the owned acknowledgment and partial/final fills through SQL exactly once', async () => {
   assert.ok(owned);

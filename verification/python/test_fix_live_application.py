@@ -36,6 +36,22 @@ def fixture():
     return {'snapshot':snapshot,'journal':journal}
 
 class LiveApplicationOracleTests(unittest.TestCase):
+    def test_reconnect_intent_without_a_new_registered_connection_is_unresolved(self):
+        document=fixture();command=str(uuid4())
+        document['journal']['send']=[{'id':command,'value':{'kind':'RECONNECT','command_id':command,'connection_id':document['snapshot']['connections'][0]['id'],'restart_role':'go'}}]
+        result=verify(document);self.assertGreater(result['unresolved'],0);self.assertFalse(result['financial_application_verified'])
+    def test_orphan_retained_frame_is_unresolved_even_before_the_observe_request_exists(self):
+        document=fixture();frame=copy.deepcopy(document['journal']['frame'][0]);frame['id']=str(uuid4());frame['value'].update(observe_key=str(uuid4()),accept_key=str(uuid4()))
+        document['journal']['frame'].append(frame)
+        result=verify(document);self.assertGreater(result['unresolved'],0);self.assertFalse(result['financial_application_verified'])
+    def test_orphan_retained_send_is_unresolved_before_any_wire_is_observed(self):
+        document=fixture();command=str(uuid4())
+        document['journal']['send']=[{'id':command,'value':{'command_id':command,'order_id':document['snapshot']['orders'][0]['order']['id'],'direction':'J_TO_G','fields':{'35':'D'}}}]
+        result=verify(document);self.assertGreater(result['unresolved'],0);self.assertFalse(result['financial_application_verified'])
+    def test_a_retained_send_cannot_be_matched_to_a_different_physical_frame(self):
+        document=fixture();command=str(uuid4());document['journal']['frame'][0]['value']['command_id']=command
+        document['journal']['send']=[{'id':command,'value':{'command_id':command,'order_id':document['snapshot']['orders'][0]['order']['id'],'direction':'J_TO_G','fields':{'35':'8'}}}]
+        result=verify(document);self.assertIn('LIVE_JOURNAL_SEND',{f['code'] for f in result['findings']});self.assertFalse(result['financial_application_verified'])
     def test_literal_metadata_is_consistent_but_cannot_claim_financial_application(self):
         result=verify(fixture());self.assertEqual(result['findings'],[]);self.assertEqual(result['executions'],0);self.assertFalse(result['financial_application_verified'])
     def check(self,change,code):

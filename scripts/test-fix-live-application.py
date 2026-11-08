@@ -91,8 +91,8 @@ def main():
         if os.name!='posix':raise GateError('LINUX_OR_WSL_HOST_REQUIRED')
         docker=require_tool('docker');node=require_tool('node');python=require_tool('python3')
         contract=json.loads((ROOT/'contracts/fix-live-application-v1.json').read_text());expected=contract['required_groups']
-        if hashlib.sha256(json.dumps(contract,sort_keys=True,separators=(',',':')).encode()).hexdigest()!='da834ccdee0583e30aab134e60af8e4577fb3b83c9b4154a3845af6c0556d6bf':raise GateError('LIVE_GATE_CONTRACT')
-        if contract['required_controls']!=82 or sum(expected.values())!=82 or contract['gate_seconds']!=900:raise GateError('LIVE_GATE_CONTRACT')
+        if hashlib.sha256(json.dumps(contract,sort_keys=True,separators=(',',':')).encode()).hexdigest()!='1a3c4ebc2c79fb490e164df8b78d47206158c20bcee0e1aafc4e465047d3c08f':raise GateError('LIVE_GATE_CONTRACT')
+        if contract['required_controls']!=89 or sum(expected.values())!=89 or contract['gate_seconds']!=900:raise GateError('LIVE_GATE_CONTRACT')
         if contract['owned_budget']['aggregate_bytes']!=67108864:raise GateError('LIVE_GATE_CONTRACT')
         baseline=json.loads((ROOT/'tools/fix-session/preservation.json').read_text());verify_preserved(ROOT,baseline['files'])
         admit_pins(json.loads((ROOT/'tools/fix-session/dependencies.lock.json').read_text()),(ROOT/'tools/fix-session/Dockerfile').read_text())
@@ -117,14 +117,14 @@ def main():
         if len(match)!=1 or json.loads(match[0])!={'tests':16,'successful':True,'skipped':0}:raise GateError('ENGINE_RESULT')
         if run([docker,'inspect','--format','{{.State.ExitCode}}',cid],'engine-exit').read_text().strip()!='0':raise GateError('ENGINE_EXIT')
         groups['engine_bridge']=16
-        program="import sys,unittest,json;sys.path.insert(0,'verification/python');suite=unittest.defaultTestLoader.discover('verification/python',pattern='test_fix_live_application.py');r=unittest.TextTestRunner(verbosity=2).run(suite);print('LIVE_ORACLE_RESULT\\t'+json.dumps({'tests':r.testsRun,'successful':r.wasSuccessful(),'skipped':len(r.skipped)}),flush=True);raise SystemExit(not r.wasSuccessful() or r.testsRun!=6 or bool(r.skipped) or bool(r.expectedFailures) or bool(r.unexpectedSuccesses))"
+        program="import sys,unittest,json;sys.path.insert(0,'verification/python');suite=unittest.defaultTestLoader.discover('verification/python',pattern='test_fix_live_application.py');r=unittest.TextTestRunner(verbosity=2).run(suite);print('LIVE_ORACLE_RESULT\\t'+json.dumps({'tests':r.testsRun,'successful':r.wasSuccessful(),'skipped':len(r.skipped)}),flush=True);raise SystemExit(not r.wasSuccessful() or r.testsRun!=10 or bool(r.skipped) or bool(r.expectedFailures) or bool(r.unexpectedSuccesses))"
         log=run([python,'-c',program],'independent-python',30)
         match=re.findall(r'LIVE_ORACLE_RESULT\t([^\n]+)',log.read_text())
-        if len(match)!=1 or json.loads(match[0])!={'tests':6,'successful':True,'skipped':0}:raise GateError('ORACLE_RESULT')
-        groups['independent_python']=6
+        if len(match)!=1 or json.loads(match[0])!={'tests':10,'successful':True,'skipped':0}:raise GateError('ORACLE_RESULT')
+        groups['independent_python']=10
         os.environ['PYTHONDONTWRITEBYTECODE']='1'
         os.environ['TF_FIX_LIVE_IMAGE']=runtime_image;os.environ['TF_LIVE_PARENT_RUN']=identity;os.environ['TF_LIVE_EVIDENCE_DIR']=str(evidence)
-        cases=[('sql_admission','sql.test.ts',30),('controller','controller.test.ts',4),('independent_application','reconciliation.test.ts',14),('process_kill_recovery','recovery.test.ts',6),('lifecycle','lifecycle.test.ts',6)]
+        cases=[('sql_admission','sql.test.ts',30),('controller','controller.test.ts',5),('independent_application','reconciliation.test.ts',14),('process_kill_recovery','recovery.test.ts',8),('lifecycle','lifecycle.test.ts',6)]
         for name,file,count in cases:
             pointer=out/(name+'-postgres-owner.txt');pointers.append(pointer);os.environ['TF_LIVE_OWNER_POINTER']=str(pointer)
             print('Running '+name+': '+str(count)+' controls',flush=True)
@@ -181,7 +181,7 @@ def main():
         if cleanup:report['status']='failed'
         write('summary.json',report);print('Live application evidence: '+str(out/'summary.json'),flush=True)
     if report['status']!='passed':raise GateError(primary or 'OWNED_CLEANUP_UNRESOLVED')
-    print('Live application gate:82/82 controls; observed synthetic financial cases passed',flush=True)
+    print('Live application gate:89/89 controls; observed synthetic financial cases passed',flush=True)
 
 if __name__=='__main__':
     try:main()

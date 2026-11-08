@@ -63,12 +63,13 @@ function failure(code: string) {
 }
 const digest = (input: string | Uint8Array) => createHash('sha256').update(input).digest('hex');
 async function journalSnapshot(journal: LiveJournal) {
-  const [request, frame, work] = await Promise.all([
+  const [request, frame, work, send] = await Promise.all([
     journal.entries('request'),
     journal.entries('frame'),
     journal.entries('work'),
+    journal.entries('send'),
   ]);
-  return { identity: journal.identity, request, frame, work };
+  return { identity: journal.identity, request, frame, work, send };
 }
 
 async function oracle(input: string, timeout: number): Promise<z.infer<typeof oracleReport>> {

@@ -9,7 +9,11 @@
   "external_completeness_verified": false,
   "selected_dealer": "ATLAS",
   "callback_provenance": "TRUSTED_LOCAL_CONTROLLER",
-  "wire": { "bytes": 8192, "fields": 64, "value_bytes": 256 },
+  "wire": {
+    "bytes": 8192,
+    "fields": 64,
+    "value_bytes": 256
+  },
   "bridge": {
     "version": 1,
     "envelope_bytes_including_lf": 24576,
@@ -46,14 +50,14 @@
   "gate_seconds": 900,
   "required_groups": {
     "engine_bridge": 16,
-    "independent_python": 6,
+    "independent_python": 10,
     "sql_admission": 30,
-    "controller": 4,
+    "controller": 5,
     "independent_application": 14,
-    "process_kill_recovery": 6,
+    "process_kill_recovery": 8,
     "lifecycle": 6
   },
-  "required_controls": 82,
+  "required_controls": 89,
   "unrecoverable_callback_outcome": "UNRESOLVED",
   "unknown_commit_recovery": "ORIGINAL_DURABLE_REQUEST_AND_FINANCIAL_KEY"
 }

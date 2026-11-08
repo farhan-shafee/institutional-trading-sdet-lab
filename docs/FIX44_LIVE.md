@@ -2,8 +2,8 @@
 
 The opt-in `live-fix-ingress-v1` path connects the pinned local QuickFIX/J3.0.2
 and Go v0.9.12 peers to the existing owned SQL financial authority. The feature
-remains disabled by default. The implementation is awaiting final qualification
-and human acceptance on its feature branch.
+remains disabled by default. The implementation is a candidate for human acceptance. Revision-bound
+qualification evidence is recorded on its feature pull request.
 
 The selected environment is Linux or WSL with Docker and Node24. Data, orders,
 RFQs and dealer responses are synthetic. The peer session selects ATLAS; D/F
@@ -44,8 +44,9 @@ engine header layout with `FIELD_ORDER`.
 Each physical connection receives a fresh registered UUID. Verified process
 restarts retain the session/store incarnation and native sequence progression.
 SQL sequence slots use store/direction; legacy epoch1 remains offline metadata.
-Repeated logical messages reuse their original work and financial key. Current
-proof/generation is checked before original-key replay. New progress also needs
+Repeated logical messages reuse their original work and financial key. Fresh work obtains a durable authorized CLAIM under the unchanged15-second
+lease before retaining its work/fence. Existing work keeps its original fence and
+financial keys. Current proof/generation is checked before original-key replay. New progress also needs
 an authorized owner/fence. Missing callback evidence does not become eligibility.
 
 The queue holds at most16 frames and one application per direction is in flight.
@@ -71,6 +72,8 @@ They kill the controller with SIGKILL at a real transaction/callback barrier.
 
 | Window                                 | Required observed outcome                                                                              |
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Durable SEND before wire write         | No observation/request exists; retained send forces INCOMPLETE and is not automatically resent.        |
+| Captured frame before OBSERVE request  | Orphan original frame forces INCOMPLETE; missing callback/request is not reconstructed.                |
 | Before observation COMMIT              | Original OBSERVE may commit once; the missing callback keeps the fill unapplied.                       |
 | After observation COMMIT               | Original OBSERVE replays; raw evidence remains insufficient to apply.                                  |
 | Native callback before durable journal | No original ACCEPT request exists; recovery refuses to reconstruct it and the fill remains unresolved. |
@@ -93,11 +96,11 @@ npm ci
 npm run test:fix-live-application
 ```
 
-The mandatory82-control gate builds a fresh pinned image, creates private owned
+The mandatory89-control gate builds a fresh pinned image, creates private owned
 PostgreSQL instances, installs schema9 explicitly, checks runtime isolation,
 freezes source inputs and retains failed attempts with ownership-checked cleanup.
-Its groups are16 bridge/native,6 independent Python,30 SQL admission,4 controller,
-14 independent application/reconciliation,6 real process-kill recovery and6
+Its groups are16 bridge/native,10 independent Python,30 SQL admission,5 controller,
+14 independent application/reconciliation,8 real process-kill recovery and6
 lifecycle controls. The lifecycle set includes both conventions/BUY/SELL fills,
 rejection, cancel rejection/acknowledgment, partial cancel, pending-cancel fills,
 too-late cancellation, logical replay and verified peer restarts.
@@ -111,7 +114,10 @@ case evidence stays under ignored `.local/fix-live-gates`.
 
 Independent live reports carry their own schema9/profile, SQL/source hashes,
 snapshot ID and financial/protocol/live observation/live acceptance watermarks.
-They check accepted bytes against the journal's actual callback witness, correlate
+They reconcile retained SEND/frame/request evidence in both directions, including
+crash windows before SQL requests exist. Each local send binds its command ID and
+physical connection to exactly one observed frame. Unexplained intent remains
+INCOMPLETE. They check accepted bytes against the journal's actual callback witness, correlate
 original keys/work/effects and recompute each fill using rational arithmetic.
 SQL and controlled corruption cases cover raw/callback bytes, process IDs, live
 sequence slots, request/financial fingerprints, capacity and missing witnesses.

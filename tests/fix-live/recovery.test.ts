@@ -31,6 +31,8 @@ const keyOf = z
   .strict();
 
 for (const point of [
+  'send-before-write',
+  'observe-before-retain',
   'observe-before',
   'observe-after',
   'callback-before-retain',
@@ -168,9 +170,14 @@ for (const point of [
         before.callbacks,
         point === 'accept-after' || point.startsWith('apply-') ? 3 : 2,
       );
-      assert.equal(before.observations, point === 'observe-before' ? 2 : 3);
+      assert.equal(
+        before.observations,
+        ['send-before-write', 'observe-before-retain', 'observe-before'].includes(point) ? 2 : 3,
+      );
       let recovered: unknown;
-      if (point === 'callback-before-retain') {
+      if (
+        ['send-before-write', 'observe-before-retain', 'callback-before-retain'].includes(point)
+      ) {
         assert.equal(await journal.read('request', checkpoint.key), undefined);
         await assert.rejects(
           () =>

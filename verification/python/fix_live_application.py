@@ -14,6 +14,7 @@ from execution_reference import execution_cents
 PROFILE='live-fix-ingress-v1'
 SOURCE='6016fb700840d081fe1fba651c918f0a7e709383'
 OMIT={8,9,10,34,43,52,122}
+TRANSPORT={8,9,10,34,43,49,52,56,122}
 
 def verify(document):
     issues=set()
@@ -24,6 +25,7 @@ def verify(document):
     sessions={x['id']:x for x in s['sessions']};connections={x['id']:x for x in s['connections']};bindings={x['order_id']:x for x in s['bindings']}
     observations={x['id']:x for x in s['observations']};messages={x['id']:x for x in s['messages']}
     originals={x['id']:x['value'] for x in j['request']};frames={x['id']:x['value'] for x in j['frame']};work_intents={x['id']:x['value'] for x in j['work']}
+    sends={x['id']:x['value'] for x in j.get('send',[])}
     sql_requests={x['idempotency_key']:x for x in s['requests']}
     orders={x['order']['id']:x for x in s['orders']}
     if len(bindings)>4 or len(observations)>640 or len(s['requests'])>1024:finding('LIVE_ORACLE_BOUND')
@@ -117,11 +119,37 @@ def verify(document):
         work=next((w for w in s['work'] if w['id']==a['work_id']),None)
         plan=work_intents.get(a['message_id'])
         if not work or not plan or plan['work_id']!=a['work_id'] or plan['financial_key']!=a['financial_key'] or plan['order_id']!=a['order_id']:finding('LIVE_ORIGINAL_FINANCIAL_INTENT',a['work_id'])
+    # Durable local intent is evidence even when the crash preceded its SQL request.
+    # A SEND is paired with its exact physical frame, never inferred from similar terms.
+    send_frames=defaultdict(list)
+    for fid,frame in frames.items():
+        command=frame.get('command_id')
+        if command is None:continue
+        send_frames[command].append(fid);intent=sends.get(command)
+        try:
+            fields={str(k):v for k,v in parse_live_wire(bytes.fromhex(frame['raw_hex'])).items() if k not in TRANSPORT}
+            if not intent or intent.get('kind') is not None or intent.get('command_id')!=command or intent.get('order_id')!=frame.get('order_id') or intent.get('direction')!=frame.get('direction') or intent.get('connection_id')!=frame.get('connection_id') or intent.get('fields')!=fields:
+                finding('LIVE_JOURNAL_SEND',fid)
+        except (ValueError,KeyError,TypeError):finding('LIVE_JOURNAL_SEND',fid)
+    pending_sends=0
+    for command,intent in sends.items():
+        if intent.get('command_id')!=command:finding('LIVE_JOURNAL_SEND',command)
+        if intent.get('kind')=='RECONNECT':
+            old=connections.get(intent.get('connection_id'))
+            candidates=[c for c in connections.values() if old and c['session_id']==old['session_id'] and c['connection_no']==old['connection_no']+1]
+            registered=any(r['action']=='CONNECT' and any(r['request'].get('connection_id')==c['id'] for c in candidates) for r in sql_requests.values())
+            if intent.get('restart_role') not in ('none','go','java'):finding('LIVE_JOURNAL_SEND',command)
+            if not registered:pending_sends+=1
+        else:
+            if intent.get('kind') is not None:finding('LIVE_JOURNAL_SEND',command)
+            if not send_frames[command]:pending_sends+=1
+            elif len(send_frames[command])!=1:finding('LIVE_JOURNAL_SEND',command)
+    pending_frames=sum(fid not in observations for fid in frames)
     pending_requests=sum(key not in sql_requests for key in originals)
     resolved={a['message_id'] for a in s['applications']}
     resolved.update(w['message_id'] for w in s['work'] if any(o['work_id']==w['id'] for o in s['protocol_observations']))
     pending_messages=sum(m['message_type']!='D' and m['id'] not in resolved for m in messages.values())
-    unresolved=len(set(observations)-accepted)+pending_requests+pending_messages
+    unresolved=len(set(observations)-accepted)+pending_requests+pending_messages+pending_frames+pending_sends
     findings=[{'code':code,'record_id':record} for code,record in sorted(issues)]
     return {'findings':findings[:128],'total_findings':len(findings),'executions':executions,'cash_cents':str(cash),'unresolved':unresolved,'financial_application_verified':not findings and unresolved==0 and len(s['applications'])>0}
 

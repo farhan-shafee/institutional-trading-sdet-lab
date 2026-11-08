@@ -5,7 +5,7 @@ export const liveVerificationSources = {
   'verification/sql/fix_live_evidence_v1.sql':
     '271a2ab56fa1a84f769b39a31fb70e763dd1ea170f9630bb8dd51c310b51043a',
   'verification/python/fix_live_application.py':
-    '5a204640316286b93a4446c842913ebda261b2b26021d209b21cbddedecf255b',
+    'd3858964d66d9358392edb0a554a5ffa7d02e818d15414eef4372076b31a1726',
   'verification/python/fix_live.py':
     '9d34aa41c88520dddfaf234e714d79c33ad858ab59b961069e6154e7d2f39941',
   'verification/python/fix44_reference.py':

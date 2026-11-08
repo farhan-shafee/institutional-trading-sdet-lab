@@ -71,7 +71,7 @@ Interfaces: new schema9/live-v1 snapshot/watermarks bind observation/callback/st
 
 ### Task 5: Qualification and reviewable delivery
 
-- [ ] Run typecheck/lint/full validate, repeated browsers, two full PostgreSQL runs, workstation baseline/repeat, public-demo, complete standalone runtime and new live gate. Preserve first failures.
-- [ ] Update protocol docs/new JSON contract and CI; no old assertions or deadlines weakened. Run one fresh whole-branch review, regrade all findings/declined areas and do one RED/GREEN material fix pass; ledger minors.
-- [ ] Push personal feature branch and draft stacked PR based on qualified runtime branch; all exact-head CI jobs must pass before readiness. Human acceptance separate.
-- [ ] Replace the existing status report with exact evidence and remaining scope; preserve worktree for review. No main merge/deployment.
+- Run typecheck/lint/full validate, repeated browsers, two full PostgreSQL runs, workstation baseline/repeat, public-demo, complete standalone runtime and new live gate. Preserve first failures.
+- Update protocol docs/new JSON contract and CI; no old assertions or deadlines weakened. Run one fresh whole-branch review, regrade all findings/declined areas and do one RED/GREEN material fix pass; ledger minors.
+- Push personal feature branch and draft stacked PR based on qualified runtime branch; all exact-head CI jobs must pass before readiness. Human acceptance separate.
+- Replace the existing status report with exact evidence and remaining scope; preserve worktree for review. No main merge/deployment.

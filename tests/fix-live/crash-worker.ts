@@ -19,6 +19,8 @@ const context = z
     channel: z.uuid(),
     lane_owner: z.uuid(),
     point: z.enum([
+      'send-before-write',
+      'observe-before-retain',
       'observe-before',
       'observe-after',
       'callback-before-retain',
@@ -80,14 +82,18 @@ const identity = {
 const journal = await LiveJournal.open(directory, identity);
 const retain = journal.retain.bind(journal);
 journal.retain = async (kind, key, value) => {
+  if (target && context.point === 'send-before-write' && kind === 'send') {
+    await retain(kind, key, value);
+    await checkpoint(context.point, key);
+  }
   if (
     target &&
-    context.point === 'callback-before-retain' &&
     kind === 'request' &&
     typeof value === 'object' &&
     value !== null &&
     'action' in value &&
-    value.action === 'ACCEPT'
+    ((context.point === 'callback-before-retain' && value.action === 'ACCEPT') ||
+      (context.point === 'observe-before-retain' && value.action === 'OBSERVE'))
   )
     await checkpoint(context.point, key);
   return retain(kind, key, value);

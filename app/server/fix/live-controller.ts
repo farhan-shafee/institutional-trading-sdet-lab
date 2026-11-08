@@ -259,7 +259,12 @@ export class LiveFixController {
   private stopping: Promise<void> | undefined;
   private readonly active = new Map<
     'J_TO_G' | 'G_TO_J',
-    { order_id: string; fields: Params; done: ReturnType<typeof deferred<Result>> }
+    {
+      command_id: string;
+      order_id: string;
+      fields: Params;
+      done: ReturnType<typeof deferred<Result>>;
+    }
   >();
   private readonly frames = new Map<
     string,
@@ -603,6 +608,7 @@ export class LiveFixController {
       )
         throw unavailable('FIX_LIVE_OBSERVATION_CORRESPONDENCE');
       await this.options.journal.retain('frame', envelope.observation_id, {
+        ...(pending ? { command_id: pending.command_id } : {}),
         order_id: context.order_id,
         raw_hex: envelope.raw_hex,
         connection_id: this.connectionId,
@@ -702,6 +708,18 @@ export class LiveFixController {
       if (rows.some((row) => row.message_id === message_id))
         throw unavailable('FIX_LIVE_ORIGINAL_INTENT_REQUIRED');
       if (!context.fence) throw unavailable('FIX_LIVE_FENCE_REQUIRED');
+      // A SQL lease lasts15s; every new work item starts with a durable current CLAIM.
+      // Retained work below keeps its original fence and financial/request identities.
+      const claimed = this.success(
+        await this.call(
+          context,
+          'CLAIM',
+          { order_id: context.order_id, owner_id: context.owner_id },
+          fixedKey('CLAIM', this.options.runtime.run_id, message_id),
+        ),
+        200,
+      );
+      context.fence = z.union([z.string(), z.number()]).parse(claimed['fence']).toString();
       work = {
         message_id,
         order_id: context.order_id,
@@ -777,11 +795,12 @@ export class LiveFixController {
       done = deferred<Result>(),
       copy = { ...parsed };
     // Reserve ownership before the first durable write yields to another caller.
-    this.active.set(direction, { order_id, fields: copy, done });
+    this.active.set(direction, { command_id, order_id, fields: copy, done });
     try {
       await this.options.journal.retain('send', command_id, {
         order_id: context.order_id,
         command_id,
+        connection_id: this.connectionId,
         direction,
         fields: copy,
       });
