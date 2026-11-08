@@ -54,3 +54,36 @@ The original shared512-command/1024-event ceilings and existing admission, pool,
 New real PostgreSQL suites cover SQL reconstruction, concurrency, settlement chronology, exact capacity, current ownership and uncertain-commit recovery. Independent Python Decimal125/Fraction calculations check risk, corrected execution cash and exact FIFO/equity. Actual HTTP bodies are validated against separately authored additive OpenAPI schemas.
 
 Native FIX integration, complete qualification, final model/test acceptance and any later exact source-preservation exception remain pending. A source-preservation refusal must remain visible; it is not a passing native journey.
+
+## Private local commands and report
+
+Run these explicit commands from the checkout with the supported Node24 runtime:
+
+```sh
+node --import tsx scripts/posttrade-local.ts create
+node --import tsx scripts/posttrade-local.ts serve /absolute/private/owner.json 0
+node --import tsx scripts/posttrade-local.ts stop /absolute/private/owner.json
+node --import tsx scripts/posttrade-local.ts resume /absolute/private/owner.json
+node --import tsx scripts/posttrade-local.ts destroy /absolute/private/owner.json
+node --import tsx scripts/posttrade-report.ts /absolute/private/report-context.json
+```
+
+Create uses the unchanged pinned owned Docker PostgreSQL profile and installs exact001-010. Serve verifies the owned descriptor, least-privilege app role and exact schema10; it binds127.0.0.1 only. Port0 requests an ephemeral loopback port. Server exit retains the owned database for inspection. Resume/stop/destroy use the original ownership and cleanup checks. The standard application startup is unchanged.
+
+The report context is a private0600 regular file in an owned real directory. Its strict fields are version1, owner_file, sandbox_id, proof (SHA256 of the current read/trade capability), scope, generation, fixture_id and as_of_date, with optional raw_as_of_seq and posttrade_as_of_seq. Use current capability material from the original private sandbox client. Keep it out of command arguments and terminal output; only the context path is supplied.
+
+A report reads one bounded read-only repeatable snapshot: source, up to eight original root histories and up to161 financial events. Historical revisions/outcomes are filtered at its post-trade cutoff. It contains both risk and P&L, no credentials or proof, and a deterministic report_id binding the whole content. It is capped at262144 UTF8 bytes. A content hash is an identity, not an external signature. Independent reconstruction accepts only complete AVAILABLE reports and checks original identities, correction/bust effects, each gross leg, failed attempts, command/event counts, nonnegative balance prefixes, exact FIFO, curve risk and equity.
+
+Real process tests cover an actual worker SIGKILL before and after settlement COMMIT, immutable original-key recovery, two fresh server processes and a stop/resume of the same owned database. The private report CLI also rejects unsafe context permissions and a foreign proof.
+
+## Additional native journey boundary
+
+```sh
+node --import tsx scripts/verify-posttrade-journey.ts
+```
+
+This additional schema10 journey requires the existing exact preservation contract and pinned original native engine dependencies. Direct invocation of its test also enforces source admission. It has no bypass switch. The proposed native contract retains900seconds, the original64MiB owned budget,8MiB evidence and24MiB journal limits; the original runtime helper preserves container isolation and its existing resource limits.
+
+The candidate sends actual D/8/F/9 frames, replays five original financial application receipts, retains three raw execution roots, then runs correction, failed/successful DVP, reversal, terminal bust and independent risk/FIFO reconstruction. Its own expected result is14 financial commands and22 events. It compares original raw/order/FIX evidence before and after financial adjustments. The original43-case/89-control session and118-control application gates remain separate required qualification.
+
+The recorded first attempt on2026-11-08 returned SOURCE_PRESERVATION before allocating native or database resources; owned cleanup was complete. The exact source contract has not been refreshed. Native journey behavior beyond admission is therefore unexecuted and pending exact owner acceptance and subsequent real qualification. No native pass is claimed.

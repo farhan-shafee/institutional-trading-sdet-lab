@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { spawnSync } from 'node:child_process';
+import { buildPostTradeReport } from '../../scripts/posttrade-report.js';
 import { connection, randomUUID } from './fixture.js';
 import { fundedBook, available, duePayload } from './settlement-fixture.js';
 await test('all eight roots consume exactly the accepted97-command161-event lifetime without changing raw executions', async () => {
@@ -206,6 +208,34 @@ await test('all eight roots consume exactly the accepted97-command161-event life
     );
     assert.equal(Number(available(source)), 0);
     assert.equal(source.available_cash_cents, '10000000000');
+    const report = await buildPostTradeReport({
+      version: 1,
+      owner_file: process.env['TF_DB_OWNER_FILE'],
+      sandbox_id: s.id,
+      proof: s.proof,
+      scope: 'trade',
+      generation: '1',
+      fixture_id: 'FLAT_V1',
+      as_of_date: '2030-01-15',
+    });
+    assert.equal(report.source.posttrade_command_seq, '97');
+    assert.equal(report.events.length, 161);
+    assert.equal(report.history.length, 8);
+    assert.ok(Buffer.byteLength(JSON.stringify(report), 'utf8') <= 262144);
+    const reconstructed = spawnSync('python3', ['verification/python/posttrade_reconstruct.py'], {
+      input: JSON.stringify([report]),
+      encoding: 'utf8',
+      timeout: 10000,
+      maxBuffer: 262144,
+    });
+    assert.equal(reconstructed.status, 0, reconstructed.stderr);
+    assert.deepEqual(JSON.parse(reconstructed.stdout), {
+      status: 'passed',
+      reports: 1,
+      financial_events_checked: 161,
+    });
+    assert.deepEqual(await legacySnapshot(), legacyBefore);
+
     assert.deepEqual(
       (
         await admin.query<{ raw: unknown }>(

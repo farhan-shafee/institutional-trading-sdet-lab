@@ -129,11 +129,11 @@
 **Files:** Create scripts/posttrade-local.ts,posttrade-report.ts,verify-posttrade-journey.ts; tests/post-trade/recovery.test.ts,journey.test.ts; verification/python/posttrade_reconstruct.py; docs/PHASE4_POSTTRADE.md.
 **Interfaces:** Owned-only local entry point constructs schema10 DB/server. Report consumes authenticated owned source or private owned descriptor, never untrusted positions. Native journey preserves original selected pinned engine profile and current preservation admission.
 
-- [ ] RED deterministic journey: original coupon -> curve/RFQ -> actual D/8/F/9 receipt/replay -> price correction/bust -> funded settlement/reversal -> risk/FIFO bridge, including negative branches and immutable old raw evidence.
-- [ ] RED real database/process restart, uncertain COMMIT, capability rotation, historical receipt recovery, full owned cleanup; use barriers, no sleeps.
-- [ ] Independent Python reconstructs raw/corrected positions, exact cents/par/FIFO/available/unsettled/equity from immutable receipts and checks all bounded counts.
-- [ ] Implement bounded CLI/report/journey and source-bound evidence. If current exact preservation rejects, retain the real refusal; do not run around it or claim the unexecuted native journey passed.
-- [ ] Run all currently authorized financial/recovery/security evidence, document each explicit remaining qualification/owner boundary; commit.
+- [x] RED deterministic journey: original coupon -> curve/RFQ -> actual D/8/F/9 receipt/replay -> price correction/bust -> funded settlement/reversal -> risk/FIFO bridge, including negative branches and immutable old raw evidence.
+- [x] RED real database/process restart, uncertain COMMIT, capability rotation, historical receipt recovery, full owned cleanup; use barriers, no sleeps.
+- [x] Independent Python reconstructs raw/corrected positions, exact cents/par/FIFO/available/unsettled/equity from immutable receipts and checks all bounded counts.
+- [x] Implement bounded CLI/report/journey and source-bound evidence. If current exact preservation rejects, retain the real refusal; do not run around it or claim the unexecuted native journey passed.
+- [x] Run all currently authorized financial/recovery/security evidence, document each explicit remaining qualification/owner boundary; commit.
 
 ### Task8: Whole-scope qualification and review
 
