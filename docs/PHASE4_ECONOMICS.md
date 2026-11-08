@@ -2,6 +2,8 @@
 
 Status: owner approved the finite financial scope and exact Phase4A two-file preservation exception on November8,2026. Implementation continues against [the approved completion contract](PHASE4_COMPLETION_CONTRACT.md); native qualification/integration and later implementation evidence remain separate. No deployment is authorized.
 
+Phase4A is normally merged through PR37 as52c76dacc84c9770af6e42a7468b982085746ff9 with the qualified449 tree. All20 pre-merge jobs passed on attempt1; post-merge checks are tracked separately. [Phase4B curve analytics](PHASE4B_CURVES.md) now has a concrete local candidate with166 independent oracle cases,12 passing new HTTP cases and an actual CLI. Its full qualification/review and exact later preservation contract remain pending;4C-F are unfinished.
+
 ## Delivery boundary
 
 Build the recovered 4A-4F roadmap in sequence. Each slice has its own finite written contract, additive implementation, independent numerical or accounting evidence, and compatibility checks. Do not label a completed slice as the entire Phase 4. The default target is inspectable synthetic engineering work in local/CI. Public deployment is a separate release decision.

@@ -2,13 +2,15 @@
 
 Reviewed **November 8, 2026**. The public institutional workflow is accepted and deployed at `b021602`. The app remains explicitly pinned when subsequent documentation commits merge. Earlier milestones below retain their exact source/counts and first-failure evidence.
 
-## Phase4A approved implementation - November8,2026
+## Phase4A merged and Phase4B candidate - November8,2026
 
-The owner approved the separate zero-coupon financial model and exact two-file API preservation exception. The implementation and its source-specific qualification/integration receipts are tracked in PR37. The original v1 calculations/catalogue and financial writers remain unchanged; the new instrument is read-only.
+The owner approved the finite Phase4 contract and exact Phase4A two-file exception. [PR37](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/37) merged normally as GitHub-verified52c76dacc84c9770af6e42a7468b982085746ff9 with treeb9ccaa5ef1e5cfe17639aa1b33b86da981710630, exactly the qualified449b618 candidate tree. All20 push/PR jobs passed on attempt1; each of four fresh PostgreSQL passes ran455 tests with no failures/cancellations/skips and retained capacity zero. Native session43scenarios/89controls and live118/118 controls passed locally and on both triggers. Fresh post-merge main checks are tracked separately.
 
-The version2 preservation contract retains the original434-file manifest and strict verifier. It checks432 original hashes and exactly two approved replacement hashes. Eight mandatory preservation controls deny tampered metadata, source changes, missing contracts, symlinks and extra exceptions. Five additional admission controls enforce exact discovery, complete successful outcomes and a typed13-pass receipt with no skipped or expected-failure cases. The native peer image retains its original no-application-SDK boundary and89 controls; it packages only preservation metadata/loader.
+The version2 preservation contract retains the original434-file manifest and strict verifier, checking432 original hashes and exactly2 approved replacements. Eight preservation plus5 negative-admission controls require exact discovery/success and a typed13-pass receipt. The peer image retains no application SDK and its original89 controls. Earlier6bb SOURCE_PRESERVATION failures, c03 generated-evidence formatting failure, and its independently identified/admission gap remain recorded; the strict fix passed RED/GREEN, real child negatives and full current qualification. Local native evidence was preserved byte-identically outside source.
 
-The earlier source6bb7741 passed1046 units,240/480 baseline/repeated cases and all16 application/persistence jobs; its four native SOURCE_PRESERVATION failures are retained. The first version2 candidatec03f0cb passed both native matrices43/89 and118/118. Independent review then identified and closed a host-test admission gap; final source-bound qualification receipts belong to PR37. The finite remaining4B-F rules are [approved](PHASE4_COMPLETION_CONTRACT.md), but those capabilities are not implemented. Public production remains unchanged.
+A [Phase4B curve candidate](PHASE4B_CURVES.md) now implements named immutable discount curves and continuous spread marks. All166 independent125-digit oracle cases,12 new HTTP cases and CLI execution pass; full regression/review and exact later preservation changes remain pending. Existing v1/v2 calculations/catalogues and all writers retain their original contracts. The zero instrument remains read-only. [Phase4C-F](PHASE4_COMPLETION_CONTRACT.md) remain approved and unfinished.
+
+The public service was independently read-verified after merge still live at explicit sourceb021602 and the November6 deployment, with no staged changes. No deployment is authorized.
 
 ## Current public release
 
