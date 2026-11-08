@@ -20,6 +20,8 @@ matching-TestRequest response guard; no upstream FIX certification is claimed.
 [PR #35](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/35)
 merged normally as GitHub-verified d92c91321758e6beff5d52c58c565bc3a29be51a with the qualified108-control tree. Its first resulting main live run42452152303 failed during native cleanup with LIVE_FORWARD_OS_9 after persisted-order replay; that first-attempt evidence is retained. The follow-up corrects normal shutdown retirement and producer/writer ordering and preserves partial received frames as failures.
 
+PR36's initial d20b0d3 push session run42453964755 also retained a TRANSPORT_IO failure: the duplicate replay control reached its callback assertions before the final seq3 replay had forwarded. A deterministic real-engine hold reproduced that early terminal condition. The same43/89 control now additionally waits for the complete replay range and orderly LOGOUT, then checks final callback identities. All earlier assertions and timeout values remain intact; unexpected application I/O is still a failure.
+
 The opt-in Phase 3C2 application path retains its protected-main integration record. Actual native D/8/F/9 bytes and validated FromApp callbacks bind to owned
 schema9 evidence before the existing SQL financial authority applies them.
 The separate live decoder preserves the old decoder's FIELD_ORDER negatives.

@@ -36,4 +36,17 @@ class DuplicateRuntimeTests(unittest.TestCase):
             self.assertEqual(len(replay),2);self.assertEqual(replay[0]['raw_hex'],replay[1]['raw_hex'])
             self.assertEqual(replay[0]['fields']['43'],'Y')
 
+            # The original seq3 callback can precede its trailing replay. Finish
+            # the requested resend range before STOP may close either peer.
+            trailing=lab.transport.wait_frames(lambda f:f['stage']=='forwarded_bytes' and f['fields'].get('11')=='SYN-AFTER-DUP',count=2)
+            self.assertEqual(len(trailing),2)
+            self.assertEqual(trailing[0]['fields']['34'],trailing[1]['fields']['34'])
+            self.assertNotEqual(trailing[0]['fields'].get('43'),'Y')
+            self.assertEqual(trailing[1]['fields']['43'],'Y')
+            mark=lab.mark();lab.command('java','LOGOUT')
+            lab.wait('java','LOGOUT',after=mark);lab.wait('go','LOGOUT',after=mark)
+            self.assertEqual([e['fields']['11'] for e in lab.events if e['role']=='go' and e['kind']=='APP'],['SYN-REPLAY-DUP','SYN-AFTER-DUP'])
+        self.assertTrue(lab.receipt['transport_evidence_complete'])
+        self.assertEqual([e['fields']['11'] for e in lab.events if e['role']=='go' and e['kind']=='APP'],['SYN-REPLAY-DUP','SYN-AFTER-DUP'])
+
 if __name__=='__main__':unittest.main()
