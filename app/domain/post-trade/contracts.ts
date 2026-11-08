@@ -26,3 +26,13 @@ export const correctPriceSchema = z
 export const bustExecutionSchema = z
   .object({ execution_id: z.string().uuid(), expected_revision: z.number().int().min(0).max(2) })
   .strict();
+
+export const settlementModel = 'SYNTHETIC_GROSS_AGREED_DATE_WEEKDAYS_V1' as const;
+export const settleExecutionSchema = z
+  .object({
+    execution_id: z.string().uuid(),
+    expected_revision: z.number().int().min(0).max(2),
+    processing_date: initializePostTradeSchema.shape.economic_start_date,
+  })
+  .strict();
+export const reverseSettlementSchema = settleExecutionSchema;

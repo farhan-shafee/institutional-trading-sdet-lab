@@ -102,10 +102,10 @@
 **Files:** Extend unaccepted010/checksum; tests/post-trade/settlement.test.ts,settlement-concurrency.test.ts.
 **Interfaces:** SETTLE/REVERSE payload{execution_id,expected_revision,processing_date}; balances and outcome history source-bound. Receipt hash binds whole operation/payload.
 
-- [ ] Failing tests for initial100m/0 balanced funding, BUY/SELL postings, unfunded short FAILED/no balance effects, original-key failed replay/new-key retry, two-failure/three-post/three-reverse bounds, exact zero cash, no negative cash/par, opposite conservation.
-- [ ] Failing tests for reverse-before-correct/bust, insufficient reversal no effects, terminal reversed revision, pending/failed supersession, nondecreasing simulated processing watermark/weekdays/due/window and actual UTC audit immutability.
-- [ ] Implement locked all-or-nothing balances with two balanced posting/reversal events and one failed-attempt event; immutable per-revision once-only constraints and deferred reconstruction.
-- [ ] Run concurrent settle/reverse/correct/bust/key races, physical exact costs and both before-/after-COMMIT recovery hooks without raising limits; full affected suites, commit.
+- [x] Failing tests for initial100m/0 balanced funding, BUY/SELL postings, unfunded short FAILED/no balance effects, original-key failed replay/new-key retry, two-failure/three-post/three-reverse bounds, exact zero cash, no negative cash/par, opposite conservation.
+- [x] Failing tests for reverse-before-correct/bust, insufficient reversal no effects, terminal reversed revision, pending/failed supersession, nondecreasing simulated processing watermark/weekdays/due/window and actual UTC audit immutability.
+- [x] Implement locked all-or-nothing balances with two balanced posting/reversal events and one failed-attempt event; immutable per-revision once-only constraints and deferred reconstruction.
+- [x] Run concurrent settle/reverse/correct/bust/key races, physical exact costs and both before-/after-COMMIT recovery hooks without raising limits; full affected suites, commit.
 
 ### Task6: Complete owned risk/FIFO assessments and APIs
 
