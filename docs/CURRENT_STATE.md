@@ -27,9 +27,9 @@ The continuation repaired replacement-acceptor readiness ordering and added
 explicit retirement of old physical sockets before draining reconnect writes.
 Interrupted admin bytes are retained separately from forwarded bytes; unexpected
 I/O and application bytes from a retired socket remain unresolved. Shutdown also
-settles send callers before STOP and rejects admission that resumes after stopping. The mandatory
-live matrix is now 97 controls, retaining all 89 earlier controls and adding five
-native/socket plus three shutdown regressions. Exact source, complete qualification, first failures,
+settles startup, send and reconnect callers before STOP and rejects command admission
+that resumes after stopping. The mandatory live matrix is now 106 controls, retaining
+all 89 earlier controls and adding five native/socket plus seven lifecycle regressions and five host filesystem controls. Exact source, complete qualification, first failures,
 review disposition and CI receipts are recorded in PR #35. See the
 [live application guide](FIX44_LIVE.md) for recovery and profile limits.
 

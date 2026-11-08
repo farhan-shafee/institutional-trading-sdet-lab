@@ -257,7 +257,7 @@ export class LiveFixController {
   private processing: Promise<void> = Promise.resolve();
   private processingActive = false;
   private stopping: Promise<void> | undefined;
-  private readonly pendingSends = new Set<Promise<Result>>();
+  private readonly pendingOperations = new Set<Promise<unknown>>();
   private readonly active = new Map<
     'J_TO_G' | 'G_TO_J',
     {
@@ -320,22 +320,44 @@ export class LiveFixController {
     options.process.on('error', () => this.fail(unavailable('FIX_LIVE_PROCESS')));
     options.process.on('close', (code) => {
       this.exited.resolve(code);
-      if (!this.stopping || code !== 0 || this.pendingSends.size)
+      if (!this.stopping || code !== 0 || this.pendingOperations.size)
         this.fail(unavailable('FIX_LIVE_PROCESS_EXIT'));
     });
   }
-  async start(): Promise<void> {
+  start(): Promise<void> {
+    return this.admit(() => this.awaitReady());
+  }
+  private async awaitReady(): Promise<void> {
     if (!this.options.enabled) throw unavailable('FIX_LIVE_DISABLED');
-    this.healthy();
+    this.requireCommandAdmission();
     await bounded(this.ready.promise, 15000);
-    this.healthy();
+    this.requireCommandAdmission();
   }
   private healthy(): void {
     if (this.failure) throw this.failure;
   }
-  private requireSendAdmission(): void {
+  private requireCommandAdmission(): void {
     this.healthy();
     if (this.stopping) throw unavailable('FIX_LIVE_STOPPING');
+  }
+  private admit<T>(operation: () => Promise<T>): Promise<T> {
+    let pending: Promise<T>;
+    try {
+      this.requireCommandAdmission();
+      pending = operation();
+    } catch (error) {
+      const failure = error instanceof DomainError ? error : unavailable();
+      const rejected = Promise.reject<T>(failure);
+      void rejected.catch(() => undefined);
+      return rejected;
+    }
+    this.pendingOperations.add(pending);
+    const settled = () => {
+      this.pendingOperations.delete(pending);
+    };
+    // Track and observe the exact promise returned to each bridge lifecycle caller.
+    void pending.then(settled, settled);
+    return pending;
   }
   private fail(error: DomainError): void {
     this.failure ??= error;
@@ -780,27 +802,11 @@ export class LiveFixController {
     return result;
   }
   send(order_id: string, fields: Params): Promise<Result> {
-    try {
-      this.requireSendAdmission();
-    } catch (error) {
-      const failure = error instanceof DomainError ? error : unavailable();
-      const rejected = Promise.reject<Result>(failure);
-      void rejected.catch(() => undefined);
-      return rejected;
-    }
-    const pending = this.sendFrame(order_id, fields);
-    this.pendingSends.add(pending);
-    const settled = () => {
-      this.pendingSends.delete(pending);
-    };
-    // Observe the same promise returned to the caller, including rejection, so
-    // waiting for stop() before observing that caller cannot become unhandled.
-    void pending.then(settled, settled);
-    return pending;
+    return this.admit(() => this.sendFrame(order_id, fields));
   }
   private async sendFrame(order_id: string, fields: Params): Promise<Result> {
-    await this.start();
-    this.requireSendAdmission();
+    await this.awaitReady();
+    this.requireCommandAdmission();
     if (this.reconnecting) throw unavailable('FIX_LIVE_RECONNECTING');
     const context = this.context(order_id);
     const direction = fields['35'] === 'D' || fields['35'] === 'F' ? 'J_TO_G' : 'G_TO_J';
@@ -829,7 +835,7 @@ export class LiveFixController {
         direction,
         fields: copy,
       });
-      this.requireSendAdmission();
+      this.requireCommandAdmission();
       await this.write('SEND', {
         command_id,
         role: direction === 'J_TO_G' ? 'java' : 'go',
@@ -844,10 +850,13 @@ export class LiveFixController {
     }
     return done.promise;
   }
-  async reconnect(restartRole: 'none' | 'go' | 'java' = 'none'): Promise<void> {
-    await this.start();
-    this.healthy();
-    if (this.stopping || this.reconnecting || this.active.size || this.events.length)
+  reconnect(restartRole: 'none' | 'go' | 'java' = 'none'): Promise<void> {
+    return this.admit(() => this.reconnectSession(restartRole));
+  }
+  private async reconnectSession(restartRole: 'none' | 'go' | 'java'): Promise<void> {
+    await this.awaitReady();
+    this.requireCommandAdmission();
+    if (this.reconnecting || this.active.size || this.events.length)
       throw unavailable('FIX_LIVE_RECONNECT_UNRESOLVED');
     if (this.connections.size >= 8 || !['none', 'go', 'java'].includes(restartRole))
       throw unavailable('FIX_LIVE_RECONNECT_BOUND');
@@ -855,7 +864,7 @@ export class LiveFixController {
     this.reconnecting = pending;
     try {
       await this.processing;
-      this.healthy();
+      this.requireCommandAdmission();
       const command_id = randomUUID();
       await this.options.journal.retain('send', command_id, {
         kind: 'RECONNECT',
@@ -863,11 +872,13 @@ export class LiveFixController {
         connection_id: this.connectionId,
         restart_role: restartRole,
       });
+      this.requireCommandAdmission();
       await this.write('RECONNECT', { command_id, restart_role: restartRole });
       await bounded(pending.promise, 15000);
     } catch (error) {
       const failure = error instanceof DomainError ? error : unavailable();
-      this.fail(failure);
+      if (this.stopping && failure.code === 'FIX_LIVE_STOPPING') pending.reject(failure);
+      else this.fail(failure);
       throw failure;
     } finally {
       if (this.reconnecting === pending) this.reconnecting = undefined;
@@ -896,7 +907,8 @@ export class LiveFixController {
     return (this.stopping ??= this.finish());
   }
   private async finish(): Promise<void> {
-    // Admission closes synchronously in stop(). Draining callers, event handling
+    // Startup, send and reconnect admission closes synchronously in stop().
+    // Draining their original caller promises, event handling
     // and STOP confirmation share the original15s budget; process exit keeps5s.
     const deadline = performance.now() + 15000;
     const remaining = () => {
@@ -905,7 +917,7 @@ export class LiveFixController {
       return milliseconds;
     };
     try {
-      await bounded(Promise.allSettled([...this.pendingSends]), remaining());
+      await bounded(Promise.allSettled([...this.pendingOperations]), remaining());
       await bounded(this.processing, remaining());
       this.healthy();
       if (this.options.process.exitCode !== null) {

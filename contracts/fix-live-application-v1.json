@@ -52,12 +52,13 @@
     "engine_bridge": 21,
     "independent_python": 10,
     "sql_admission": 30,
-    "controller": 8,
+    "controller": 12,
     "independent_application": 14,
     "process_kill_recovery": 8,
-    "lifecycle": 6
+    "lifecycle": 6,
+    "host_evidence": 5
   },
-  "required_controls": 97,
+  "required_controls": 106,
   "unrecoverable_callback_outcome": "UNRESOLVED",
   "unknown_commit_recovery": "ORIGINAL_DURABLE_REQUEST_AND_FINANCIAL_KEY"
 }

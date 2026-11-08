@@ -12,7 +12,7 @@ import { LiveFixApplicationService } from '../../app/server/fix/live-application
 import { LiveFixController } from '../../app/server/fix/live-controller.js';
 import { LiveJournal } from '../../app/server/fix/live-journal.js';
 import { DomainError } from '../../app/domain/errors.js';
-import { setTimeout as waitForLease } from 'node:timers/promises';
+import { setTimeout as waitForLease, setImmediate as yieldTurn } from 'node:timers/promises';
 import { z } from 'zod';
 import { runtime as createLiveRuntime } from './runtime-fixture.js';
 import { fixture, report } from '../postgres/fix-fixture.js';
@@ -43,7 +43,7 @@ before(async () => {
   }
 });
 
-async function scenario(enabled: boolean) {
+async function scenario(enabled: boolean, beforeController?: (journal: LiveJournal) => void) {
   assert.ok(owned);
   const s = await fixture(),
     cfg = await readOwner(owned.path),
@@ -88,6 +88,7 @@ async function scenario(enabled: boolean) {
       store_id: engine.identity.store_id,
       runtime_hash: engine.identity.runtime_hash,
     });
+    beforeController?.(journal);
     const binding = { sandboxId: s.id, digest: s.proof, scope: 'trade' as const, generation: '1' };
     controller = new LiveFixController({
       service: new LiveFixApplicationService(db, true),
@@ -132,7 +133,7 @@ async function scenario(enabled: boolean) {
       });
     });
     void nativeReady.catch(() => undefined);
-    return { s, controller, journal, nativeReady, close };
+    return { s, controller, journal, nativeReady, close, child };
   } catch (error) {
     try {
       await close();
@@ -640,6 +641,168 @@ void test('stop drains an already dispatched application through its original ca
   } finally {
     release.release();
     h.journal.retain = retain;
+    await h.close();
+  }
+});
+
+void test('stop settles a reconnect still yielding in startup and refuses later reconnect admission', async () => {
+  const h = await scenario(true);
+  try {
+    await h.controller.start();
+    const connecting = observeSend(h.controller.reconnect());
+    await h.controller.stop();
+    const result = await settledSend(connecting);
+    assert.equal(result.state, 'rejected');
+    if (result.state !== 'rejected') throw new Error('The reconnect caller did not settle.');
+    assert.ok(result.error instanceof DomainError);
+    assert.equal(result.error.code, 'FIX_LIVE_STOPPING');
+    await assert.rejects(
+      () => h.controller.reconnect(),
+      (error: unknown) => error instanceof DomainError && error.code === 'FIX_LIVE_STOPPING',
+    );
+    assert.equal((await h.journal.entries('send')).length, 0);
+  } finally {
+    await h.close();
+  }
+});
+
+void test('stop keeps the bridge open until a durable reconnect intent settles without late dispatch', async () => {
+  const h = await scenario(true);
+  const entered = stopBarrier(),
+    release = stopBarrier();
+  const retain = h.journal.retain.bind(h.journal);
+  const originalWrite = h.child.stdin.write.bind(h.child.stdin);
+  const commands: string[] = [];
+  let connecting: ReturnType<typeof observeSend<void>> | undefined;
+  let stopping: Promise<void> | undefined;
+  try {
+    await h.controller.start();
+    h.child.stdin.write = ((...args: Parameters<typeof originalWrite>) => {
+      commands.push(
+        z
+          .object({ kind: z.string() })
+          .passthrough()
+          .parse(JSON.parse(Buffer.from(args[0] as Uint8Array).toString('ascii'))).kind,
+      );
+      return originalWrite(...args);
+    }) as typeof h.child.stdin.write;
+    h.journal.retain = async (...args: Parameters<LiveJournal['retain']>) => {
+      if (args[0] === 'send') {
+        entered.release();
+        await release.promise;
+      }
+      return retain(...args);
+    };
+    connecting = observeSend(h.controller.reconnect());
+    await entered.promise;
+    stopping = h.controller.stop();
+    // One host turn flushes stop's ready microtasks, without a timed sleep or
+    // replacing the real engine. STOP cannot pass the retained-intent barrier.
+    await yieldTurn();
+    assert.deepEqual(commands, [], 'Shutdown cannot overtake a reconnect journal write.');
+    release.release();
+    await stopping;
+    const result = await settledSend(connecting);
+    assert.equal(result.state, 'rejected');
+    if (result.state !== 'rejected') throw new Error('The retained reconnect did not settle.');
+    assert.ok(result.error instanceof DomainError);
+    assert.equal(result.error.code, 'FIX_LIVE_STOPPING');
+    assert.deepEqual(commands, ['STOP']);
+    const intent = await h.journal.entries('send');
+    assert.equal(intent.length, 1);
+    assert.equal(
+      z.object({ kind: z.string() }).passthrough().parse(intent[0]!.value).kind,
+      'RECONNECT',
+    );
+  } finally {
+    release.release();
+    await stopping?.catch(() => undefined);
+    await connecting;
+    h.child.stdin.write = originalWrite;
+    h.journal.retain = retain;
+    await h.close();
+  }
+});
+
+void test('stop drains a dispatched reconnect through its original CONNECT and ARMED before exiting', async () => {
+  const h = await scenario(true);
+  const entered = stopBarrier(),
+    release = stopBarrier();
+  const retain = h.journal.retain.bind(h.journal);
+  try {
+    await h.controller.start();
+    h.journal.retain = async (...args: Parameters<LiveJournal['retain']>) => {
+      const request = z.object({ action: z.string() }).passthrough().safeParse(args[2]);
+      if (args[0] === 'request' && request.success && request.data.action === 'CONNECT') {
+        entered.release();
+        await release.promise;
+      }
+      return retain(...args);
+    };
+    const connecting = observeSend(h.controller.reconnect());
+    await entered.promise;
+    const stopping = h.controller.stop();
+    release.release();
+    await stopping;
+    const result = await settledSend(connecting);
+    assert.equal(
+      result.state,
+      'resolved',
+      'An already dispatched reconnect must complete before STOP.',
+    );
+    assert.equal((await h.journal.entries('send')).length, 1);
+    const connects = (await h.journal.entries('request')).filter(
+      (entry) =>
+        z.object({ action: z.string() }).passthrough().parse(entry.value).action === 'CONNECT',
+    );
+    assert.equal(connects.length, 1);
+    const resultEntry = await h.journal.read('result', connects[0]!.id);
+    assert.equal(z.object({ status: z.number() }).passthrough().parse(resultEntry).status, 201);
+  } finally {
+    release.release();
+    h.journal.retain = retain;
+    await h.close();
+  }
+});
+
+void test('stop settles startup registration without reporting readiness after stopping begins', async () => {
+  const entered = stopBarrier(),
+    release = stopBarrier();
+  let retain: LiveJournal['retain'] | undefined;
+  const h = await scenario(true, (journal) => {
+    retain = journal.retain.bind(journal);
+    const original = retain;
+    journal.retain = async (...args: Parameters<LiveJournal['retain']>) => {
+      const request = z.object({ action: z.string() }).passthrough().safeParse(args[2]);
+      if (args[0] === 'request' && request.success && request.data.action === 'BIND') {
+        entered.release();
+        await release.promise;
+      }
+      return original(...args);
+    };
+  });
+  try {
+    const starting = observeSend(h.controller.start());
+    await entered.promise;
+    const stopping = h.controller.stop();
+    release.release();
+    await stopping;
+    const result = await settledSend(starting);
+    assert.equal(
+      result.state,
+      'rejected',
+      'Startup cannot report readiness after shutdown starts.',
+    );
+    if (result.state !== 'rejected') throw new Error('Startup was not rejected during shutdown.');
+    assert.ok(result.error instanceof DomainError);
+    assert.equal(result.error.code, 'FIX_LIVE_STOPPING');
+    await assert.rejects(
+      () => h.controller.start(),
+      (error: unknown) => error instanceof DomainError && error.code === 'FIX_LIVE_STOPPING',
+    );
+  } finally {
+    release.release();
+    if (retain) h.journal.retain = retain;
     await h.close();
   }
 });

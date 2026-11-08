@@ -80,13 +80,27 @@ remain unchanged. The mandatory native regression exercises immediate reconnect
 and both peer restarts; four socket controls force retired-admin interruption and
 check that unplanned I/O and retired application input remain fail-closed.
 
-Shutdown closes new send admission synchronously. A send still starting or
-retaining its original intent rejects with FIX_LIVE_STOPPING before any later
-wire dispatch; already retained intent is kept. An already dispatched send is
-allowed to complete its original callback/application before STOP is written.
-Caller settlement, event draining and STOP confirmation share the existing
-15-second shutdown budget; process exit retains its five-second bound. An
-unexpected process exit with outstanding sends fails closed.
+Shutdown closes new startup, send and reconnect admission synchronously. The
+controller tracks each original bridge lifecycle promise before its first yield.
+Callers still starting or retaining an undispatched send/reconnect intent reject
+with FIX_LIVE_STOPPING before any later dispatch; original durable intent stays
+retained. Already dispatched sends drain through their original callback and
+application, and dispatched reconnects through CONNECT and ARMED, before STOP.
+Startup cannot report readiness after shutdown begins. Caller settlement, event
+draining and STOP confirmation share the existing 15-second shutdown budget;
+process exit retains its five-second bound. An unexpected process exit with
+outstanding bridge lifecycle callers fails closed. Explicit recoverKnown is the
+separate durable SQL recovery path, including after engine failure; it does not
+dispatch commands to the stopped bridge.
+
+The host budget observer counts bytes conservatively when an owned regular inode
+is unlinked between pathname lookup and metadata collection. Such an inode has no
+remaining links; its observed bytes are still charged. Retained hard links,
+symlink files/directories and nonregular files remain rejected. Five mandatory
+filesystem controls cover normal accounting, vanished paths, the real unlinked
+inode state and unsafe paths. Rejections retain path/mode/link diagnostics. The
+earlier EVIDENCE_PATH failure lacked that detail; the independently reproduced
+unlink race is not presented as forensic proof of its exact inode.
 
 ## Crash outcomes
 
@@ -119,10 +133,10 @@ npm ci
 npm run test:fix-live-application
 ```
 
-The mandatory97-control gate builds a fresh pinned image, creates private owned
+The mandatory106-control gate builds a fresh pinned image, creates private owned
 PostgreSQL instances, installs schema9 explicitly, checks runtime isolation,
 freezes source inputs and retains failed attempts with ownership-checked cleanup.
-Its groups are21 bridge/native,10 independent Python,30 SQL admission,8 controller,
+Its groups are21 bridge/native,10 independent Python,5 host filesystem,30 SQL admission,12 controller,
 14 independent application/reconciliation,8 real process-kill recovery and6
 lifecycle controls. The lifecycle set includes both conventions/BUY/SELL fills,
 rejection, cancel rejection/acknowledgment, partial cancel, pending-cancel fills,

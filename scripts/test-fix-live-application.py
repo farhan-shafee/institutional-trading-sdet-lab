@@ -7,6 +7,35 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools/fix-session'))
 from gate import GateError,admit_pins,admit_log_driver,require_tool,input_identity,require_same_inputs,verify_preserved,run_bounded
 
+def readable(error):
+    if not isinstance(error,FileNotFoundError):raise error
+def evidence_path_error(root,path,info):
+    error=GateError('EVIDENCE_PATH')
+    error.evidence_path={'scan_root':str(root),'entry':str(path.relative_to(root)),'mode':oct(info.st_mode),'nlink':info.st_nlink,'size':info.st_size}
+    return error
+
+def evidence_bytes(path):
+    result=0
+    if not path.exists():return 0
+    for base,dirs,files in os.walk(path,followlinks=False,onerror=readable):
+        for name in dirs:
+            p=Path(base)/name
+            if p.is_symlink():raise evidence_path_error(path,p,p.lstat())
+        for name in files:
+            p=Path(base)/name
+            try:info=p.lstat()
+            except FileNotFoundError:continue
+            if not stat.S_ISREG(info.st_mode):raise evidence_path_error(path,p,info)
+            if info.st_nlink==0:
+                # Lookup can hold a regular inode while owned cleanup unlinks it
+                # before stat. It is already gone; charge its observed bytes
+                # conservatively, just as ENOENT is an accepted removal race.
+                result+=info.st_size
+                continue
+            if info.st_nlink!=1:raise evidence_path_error(path,p,info)
+            result+=info.st_size
+    return result
+
 def main():
     identity=str(uuid4());scope='synthetic-fix-live-application';started=time.monotonic()
     out=ROOT/'artifacts'/('fix-live-application-'+identity);out.mkdir(parents=True,mode=0o700)
@@ -20,30 +49,15 @@ def main():
         (out/name).write_text(json.dumps(value,sort_keys=True,indent=2)+'\n',encoding='utf8')
     write('owner.json',{'version':1,'run_id':identity,'scope':scope})
     def intend(kind,value):intents[kind]=value;write('ownership-intent.json',{'run_id':identity,'scope':scope,'resources':intents})
-    def readable(error):
-        if not isinstance(error,FileNotFoundError):raise error
-    def total(path):
-        result=0
-        if not path.exists():return 0
-        for base,dirs,files in os.walk(path,followlinks=False,onerror=readable):
-            for name in dirs:
-                if (Path(base)/name).is_symlink():raise GateError('EVIDENCE_PATH')
-            for name in files:
-                p=Path(base)/name
-                try:info=p.lstat()
-                except FileNotFoundError:continue
-                if not stat.S_ISREG(info.st_mode) or info.st_nlink!=1:raise GateError('EVIDENCE_PATH')
-                result+=info.st_size
-        return result
     def budget():
-        used=total(out)+total(private)
+        used=evidence_bytes(out)+evidence_bytes(private)
         if used>8*1024*1024:raise GateError('LIVE_GATE_EVIDENCE_BUDGET')
         journals=0
         for path in (evidence/'engine-intents').glob('*.json'):
             intent=json.loads(path.read_text())
             run=intent.get('run_id','')
             if str(UUID(run))!=run or intent.get('parent_run_id')!=identity:raise GateError('OWNED_INTENT')
-            journals+=total(ROOT/'.local/fix-live'/run)
+            journals+=evidence_bytes(ROOT/'.local/fix-live'/run)
         if journals>24*1024*1024:raise GateError('LIVE_GATE_JOURNAL_BUDGET')
         return max(1,8*1024*1024-used)
     def inputs():
@@ -91,8 +105,8 @@ def main():
         if os.name!='posix':raise GateError('LINUX_OR_WSL_HOST_REQUIRED')
         docker=require_tool('docker');node=require_tool('node');python=require_tool('python3')
         contract=json.loads((ROOT/'contracts/fix-live-application-v1.json').read_text());expected=contract['required_groups']
-        if hashlib.sha256(json.dumps(contract,sort_keys=True,separators=(',',':')).encode()).hexdigest()!='3b0e7ec262d9574ce915607e0470bfb33c25deec8cd25da940b3d905e9713ddf':raise GateError('LIVE_GATE_CONTRACT')
-        if contract['required_controls']!=97 or sum(expected.values())!=97 or contract['gate_seconds']!=900:raise GateError('LIVE_GATE_CONTRACT')
+        if hashlib.sha256(json.dumps(contract,sort_keys=True,separators=(',',':')).encode()).hexdigest()!='5bc70aadc14c2365dc70d9447861a04541ab94635975bc3de236bb7f33cd895c':raise GateError('LIVE_GATE_CONTRACT')
+        if contract['required_controls']!=106 or sum(expected.values())!=106 or contract['gate_seconds']!=900:raise GateError('LIVE_GATE_CONTRACT')
         if contract['owned_budget']['aggregate_bytes']!=67108864:raise GateError('LIVE_GATE_CONTRACT')
         baseline=json.loads((ROOT/'tools/fix-session/preservation.json').read_text());verify_preserved(ROOT,baseline['files'])
         admit_pins(json.loads((ROOT/'tools/fix-session/dependencies.lock.json').read_text()),(ROOT/'tools/fix-session/Dockerfile').read_text())
@@ -122,9 +136,14 @@ def main():
         match=re.findall(r'LIVE_ORACLE_RESULT\t([^\n]+)',log.read_text())
         if len(match)!=1 or json.loads(match[0])!={'tests':10,'successful':True,'skipped':0}:raise GateError('ORACLE_RESULT')
         groups['independent_python']=10
+        program="import unittest,json;suite=unittest.defaultTestLoader.discover('verification/python',pattern='test_fix_live_gate_budget.py');r=unittest.TextTestRunner(verbosity=2).run(suite);print('LIVE_GATE_BUDGET_RESULT\\t'+json.dumps({'tests':r.testsRun,'successful':r.wasSuccessful(),'skipped':len(r.skipped)}),flush=True);raise SystemExit(not r.wasSuccessful() or r.testsRun!=5 or bool(r.skipped) or bool(r.expectedFailures) or bool(r.unexpectedSuccesses))"
+        log=run([python,'-c',program],'host-budget-controls',30)
+        match=re.findall(r'LIVE_GATE_BUDGET_RESULT\t([^\n]+)',log.read_text())
+        if len(match)!=1 or json.loads(match[0])!={'tests':5,'successful':True,'skipped':0}:raise GateError('HOST_EVIDENCE_RESULT')
+        groups['host_evidence']=5
         os.environ['PYTHONDONTWRITEBYTECODE']='1'
         os.environ['TF_FIX_LIVE_IMAGE']=runtime_image;os.environ['TF_LIVE_PARENT_RUN']=identity;os.environ['TF_LIVE_EVIDENCE_DIR']=str(evidence)
-        cases=[('sql_admission','sql.test.ts',30),('controller','controller.test.ts',8),('independent_application','reconciliation.test.ts',14),('process_kill_recovery','recovery.test.ts',8),('lifecycle','lifecycle.test.ts',6)]
+        cases=[('sql_admission','sql.test.ts',30),('controller','controller.test.ts',12),('independent_application','reconciliation.test.ts',14),('process_kill_recovery','recovery.test.ts',8),('lifecycle','lifecycle.test.ts',6)]
         for name,file,count in cases:
             pointer=out/(name+'-postgres-owner.txt');pointers.append(pointer);os.environ['TF_LIVE_OWNER_POINTER']=str(pointer)
             print('Running '+name+': '+str(count)+' controls',flush=True)
@@ -137,6 +156,7 @@ def main():
         report.update(status='passed',groups=groups,controls=sum(groups.values()),observed_financial_application_cases_passed=True)
     except BaseException as error:
         primary=str(error) if isinstance(error,GateError) else type(error).__name__;report['failure']=primary
+        if hasattr(error,'evidence_path'):report['evidence_path_failure']=error.evidence_path
     finally:
         cleaning=True;cleanup=[]
         def inspect(kind,name):
@@ -181,7 +201,7 @@ def main():
         if cleanup:report['status']='failed'
         write('summary.json',report);print('Live application evidence: '+str(out/'summary.json'),flush=True)
     if report['status']!='passed':raise GateError(primary or 'OWNED_CLEANUP_UNRESOLVED')
-    print('Live application gate:97/97 controls; observed synthetic financial cases passed',flush=True)
+    print('Live application gate:106/106 controls; observed synthetic financial cases passed',flush=True)
 
 if __name__=='__main__':
     try:main()
