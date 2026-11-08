@@ -17,7 +17,7 @@ from uuid import UUID,uuid4
 from driver import Lab,LabError,FaultTransport,BODY_FIELDS
 from live_protocol import BridgeError,LaneGate,OutputChannel,PROFILE,MAX_BYTES,MAX_ENVELOPE,decode_line,encode_envelope
 from ownership import _read_json
-from wire import decode_frame
+from wire import decode_frame,WireError
 
 MAX_RUNTIME_BYTES=MAX_BYTES//2
 
@@ -27,6 +27,7 @@ class LiveTransport(FaultTransport):
         self.body_fields={**BODY_FIELDS,'D':BODY_FIELDS['D']+' 75','8':BODY_FIELDS['8']+' 59 41 103 75','F':BODY_FIELDS['F']+' 37 167 58','9':BODY_FIELDS['9']+' 60'}
         self.writes={direction:queue.Queue(1) for direction in ('J_TO_G','G_TO_J')}
         self.writers=[];self.retired_lock=threading.RLock();self.retired_targets=set();self.retired_receive_errors=[]
+        self.writer_stop=threading.Event();self.shutting_down=False;self.owned_targets=set();self.open_targets=set();self.closed_targets=set()
 
     def record(self,direction,stage,raw):
         fields=super().record(direction,stage,raw)
@@ -43,6 +44,47 @@ class LiveTransport(FaultTransport):
     def retired(self,target):
         with self.retired_lock:return target in self.retired_targets
 
+    def _own_targets(self,channels):
+        targets=self.owned_targets|set(channels)
+        if len(targets)>16:raise LabError('LIVE_CONNECTION_QUOTA')
+        self.owned_targets=targets
+
+    def connection_opened(self,channels):
+        # Installation and shutdown use the same lock order, including a pair
+        # installed after begin_shutdown took its first socket snapshot.
+        with self.lab.gate.lock,self.retired_lock:
+            if len(channels)!=2 or channels[0] is channels[1]:raise LabError('LIVE_CONNECTION_IDENTITY')
+            if set(channels)&self.closed_targets:raise LabError('LIVE_CONNECTION_IDENTITY')
+            self._own_targets(channels);self.open_targets.update(channels)
+            if self.shutting_down:self.retired_targets.update(channels)
+
+    def transport_failed(self,error):
+        # Expected retired socket errors are handled at receive/write, where the
+        # exact physical target is known. A late producer error is never erased.
+        self.lab.fail('TRANSPORT_IO' if isinstance(error,OSError) else 'TRANSPORT_'+str(error))
+
+    def connection_closing(self,channels,framers):
+        with self.lab.gate.lock,self.retired_lock:
+            known=set(channels)&self.owned_targets
+            self.open_targets.difference_update(known);self.closed_targets.update(known)
+        # Every byte already received belongs to the receipt, including partial
+        # bytes from the other direction when one peer closes or STOP wins.
+        for channel in channels:
+            try:framers[channel].finish()
+            except WireError as error:self.lab.fail('TRANSPORT_'+str(error))
+
+    def begin_shutdown(self):
+        with self.lab.gate.lock,self.retired_lock:
+            # Cleanup must also work before startup completed or after failure.
+            # Preserve failed state and queued applications; never resume them.
+            self.lab.gate.active=False;self.lab.armed=False;self.shutting_down=True
+            # A closing pair can still be visible in self.sockets. Its closed
+            # lifecycle marker wins: shutdown cannot excuse an earlier failure.
+            channels=set(self.sockets)-self.closed_targets
+            try:self._own_targets(channels);self.open_targets.update(channels)
+            except LabError as error:self.lab.fail(str(error))
+            self.retired_targets.update(self.open_targets)
+
     def quiesce_connection(self):
         # Only this physical connection is retired; later socket objects remain live.
         with self.lab.gate.lock:
@@ -51,6 +93,7 @@ class LiveTransport(FaultTransport):
             channels=tuple(self.sockets)
             if len(channels)!=2 or channels[0] is channels[1]:raise BridgeError('LIVE_QUIESCE_CONNECTION')
             with self.retired_lock:
+                if self.shutting_down or set(channels)&self.closed_targets:raise BridgeError('LIVE_QUIESCE_CONNECTION')
                 if len(self.retired_targets|set(channels))>16:raise BridgeError('LIVE_CONNECTION_QUOTA')
                 self.retired_targets.update(channels)
 
@@ -76,7 +119,7 @@ class LiveTransport(FaultTransport):
             except BridgeError as error:raise LabError('LIVE_'+str(error)) from None
 
     def _write(self,direction):
-        while not self.stop.is_set():
+        while not self.writer_stop.is_set():
             try:raw,target=self.writes[direction].get(timeout=.05)
             except queue.Empty:continue
             try:
@@ -95,18 +138,31 @@ class LiveTransport(FaultTransport):
                     else:self.lab.gate.forwarded_admin(direction,raw)
             except (OSError,ValueError,LabError) as error:
                 code=('LIVE_FORWARD_OS_'+str(error.errno) if isinstance(error,OSError) and isinstance(error.errno,int) and error.errno>=0 else 'LIVE_FORWARD_'+str(error) if isinstance(error,(BridgeError,LabError)) and re.fullmatch('[A-Z0-9_]{1,80}',str(error)) else 'LIVE_FORWARD_IO')
-                if not self.stop.is_set():self.lab.fail(code)
+                self.lab.fail(code)
             finally:self.writes[direction].task_done()
 
     def close(self):
-        super().close()
-        for worker in self.writers:
-            worker.join(timeout=1)
-            if worker.is_alive():self.lab.fail('LIVE_WRITER_SHUTDOWN')
+        self.begin_shutdown()
+        try:super().close()
+        except (OSError,LabError):self.lab.fail('LIVE_TRANSPORT_CLOSE')
+        # The producer barrier comes before the existing bounded drain. Writers
+        # remain alive for a last batch that raced with network stop.
+        try:self.drain()
+        except BridgeError as error:self.lab.fail(str(error))
+        finally:
+            self.writer_stop.set()
+            for worker in self.writers:
+                worker.join(timeout=1)
+                if worker.is_alive():self.lab.fail('LIVE_WRITER_SHUTDOWN')
+        with self.lab.gate.lock:
+            if self.lab.gate.pending_application:self.lab.fail('LIVE_APPLICATION_UNRESOLVED')
+            if self.lab.gate.failed:self.lab.fail('LIVE_LANE_FAILED')
+            if self.lab.gate.pending:self.lab.fail('LIVE_LANE_UNRESOLVED')
+            if any(writes.unfinished_tasks for writes in self.writes.values()):self.lab.fail('LIVE_FORWARD_UNRESOLVED')
 
     def drain(self):
-        # Finish already scheduled wire writes before STOP can close either peer.
-        # The existing socket write timeout is two seconds; no SQL hold is released.
+        # Drain only scheduled wire writes; no SQL application hold is released.
+        # Normal close calls this after producers settle, with the existing bound.
         deadline=time.monotonic()+2
         for writes in self.writes.values():
             with writes.all_tasks_done:
@@ -211,9 +267,7 @@ class LiveRuntime(Lab):
         self.gate.expire();super().send(role,fields)
 
     def _close(self,kind,value,trace):
-        if self.gate.pending_application:self.errors.append('LIVE_APPLICATION_UNRESOLVED')
-        try:self.transport.drain()
-        except BridgeError as error:self.errors.append(str(error))
+        self.transport.begin_shutdown()
         return super()._close(kind,value,trace)
 
     def emit_receipt(self):

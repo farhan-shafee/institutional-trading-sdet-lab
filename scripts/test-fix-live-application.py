@@ -105,8 +105,8 @@ def main():
         if os.name!='posix':raise GateError('LINUX_OR_WSL_HOST_REQUIRED')
         docker=require_tool('docker');node=require_tool('node');python=require_tool('python3')
         contract=json.loads((ROOT/'contracts/fix-live-application-v1.json').read_text());expected=contract['required_groups']
-        if hashlib.sha256(json.dumps(contract,sort_keys=True,separators=(',',':')).encode()).hexdigest()!='bca363156cde9e397a8bd50cdad7724f187e61cc706245e142212f5f053bf1eb':raise GateError('LIVE_GATE_CONTRACT')
-        if contract['required_controls']!=108 or sum(expected.values())!=108 or contract['gate_seconds']!=900:raise GateError('LIVE_GATE_CONTRACT')
+        if hashlib.sha256(json.dumps(contract,sort_keys=True,separators=(',',':')).encode()).hexdigest()!='3c5f7e28aedf220ee44be409864a2b58ca226097e62fe8e5a4787351c35e8deb':raise GateError('LIVE_GATE_CONTRACT')
+        if contract['required_controls']!=118 or sum(expected.values())!=118 or contract['gate_seconds']!=900:raise GateError('LIVE_GATE_CONTRACT')
         if contract['owned_budget']['aggregate_bytes']!=67108864:raise GateError('LIVE_GATE_CONTRACT')
         baseline=json.loads((ROOT/'tools/fix-session/preservation.json').read_text());verify_preserved(ROOT,baseline['files'])
         admit_pins(json.loads((ROOT/'tools/fix-session/dependencies.lock.json').read_text()),(ROOT/'tools/fix-session/Dockerfile').read_text())
@@ -117,7 +117,7 @@ def main():
         report['source_revision']=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip();report['preserved_original_files']=len(baseline['files'])
         intend('image',image);print('Building the pinned live application runtime',flush=True)
         run([docker,'build','--platform=linux/amd64','--progress=plain','--label','tradeflow.scope='+scope,'--label','tradeflow.run_id='+identity,'-f',str(ROOT/'tools/fix-session/Dockerfile'),'-t',image,str(ROOT)],'build',900)
-        program="import signal,unittest,json;signal.alarm(60);suite=unittest.defaultTestLoader.discover('tests/fix-live',pattern='test_*.py');r=unittest.TextTestRunner(verbosity=2).run(suite);print('LIVE_ENGINE_RESULT\\t'+json.dumps({'tests':r.testsRun,'successful':r.wasSuccessful(),'skipped':len(r.skipped)}),flush=True);raise SystemExit(not r.wasSuccessful() or r.testsRun!=21 or bool(r.skipped) or bool(r.expectedFailures) or bool(r.unexpectedSuccesses))"
+        program="import signal,unittest,json;signal.alarm(60);suite=unittest.defaultTestLoader.discover('tests/fix-live',pattern='test_*.py');r=unittest.TextTestRunner(verbosity=2).run(suite);print('LIVE_ENGINE_RESULT\\t'+json.dumps({'tests':r.testsRun,'successful':r.wasSuccessful(),'skipped':len(r.skipped)}),flush=True);raise SystemExit(not r.wasSuccessful() or r.testsRun!=31 or bool(r.skipped) or bool(r.expectedFailures) or bool(r.unexpectedSuccesses))"
         intend('container',container)
         cid=run([docker,'create','--name',container,'--label','tradeflow.scope='+scope,'--label','tradeflow.run_id='+identity,'--log-driver','none','--network','none','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges','--cpus','1','--memory','1g','--memory-swap','1g','--pids-limit','128','--shm-size','64m','--tmpfs','/state:rw,nosuid,nodev,noexec,size=64m,uid=1000,gid=1000,mode=0700',image,'python','-c',program],'create').read_text().strip()
         if not re.fullmatch('[a-f0-9]{64}',cid):raise GateError('CONTAINER_ID')
@@ -125,12 +125,12 @@ def main():
         if not(h['NetworkMode']=='none' and not h['Binds'] and not h['PortBindings'] and h['ReadonlyRootfs'] and h['CapDrop']==['ALL'] and h['Memory']==1073741824 and h['MemorySwap']==1073741824 and h['NanoCpus']==1000000000 and h['PidsLimit']==128 and h['ShmSize']==67108864 and cfg['User']=='1000:1000' and cfg['Labels']['tradeflow.run_id']==identity and cfg['Labels']['tradeflow.scope']==scope and 'no-new-privileges' in h['SecurityOpt'] and set(h['Tmpfs'])=={'/state'} and 'size=64m' in h['Tmpfs']['/state'] and all(m['Type']!='bind' for m in item['Mounts'])):raise GateError('RUNTIME_ISOLATION')
         if any('DATABASE' in x.split('=',1)[0] or x.split('=',1)[0].startswith('PG') for x in cfg['Env']):raise GateError('RUNTIME_CREDENTIALS')
         runtime_image=item['Image'];report['runtime_image']=runtime_image
-        print('Running21 bridge and actual engine controls',flush=True)
+        print('Running31 bridge and actual engine controls',flush=True)
         log=run([docker,'start','--attach',cid],'engine',90)
         match=re.findall(r'LIVE_ENGINE_RESULT\t([^\n]+)',log.read_text())
-        if len(match)!=1 or json.loads(match[0])!={'tests':21,'successful':True,'skipped':0}:raise GateError('ENGINE_RESULT')
+        if len(match)!=1 or json.loads(match[0])!={'tests':31,'successful':True,'skipped':0}:raise GateError('ENGINE_RESULT')
         if run([docker,'inspect','--format','{{.State.ExitCode}}',cid],'engine-exit').read_text().strip()!='0':raise GateError('ENGINE_EXIT')
-        groups['engine_bridge']=21
+        groups['engine_bridge']=31
         program="import sys,unittest,json;sys.path.insert(0,'verification/python');suite=unittest.defaultTestLoader.discover('verification/python',pattern='test_fix_live_application.py');r=unittest.TextTestRunner(verbosity=2).run(suite);print('LIVE_ORACLE_RESULT\\t'+json.dumps({'tests':r.testsRun,'successful':r.wasSuccessful(),'skipped':len(r.skipped)}),flush=True);raise SystemExit(not r.wasSuccessful() or r.testsRun!=10 or bool(r.skipped) or bool(r.expectedFailures) or bool(r.unexpectedSuccesses))"
         log=run([python,'-c',program],'independent-python',30)
         match=re.findall(r'LIVE_ORACLE_RESULT\t([^\n]+)',log.read_text())
@@ -201,7 +201,7 @@ def main():
         if cleanup:report['status']='failed'
         write('summary.json',report);print('Live application evidence: '+str(out/'summary.json'),flush=True)
     if report['status']!='passed':raise GateError(primary or 'OWNED_CLEANUP_UNRESOLVED')
-    print('Live application gate:108/108 controls; observed synthetic financial cases passed',flush=True)
+    print('Live application gate:118/118 controls; observed synthetic financial cases passed',flush=True)
 
 if __name__=='__main__':
     try:main()

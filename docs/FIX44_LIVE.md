@@ -144,10 +144,12 @@ npm ci
 npm run test:fix-live-application
 ```
 
-The mandatory108-control gate builds a fresh pinned image, creates private owned
+Normal native shutdown disarms application admission and retires exact owned sockets before child STOP. Writers remain active until the bounded network-producer join completes, then drain within the existing two seconds and join within the existing one second each. Interrupted administrative bytes remain distinct from forwarded bytes; application holds, foreign socket errors, surviving producers/writers and partial received frames prevent a complete receipt. Ten regression controls cover these boundaries, including failed and partial startup.
+
+The mandatory118-control gate builds a fresh pinned image, creates private owned
 PostgreSQL instances, installs schema9 explicitly, checks runtime isolation,
 freezes source inputs and retains failed attempts with ownership-checked cleanup.
-Its groups are21 bridge/native,10 independent Python,5 host filesystem,30 SQL admission,14 controller,
+Its groups are31 bridge/native,10 independent Python,5 host filesystem,30 SQL admission,14 controller,
 14 independent application/reconciliation,8 real process-kill recovery and6
 lifecycle controls. The lifecycle set includes both conventions/BUY/SELL fills,
 rejection, cancel rejection/acknowledgment, partial cancel, pending-cancel fills,

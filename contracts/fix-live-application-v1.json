@@ -49,7 +49,7 @@
   "maximum_connections_per_session": 8,
   "gate_seconds": 900,
   "required_groups": {
-    "engine_bridge": 21,
+    "engine_bridge": 31,
     "independent_python": 10,
     "sql_admission": 30,
     "controller": 14,
@@ -58,7 +58,7 @@
     "lifecycle": 6,
     "host_evidence": 5
   },
-  "required_controls": 108,
+  "required_controls": 118,
   "unrecoverable_callback_outcome": "UNRESOLVED",
   "unknown_commit_recovery": "ORIGINAL_DURABLE_REQUEST_AND_FINANCIAL_KEY"
 }
