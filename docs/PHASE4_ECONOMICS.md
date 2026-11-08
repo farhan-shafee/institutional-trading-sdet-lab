@@ -1,6 +1,6 @@
 # Phase 4 economic contracts
 
-Status: candidate under implementation, not accepted or deployed. Source baseline: d7f6c468fb8ee2581b90935701505a464c189346. The user's November 8 instruction to continue authorizes implementation for a concrete review. It does not retroactively accept new financial conventions. Human financial-model review remains necessary before acceptance under AGENTS.md.
+Status: owner approved the finite financial scope and exact Phase4A two-file preservation exception on November8,2026. Implementation continues against [the approved completion contract](PHASE4_COMPLETION_CONTRACT.md); native qualification/integration and later implementation evidence remain separate. No deployment is authorized.
 
 ## Delivery boundary
 
@@ -26,7 +26,7 @@ Exit: actual cash-flow schedule, forward/inverse and exact cash goldens, invalid
 
 ## Remaining required slices
 
-These remain required and unfinished until implemented and verified; proposed conventions below are a planning direction, not acceptance.
+These remain required and unfinished until implemented and verified; the outline below is historical planning context. The authoritative finite rules are now owner-approved in PHASE4_COMPLETION_CONTRACT.md.
 
 - 4B: versioned synthetic USD discount factors, ACT/365F time, log-linear discount-factor interpolation, no extrapolation, continuous spread, independent DF/PV/spread goldens. Preserve scalar v1 YTM.
 - 4C: portfolio risk from owned authoritative positions and versioned curve/instrument snapshots, signed PV/DV01, named key-rate and nonparallel stress scenarios, honest unavailable state for missing marks. Define finite bumps, sign and tolerance before implementation.

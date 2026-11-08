@@ -6,6 +6,7 @@ from uuid import UUID,uuid4
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools/fix-session'))
 from gate import GateError,admit_pins,admit_log_driver,require_tool,input_identity,require_same_inputs,verify_preserved,run_bounded
+from preservation_v2 import load_preservation
 
 def readable(error):
     if not isinstance(error,FileNotFoundError):raise error
@@ -108,13 +109,14 @@ def main():
         if hashlib.sha256(json.dumps(contract,sort_keys=True,separators=(',',':')).encode()).hexdigest()!='3c5f7e28aedf220ee44be409864a2b58ca226097e62fe8e5a4787351c35e8deb':raise GateError('LIVE_GATE_CONTRACT')
         if contract['required_controls']!=118 or sum(expected.values())!=118 or contract['gate_seconds']!=900:raise GateError('LIVE_GATE_CONTRACT')
         if contract['owned_budget']['aggregate_bytes']!=67108864:raise GateError('LIVE_GATE_CONTRACT')
-        baseline=json.loads((ROOT/'tools/fix-session/preservation.json').read_text());verify_preserved(ROOT,baseline['files'])
+        baseline=load_preservation(ROOT);verify_preserved(ROOT,baseline['files'])
         admit_pins(json.loads((ROOT/'tools/fix-session/dependencies.lock.json').read_text()),(ROOT/'tools/fix-session/Dockerfile').read_text())
         version=run([node,'--version'],'node-version').read_text().strip()
         if not re.fullmatch('v24\\.[0-9]+\\.[0-9]+',version):raise GateError('NODE_VERSION')
         before=inputs();write('source-inputs.json',before);report['source_inputs_sha256']=hashlib.sha256((out/'source-inputs.json').read_bytes()).hexdigest()
         report['private_evidence_directory']=str(private)
-        report['source_revision']=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip();report['preserved_original_files']=len(baseline['files'])
+        report['source_revision']=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip();report['preserved_original_files']=baseline['preserved_original_files'];report['reviewed_replacements']=baseline['reviewed_replacements'];report['preservation_version']=baseline['version'];report['preservation_contract_sha256']=baseline['preservation_contract_sha256']
+        run([sys.executable,'-m','unittest','discover','-s','tests/preservation-v2','-p','test_*.py','-v'],'preservation-v2-controls')
         intend('image',image);print('Building the pinned live application runtime',flush=True)
         run([docker,'build','--platform=linux/amd64','--progress=plain','--label','tradeflow.scope='+scope,'--label','tradeflow.run_id='+identity,'-f',str(ROOT/'tools/fix-session/Dockerfile'),'-t',image,str(ROOT)],'build',900)
         program="import signal,unittest,json;signal.alarm(60);suite=unittest.defaultTestLoader.discover('tests/fix-live',pattern='test_*.py');r=unittest.TextTestRunner(verbosity=2).run(suite);print('LIVE_ENGINE_RESULT\\t'+json.dumps({'tests':r.testsRun,'successful':r.wasSuccessful(),'skipped':len(r.skipped)}),flush=True);raise SystemExit(not r.wasSuccessful() or r.testsRun!=31 or bool(r.skipped) or bool(r.expectedFailures) or bool(r.unexpectedSuccesses))"
@@ -151,7 +153,7 @@ def main():
             text=log.read_text();values={key:int(re.findall(r'^# '+key+r' ([0-9]+)$',text,re.MULTILINE)[-1]) for key in ('tests','pass','fail','cancelled','skipped','todo') if re.findall(r'^# '+key+r' ([0-9]+)$',text,re.MULTILINE)}
             if values!={'tests':count,'pass':count,'fail':0,'cancelled':0,'skipped':0,'todo':0}:raise GateError('LIVE_TEST_ADMISSION')
             groups[name]=count
-        require_same_inputs(before,inputs());verify_preserved(ROOT,baseline['files']);budget()
+        require_same_inputs(before,inputs());verify_preserved(ROOT,load_preservation(ROOT)['files']);budget()
         if groups!=expected:raise GateError('LIVE_GROUP_ADMISSION')
         report.update(status='passed',groups=groups,controls=sum(groups.values()),observed_financial_application_cases_passed=True)
     except BaseException as error:

@@ -2,11 +2,13 @@
 
 Reviewed **November 8, 2026**. The public institutional workflow is accepted and deployed at `b021602`. The app remains explicitly pinned when subsequent documentation commits merge. Earlier milestones below retain their exact source/counts and first-failure evidence.
 
-## Phase4A candidate - November8,2026
+## Phase4A approved implementation - November8,2026
 
-The feature candidate adds a separate fictional zero-coupon analytics model and authenticated read-only v2 API. It is not accepted, merged or deployed. The v1 catalogue and calculations remain unchanged; the new instrument is not RFQ/order eligible. See [the economic contract](PHASE4_ECONOMICS.md) and [the concrete review decisions](PHASE4A_REVIEW.md).
+The owner approved the separate zero-coupon financial model and exact two-file API preservation exception. The implementation remains on its feature branch pending complete native qualification and protected integration. The original v1 calculations/catalogue and financial writers remain unchanged; the new instrument is read-only.
 
-All1046 unit tests and all10 new API tests passed at slice level. The existing434-file preservation gate correctly blocks the two additive API integration files; the manifest and guard remain unchanged pending explicit scoped review. Full native qualification is not established for this candidate. Phase4B-F and final cross-phase closeout remain unfinished.
+The version2 preservation contract retains the original434-file manifest and strict verifier. It checks432 original hashes and exactly two approved replacement hashes. Eight new mandatory host controls deny tampered metadata, source changes, missing contracts, symlinks and extra exceptions. The native peer image retains its original no-application-SDK boundary and89 controls; it packages only preservation metadata/loader.
+
+The earlier source6bb7741 passed1046 units,240/480 baseline/repeated cases and all16 application/persistence jobs; its four native SOURCE_PRESERVATION failures are retained. Qualification of the approved version2 implementation is in progress. The finite remaining4B-F rules are [approved](PHASE4_COMPLETION_CONTRACT.md), but those capabilities are not implemented. Public production remains unchanged.
 
 ## Current public release
 

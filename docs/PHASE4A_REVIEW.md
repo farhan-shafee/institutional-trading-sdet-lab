@@ -1,5 +1,9 @@
 # Phase 4A candidate review
 
+The owner accepted the proposed model and exact two-file API exception on November8,2026. Versioned preservation implementation and complete native qualification now proceed within that approved scope. Production deployment remains separate. The pre-approval review record below is retained as historical evidence.
+
+## Pre-approval review record
+
 This is a reviewable candidate, not an accepted Phase4 completion or production release.
 The remaining Phase4B-F contracts and final cross-phase closeout are still open.
 
