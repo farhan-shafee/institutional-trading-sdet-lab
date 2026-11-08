@@ -2,6 +2,12 @@
 
 Reviewed **November 8, 2026**. The public institutional workflow is accepted and deployed at `b021602`. The app remains explicitly pinned when subsequent documentation commits merge. Earlier milestones below retain their exact source/counts and first-failure evidence.
 
+## Phase4A candidate - November8,2026
+
+The feature candidate adds a separate fictional zero-coupon analytics model and authenticated read-only v2 API. It is not accepted, merged or deployed. The v1 catalogue and calculations remain unchanged; the new instrument is not RFQ/order eligible. See [the economic contract](PHASE4_ECONOMICS.md) and [the concrete review decisions](PHASE4A_REVIEW.md).
+
+All1045 unit tests and all10 new API tests passed at slice level. The existing434-file preservation gate correctly blocks the two additive API integration files; the manifest and guard remain unchanged pending explicit scoped review. Full native qualification is not established for this candidate. Phase4B-F and final cross-phase closeout remain unfinished.
+
 ## Current public release
 
 [PR #32](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/32) merged as GitHub-verified `b0216022cb8ff18de904efea9279c91b3977d55f`, tree `0312dae0a6fe0e9b3e460343dec9a0ac3f7cf5ca`. [Main quality](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42221089925) and [main persistence](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42221090065) passed all eight jobs on first attempts. Both PostgreSQL runs passed 455/455 with zero failures/cancellations/skips and retained capacity zero.
