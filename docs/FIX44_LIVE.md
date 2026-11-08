@@ -93,6 +93,17 @@ outstanding bridge lifecycle callers fails closed. Explicit recoverKnown is the
 separate durable SQL recovery path, including after engine failure; it does not
 dispatch commands to the stopped bridge.
 
+The two bridge directions can observe cancel and execution traffic for one order
+before either callback is accepted. The controller retains and accepts those
+callbacks without waiting inside the callback handler for financial application.
+Only once all currently observed callbacks for that order are accepted does it
+apply eligible work in original retained observation order. Independent orders
+remain eligible; newly queued bridge events take priority between applications.
+Original SQL admission guards and financial/request keys stay intact. Callers
+settle after their original application, and unresolved frames block reconnect or
+successful shutdown. Two real-native controls force both observation orders and
+check the independent financial oracle.
+
 The host budget observer counts bytes conservatively when an owned regular inode
 is unlinked between pathname lookup and metadata collection. Such an inode has no
 remaining links; its observed bytes are still charged. Retained hard links,
@@ -133,10 +144,10 @@ npm ci
 npm run test:fix-live-application
 ```
 
-The mandatory106-control gate builds a fresh pinned image, creates private owned
+The mandatory108-control gate builds a fresh pinned image, creates private owned
 PostgreSQL instances, installs schema9 explicitly, checks runtime isolation,
 freezes source inputs and retains failed attempts with ownership-checked cleanup.
-Its groups are21 bridge/native,10 independent Python,5 host filesystem,30 SQL admission,12 controller,
+Its groups are21 bridge/native,10 independent Python,5 host filesystem,30 SQL admission,14 controller,
 14 independent application/reconciliation,8 real process-kill recovery and6
 lifecycle controls. The lifecycle set includes both conventions/BUY/SELL fills,
 rejection, cancel rejection/acknowledgment, partial cancel, pending-cancel fills,

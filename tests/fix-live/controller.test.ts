@@ -9,6 +9,8 @@ import { bootstrap, readOwner } from '../../scripts/workflow-database.js';
 import { migrateLive } from '../../scripts/live-workflow-database.js';
 import { LiveWorkflowDatabase } from '../../app/persistence/postgres/live-workflow.js';
 import { LiveFixApplicationService } from '../../app/server/fix/live-application.js';
+import { LiveVerificationDatabase } from '../../app/server/fix/live-verification-database.js';
+import { verifyLiveApplication } from '../../app/server/fix/live-reconciliation.js';
 import { LiveFixController } from '../../app/server/fix/live-controller.js';
 import { LiveJournal } from '../../app/server/fix/live-journal.js';
 import { DomainError } from '../../app/domain/errors.js';
@@ -133,7 +135,7 @@ async function scenario(enabled: boolean, beforeController?: (journal: LiveJourn
       });
     });
     void nativeReady.catch(() => undefined);
-    return { s, controller, journal, nativeReady, close, child };
+    return { s, controller, journal, nativeReady, close, child, cfg, binding };
   } catch (error) {
     try {
       await close();
@@ -806,3 +808,166 @@ void test('stop settles startup registration without reporting readiness after s
     await h.close();
   }
 });
+
+for (const first of ['cancel', 'fill'] as const)
+  void test(
+    'same-order duplex callbacks apply original work after both acceptances: ' +
+      first +
+      ' observed first',
+    async () => {
+      const h = await scenario(true);
+      const reader = new LiveVerificationDatabase(h.cfg.reconcilerUrl!);
+      const firstObserved = stopBarrier(),
+        bothObserved = stopBarrier(),
+        releaseFrames = stopBarrier();
+      const retain = h.journal.retain.bind(h.journal);
+      const sending: Array<Promise<unknown>> = [];
+      const observedDirections: string[] = [],
+        events: string[] = [];
+      let buffered = '',
+        held = false;
+      const observe = (chunk: Buffer) => {
+        buffered += chunk.toString('ascii');
+        let end: number;
+        while ((end = buffered.indexOf('\n')) !== -1) {
+          const line = buffered.slice(0, end);
+          buffered = buffered.slice(end + 1);
+          const envelope = z
+            .object({ kind: z.string(), direction: z.string().optional() })
+            .passthrough()
+            .parse(JSON.parse(line));
+          if (envelope.kind === 'OBSERVED') {
+            observedDirections.push(envelope.direction!);
+            events.push('OBSERVED');
+            if (observedDirections.length === 1) firstObserved.release();
+            if (observedDirections.length === 2) bothObserved.release();
+          } else if (envelope.kind === 'CALLBACK') events.push('CALLBACK');
+        }
+      };
+      try {
+        await h.controller.start();
+        await h.controller.send(h.s.order, await outgoingOrder(h));
+        await h.controller.send(h.s.order, body(await report(h.s)));
+        const terms = await report(h.s),
+          cancelId = randomUUID();
+        const cancel = {
+          '35': 'F',
+          '11': cancelId,
+          '41': h.s.order,
+          '37': terms['37'],
+          '55': terms['55'],
+          '167': terms['167'],
+          '54': terms['54'],
+          '38': terms['38'],
+          '60': new Date().toISOString().replaceAll('-', '').replace('T', '-').replace('Z', ''),
+          '58': 'SYNTHETIC_CANCEL_REQUEST',
+        };
+        const fill = body(
+          await report(h.s, {
+            '150': 'F',
+            '39': '1',
+            '32': '40.00',
+            '31': terms['44'],
+            '6': terms['44'],
+            '14': '40.00',
+            '151': '60.00',
+          }),
+        );
+        h.journal.retain = async (...args: Parameters<LiveJournal['retain']>) => {
+          if (args[0] === 'frame' && !held) {
+            held = true;
+            await releaseFrames.promise;
+          }
+          return retain(...args);
+        };
+        h.child.stdout.on('data', observe);
+        const firstSend = observeSend(
+          h.controller.send(h.s.order, first === 'cancel' ? cancel : fill),
+        );
+        sending.push(firstSend);
+        await Promise.race([
+          firstObserved.promise,
+          firstSend.then((result) => {
+            throw new Error('First send settled before its observation: ' + result.state);
+          }),
+        ]);
+        const secondSend = observeSend(
+          h.controller.send(h.s.order, first === 'cancel' ? fill : cancel),
+        );
+        sending.push(secondSend);
+        await Promise.race([
+          bothObserved.promise,
+          firstSend.then((result) => {
+            throw new Error('First send settled before both observations: ' + result.state);
+          }),
+          secondSend.then((result) => {
+            throw new Error('Second send settled before both observations: ' + result.state);
+          }),
+        ]);
+        assert.deepEqual(
+          observedDirections,
+          first === 'cancel' ? ['J_TO_G', 'G_TO_J'] : ['G_TO_J', 'J_TO_G'],
+        );
+        releaseFrames.release();
+        const results = await Promise.all([firstSend, secondSend]);
+        for (const result of results) {
+          assert.equal(result.state, 'resolved', JSON.stringify(result));
+          if (result.state !== 'resolved') throw new Error('A duplex caller did not resolve.');
+          assert.equal(result.value.status, 200);
+        }
+        await h.controller.stop();
+        assert.deepEqual(events.slice(0, 2), ['OBSERVED', 'OBSERVED']);
+        assert.equal(events.filter((event) => event === 'CALLBACK').length, 2);
+        const state = (
+          await h.s.app.query<{
+            filled_par: string;
+            execution_count: number;
+            pending_cancel_id: string | null;
+          }>(
+            'SELECT filled_par::text,execution_count,pending_cancel_id FROM fi.order_states WHERE sandbox_id=$1 AND order_id=$2',
+            [h.s.id, h.s.order],
+          )
+        ).rows[0];
+        assert.deepEqual(state, {
+          filled_par: '40.00',
+          execution_count: 1,
+          pending_cancel_id: cancelId,
+        });
+        const verified = await verifyLiveApplication(reader, h.binding, h.journal, () => {}, true);
+        assert.equal(verified.total_findings, 0, JSON.stringify(verified.findings));
+        assert.equal(verified.financial_application_verified, true);
+        assert.equal(verified.oracle.executions, 1);
+        assert.equal(verified.live_callbacks, 4);
+        assert.equal((await h.journal.entries('work')).length, 3);
+        const expectedOperations = [
+          'ACK_ORDER',
+          ...(first === 'cancel'
+            ? ['REQUEST_CANCEL', 'EXECUTE_ORDER']
+            : ['EXECUTE_ORDER', 'REQUEST_CANCEL']),
+        ];
+        const workOrder = await h.s.app.query<{ operation: string }>(
+          'SELECT operation FROM fi.fix_work WHERE sandbox_id=$1 AND order_id=$2 ORDER BY lane_seq',
+          [h.s.id, h.s.order],
+        );
+        assert.deepEqual(
+          workOrder.rows.map((row) => row.operation),
+          expectedOperations,
+        );
+        const applicationOrder = await h.s.app.query<{ operation: string }>(
+          'SELECT w.operation FROM fi.fix_applications a JOIN fi.fix_work w ON w.sandbox_id=a.sandbox_id AND w.id=a.work_id WHERE a.sandbox_id=$1 AND a.order_id=$2 ORDER BY a.financial_command_seq',
+          [h.s.id, h.s.order],
+        );
+        assert.deepEqual(
+          applicationOrder.rows.map((row) => row.operation),
+          expectedOperations,
+        );
+      } finally {
+        releaseFrames.release();
+        await Promise.allSettled(sending);
+        h.child.stdout.removeListener('data', observe);
+        h.journal.retain = retain;
+        await reader.close();
+        await h.close();
+      }
+    },
+  );

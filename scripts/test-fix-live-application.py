@@ -105,8 +105,8 @@ def main():
         if os.name!='posix':raise GateError('LINUX_OR_WSL_HOST_REQUIRED')
         docker=require_tool('docker');node=require_tool('node');python=require_tool('python3')
         contract=json.loads((ROOT/'contracts/fix-live-application-v1.json').read_text());expected=contract['required_groups']
-        if hashlib.sha256(json.dumps(contract,sort_keys=True,separators=(',',':')).encode()).hexdigest()!='5bc70aadc14c2365dc70d9447861a04541ab94635975bc3de236bb7f33cd895c':raise GateError('LIVE_GATE_CONTRACT')
-        if contract['required_controls']!=106 or sum(expected.values())!=106 or contract['gate_seconds']!=900:raise GateError('LIVE_GATE_CONTRACT')
+        if hashlib.sha256(json.dumps(contract,sort_keys=True,separators=(',',':')).encode()).hexdigest()!='bca363156cde9e397a8bd50cdad7724f187e61cc706245e142212f5f053bf1eb':raise GateError('LIVE_GATE_CONTRACT')
+        if contract['required_controls']!=108 or sum(expected.values())!=108 or contract['gate_seconds']!=900:raise GateError('LIVE_GATE_CONTRACT')
         if contract['owned_budget']['aggregate_bytes']!=67108864:raise GateError('LIVE_GATE_CONTRACT')
         baseline=json.loads((ROOT/'tools/fix-session/preservation.json').read_text());verify_preserved(ROOT,baseline['files'])
         admit_pins(json.loads((ROOT/'tools/fix-session/dependencies.lock.json').read_text()),(ROOT/'tools/fix-session/Dockerfile').read_text())
@@ -143,7 +143,7 @@ def main():
         groups['host_evidence']=5
         os.environ['PYTHONDONTWRITEBYTECODE']='1'
         os.environ['TF_FIX_LIVE_IMAGE']=runtime_image;os.environ['TF_LIVE_PARENT_RUN']=identity;os.environ['TF_LIVE_EVIDENCE_DIR']=str(evidence)
-        cases=[('sql_admission','sql.test.ts',30),('controller','controller.test.ts',12),('independent_application','reconciliation.test.ts',14),('process_kill_recovery','recovery.test.ts',8),('lifecycle','lifecycle.test.ts',6)]
+        cases=[('sql_admission','sql.test.ts',30),('controller','controller.test.ts',14),('independent_application','reconciliation.test.ts',14),('process_kill_recovery','recovery.test.ts',8),('lifecycle','lifecycle.test.ts',6)]
         for name,file,count in cases:
             pointer=out/(name+'-postgres-owner.txt');pointers.append(pointer);os.environ['TF_LIVE_OWNER_POINTER']=str(pointer)
             print('Running '+name+': '+str(count)+' controls',flush=True)
@@ -201,7 +201,7 @@ def main():
         if cleanup:report['status']='failed'
         write('summary.json',report);print('Live application evidence: '+str(out/'summary.json'),flush=True)
     if report['status']!='passed':raise GateError(primary or 'OWNED_CLEANUP_UNRESOLVED')
-    print('Live application gate:106/106 controls; observed synthetic financial cases passed',flush=True)
+    print('Live application gate:108/108 controls; observed synthetic financial cases passed',flush=True)
 
 if __name__=='__main__':
     try:main()

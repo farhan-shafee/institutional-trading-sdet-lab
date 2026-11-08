@@ -277,6 +277,8 @@ export class LiveFixController {
       accept_key: string;
       parsed: LiveFixFrame;
       send: ReturnType<LiveFixController['active']['get']>;
+      accepted?: { message_id: string };
+      application?: Result;
     }
   >();
   constructor(
@@ -405,7 +407,12 @@ export class LiveFixController {
   }
   private async drain(): Promise<void> {
     try {
-      while (this.events.length && !this.failure) await this.handle(this.events.shift()!);
+      while (!this.failure) {
+        while (this.events.length && !this.failure) await this.handle(this.events.shift()!);
+        if (this.failure) break;
+        await this.applyAcceptedFrames();
+        if (!this.events.length) break;
+      }
     } catch (error) {
       this.fail(error instanceof DomainError ? error : unavailable());
     } finally {
@@ -716,12 +723,39 @@ export class LiveFixController {
     );
     const evidence = this.success(accepted, 201);
     const message = uuid.parse(evidence['message_id']);
+    if (frame.accepted && frame.accepted.message_id !== message)
+      throw unavailable('FIX_LIVE_CALLBACK_CORRESPONDENCE');
     await this.write('ACK', { observation_id: envelope.observation_id, phase: 'ACCEPT' });
-    const result =
-      frame.parsed.type === 'D' ? accepted : await this.applyMessage(frame.context, message);
+    frame.accepted ??= { message_id: message };
+    if (frame.parsed.type === 'D' && !frame.application)
+      this.completeFrame(envelope.observation_id, accepted);
+  }
+  private completeFrame(observation_id: string, result: Result): void {
+    const frame = this.frames.get(observation_id);
+    if (!frame) throw unavailable('FIX_LIVE_CALLBACK_UNRESOLVED');
+    frame.application = result;
     if (frame.send) {
       if (this.active.get(frame.direction) === frame.send) this.active.delete(frame.direction);
       frame.send.done.resolve(result);
+    }
+  }
+  private hasUnsettledFrames(): boolean {
+    return [...this.frames.values()].some((frame) => !frame.application);
+  }
+  private async applyAcceptedFrames(): Promise<void> {
+    // Map insertion order is the original retained observation order, rather
+    // than incidental callback timing between independent transport directions.
+    for (const [observation_id, frame] of this.frames) {
+      if (this.failure || this.events.length) return;
+      if (!frame.accepted || frame.application) continue;
+      if (
+        [...this.frames.values()].some(
+          (other) => other.context.order_id === frame.context.order_id && !other.accepted,
+        )
+      )
+        continue;
+      const result = await this.applyMessage(frame.context, frame.accepted.message_id);
+      this.completeFrame(observation_id, result);
     }
   }
   private async applyMessage(context: Context, message_id: string): Promise<Result> {
@@ -856,7 +890,7 @@ export class LiveFixController {
   private async reconnectSession(restartRole: 'none' | 'go' | 'java'): Promise<void> {
     await this.awaitReady();
     this.requireCommandAdmission();
-    if (this.reconnecting || this.active.size || this.events.length)
+    if (this.reconnecting || this.active.size || this.events.length || this.hasUnsettledFrames())
       throw unavailable('FIX_LIVE_RECONNECT_UNRESOLVED');
     if (this.connections.size >= 8 || !['none', 'go', 'java'].includes(restartRole))
       throw unavailable('FIX_LIVE_RECONNECT_BOUND');
@@ -920,6 +954,7 @@ export class LiveFixController {
       await bounded(Promise.allSettled([...this.pendingOperations]), remaining());
       await bounded(this.processing, remaining());
       this.healthy();
+      if (this.hasUnsettledFrames()) throw unavailable('FIX_LIVE_STOP_UNRESOLVED');
       if (this.options.process.exitCode !== null) {
         if (this.options.process.exitCode !== 0) throw unavailable('FIX_LIVE_PROCESS_EXIT');
         return;
