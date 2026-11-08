@@ -2,7 +2,11 @@
 
 Status: owner approved the finite financial scope and exact Phase4A two-file preservation exception on November8,2026. Implementation continues against [the approved completion contract](PHASE4_COMPLETION_CONTRACT.md); native qualification/integration and later implementation evidence remain separate. No deployment is authorized.
 
-Phase4A is normally merged through PR37 as52c76dacc84c9770af6e42a7468b982085746ff9 with the qualified449 tree. All20 pre-merge jobs passed on attempt1; all10 post-merge jobs also passed on attempt1. [Phase4B curve analytics](PHASE4B_CURVES.md) now has a concrete local candidate with166 independent oracle cases,12 passing new HTTP cases and an actual CLI. Its complete application validation passed1077 units and252/504 API/browser cases. Native gates correctly retain SOURCE_PRESERVATION for the unapproved newer API bytes; independent review and exact later preservation acceptance remain pending.4C-F are unfinished.
+Phase4A is normally merged through PR37 as52c76dacc84c9770af6e42a7468b982085746ff9 with the qualified449 tree. All20 pre-merge jobs and all10 post-merge jobs passed on attempt1. [Phase4B curve analytics](PHASE4B_CURVES.md) has independent numerical/HTTP/CLI evidence and a reviewed local candidate. [The integrated C-F candidate](PHASE4_POSTTRADE.md) now implements signed risk, exact FIFO/equity, owned-only010, append-only corrections/busts, funded gross DVP/reversals, strict APIs, private reporting and original-key recovery. The full fresh owned suite passed77/77 with retained capacity zero; independent complete-source and immutable-event reconstructions, actual process kills and database/server restart recovery also pass.
+
+Whole-branch review identified an Important generated FIFO coverage gap. Observed RED coverage checks exposed instrument/side correlation; the repaired68-book corpus includes all four instrument/side pairs,36 generated opposing books and explicit multi-lot long/short crossings. Exact Fraction comparisons pass. Full affected qualification and two complete original-plus-owned PostgreSQL passes are in progress.
+
+The original source guard still refuses the candidate's three changed effective original files; no active pin was refreshed. The additional native journey and original43/89 and118/118 matrices remain unqualified on this candidate. Final owner acceptance must dispose of exact preservation, financial/model/test results, the proposed nondecreasing processing clock, source-sequence availability and which rejections retain receipts. Existing public release/default profiles remain unchanged; no deployment is authorized.
 
 ## Delivery boundary
 
@@ -28,7 +32,7 @@ Exit: actual cash-flow schedule, forward/inverse and exact cash goldens, invalid
 
 ## Remaining required slices
 
-These remain required and unfinished until implemented and verified; the outline below is historical planning context. The authoritative finite rules are now owner-approved in PHASE4_COMPLETION_CONTRACT.md.
+The integrated candidate implements the slices below; final qualification and owner acceptance remain pending. The outline below is historical planning context. The authoritative finite rules are now owner-approved in PHASE4_COMPLETION_CONTRACT.md.
 
 - 4B: versioned synthetic USD discount factors, ACT/365F time, log-linear discount-factor interpolation, no extrapolation, continuous spread, independent DF/PV/spread goldens. Preserve scalar v1 YTM.
 - 4C: portfolio risk from owned authoritative positions and versioned curve/instrument snapshots, signed PV/DV01, named key-rate and nonparallel stress scenarios, honest unavailable state for missing marks. Define finite bumps, sign and tolerance before implementation.

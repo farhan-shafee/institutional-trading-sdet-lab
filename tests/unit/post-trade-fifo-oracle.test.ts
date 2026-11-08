@@ -35,10 +35,10 @@ void test('68 FIFO books agree exactly with independent Fraction long short and 
   let seed = 472651n;
   const next = (): bigint => {
     seed = (1103515245n * seed + 12345n) % 2147483648n;
-    return seed;
+    return seed >> 16n;
   };
   const parCents = [1n, 3n, 125n, 300n, 1000n, 10000n];
-  for (let b = 0; b < 64; b++) {
+  for (let b = 0; b < 60; b++) {
     const entries: EconomicExecution[] = [];
     for (let i = 0; i < b % 9; i++) {
       const amount = parCents[Number(next() % 6n)]!,
@@ -65,6 +65,24 @@ void test('68 FIFO books agree exactly with independent Fraction long short and 
     }
     books.push(b % 2 === 0 ? entries : entries.reverse());
   }
+  const generatedProfiles = [
+    ...new Set(books.flatMap((book) => book.map((row) => row.instrument_id + ':' + row.side))),
+  ].sort();
+  assert.deepEqual(
+    generatedProfiles,
+    ['SYN-CORP-2031:BUY', 'SYN-CORP-2031:SELL', 'SYN-UST-2031:BUY', 'SYN-UST-2031:SELL'],
+    'generated FIFO corpus must cover both sides of each instrument',
+  );
+  const opposingBooks = books.filter((book) =>
+    ['SYN-UST-2031', 'SYN-CORP-2031'].some(
+      (id) =>
+        new Set(book.filter((row) => row.instrument_id === id).map((row) => row.side)).size === 2,
+    ),
+  ).length;
+  assert.ok(
+    opposingBooks > 0,
+    'generated FIFO books must actually consume same-instrument opposing lots',
+  );
   books.push([fill(1, 'BUY', '100', '10088'), fill(2, 'SELL', '40', '4380')]);
   books.push([
     fill(1, 'BUY', '0.03', '1'),
@@ -76,6 +94,68 @@ void test('68 FIFO books agree exactly with independent Fraction long short and 
     fill(1, 'BUY', '0.01', '0', { value_date: '2025-01-15', revision: 1 }),
     fill(2, 'SELL', '0.01', '1', { value_date: '2025-01-15' }),
   ]);
+  const corp = { instrument_id: 'SYN-CORP-2031', definition_version: 'phase1-corp-1' } as const;
+  const crossings = [
+    [
+      fill(1, 'BUY', '30.00', '3000'),
+      fill(2, 'BUY', '70.00', '7100'),
+      fill(3, 'SELL', '120.00', '13200'),
+      fill(4, 'BUY', '5.00', '500'),
+    ],
+    [
+      fill(1, 'SELL', '30.00', '3300', corp),
+      fill(2, 'SELL', '70.00', '7000', corp),
+      fill(3, 'BUY', '120.00', '12000', corp),
+      fill(4, 'SELL', '5.00', '550', corp),
+    ],
+  ];
+  const quantity = (row: EconomicExecution) => BigInt(row.par_amount.replace('.', ''));
+  for (const book of crossings) {
+    const [first, second, crossing, partialCover] = book;
+    assert.ok(first && second && crossing && partialCover);
+    assert.equal(first.instrument_id, second.instrument_id);
+    assert.equal(first.instrument_id, crossing.instrument_id);
+    assert.equal(first.instrument_id, partialCover.instrument_id);
+    assert.equal(first.side, second.side);
+    assert.notEqual(first.side, crossing.side);
+    assert.equal(first.side, partialCover.side);
+    assert.ok(
+      BigInt(first.command_seq) < BigInt(second.command_seq) &&
+        BigInt(second.command_seq) < BigInt(crossing.command_seq) &&
+        BigInt(crossing.command_seq) < BigInt(partialCover.command_seq),
+    );
+    const opening = quantity(first) + quantity(second);
+    assert.ok(quantity(crossing) > opening, 'explicit crossing must consume both opening lots');
+    assert.ok(
+      quantity(partialCover) > 0n && quantity(partialCover) < quantity(crossing) - opening,
+      'explicit partial cover must retain the crossed position',
+    );
+  }
+  books.push(...crossings);
+  books.push([
+    fill(1, 'BUY', '100.00', '10000'),
+    fill(2, 'SELL', '100.00', '11000', corp),
+    fill(3, 'SELL', '40.00', '4400'),
+    fill(4, 'BUY', '40.00', '4000', corp),
+    fill(5, 'SELL', '90.00', '9900'),
+    fill(6, 'BUY', '90.00', '9000', corp),
+  ]);
+  books.push([
+    fill(3, 'BUY', '40.00', '4000', { command_seq: '7' }),
+    fill(1, 'SELL', '60.00', '6600', { command_seq: '7' }),
+    fill(2, 'BUY', '100.00', '10000', { command_seq: '7' }),
+  ]);
+  console.log(
+    'FIFO_ORACLE_COVERAGE ' +
+      JSON.stringify({
+        generated_books: 60,
+        generated_instrument_sides: generatedProfiles.length,
+        generated_opposing_books: opposingBooks,
+        explicit_multi_lot_crossings: crossings.length,
+        explicit_books: books.length - 60,
+        total_books: books.length,
+      }),
+  );
   assert.equal(books.length, 68);
   const expected = JSON.parse(
     execFileSync(
