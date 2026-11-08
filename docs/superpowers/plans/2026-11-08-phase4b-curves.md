@@ -93,7 +93,7 @@
 - [x] Implement additive route dispatch and independently authored OpenAPI schemas; leave original paths/schemas structurally identical.
 - [x] Run focused HTTP tests, full validate and repeat-each2, no retries. Independently verify source preservation changes and retain any exact native gate refusal; no automatic hash acceptance.
 - [x] Document oracle discovery/counts, accepted numerical rules, explicit unsupported states and current integration boundary; commit.
-- [ ] One fresh whole-branch review; Important/Critical fixes RED->GREEN then green full suite, deferred minor ledger. Human final code/model/test acceptance and exact future preservation changes remain explicit before protected integration.
+- [x] One fresh whole-branch review; Important/Critical fixes RED->GREEN then green full suite, deferred minor ledger. Human final code/model/test acceptance and exact future preservation changes remain explicit before protected integration.
 
 ## Pre-flight and self-review
 
