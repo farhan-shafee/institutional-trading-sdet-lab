@@ -10,6 +10,11 @@ export const curveInstrumentIds = Object.freeze([
   'SYN-ZERO-2031',
 ] as const);
 export type CurveInstrumentId = (typeof curveInstrumentIds)[number];
+export const curveDefinitionVersions: Readonly<Record<CurveInstrumentId, string>> = Object.freeze({
+  'SYN-UST-2031': financialSource + '/SYN-UST-2031',
+  'SYN-CORP-2031': financialSource + '/SYN-CORP-2031',
+  'SYN-ZERO-2031': zeroInstruments[0]!.definition_version,
+});
 export interface CurveCashFlow {
   readonly payment_date: string;
   readonly days: number;
@@ -35,7 +40,7 @@ export function curveCashFlows(instrumentId: CurveInstrumentId, asOf: string): C
     const zero = zeroInstruments[0]!;
     return Object.freeze({
       instrument_id: instrumentId,
-      definition_version: zero.definition_version,
+      definition_version: curveDefinitionVersions[instrumentId],
       accrued: new Rational(0n),
       remaining: Object.freeze([
         Object.freeze({
@@ -60,7 +65,7 @@ export function curveCashFlows(instrumentId: CurveInstrumentId, asOf: string): C
   const coupon = Rational.decimal(instrument.coupon_rate).mul(new Rational(50n));
   return Object.freeze({
     instrument_id: instrumentId,
-    definition_version: financialSource + '/' + instrumentId,
+    definition_version: curveDefinitionVersions[instrumentId],
     accrued: coupon.mul(new Rational(BigInt(elapsed), BigInt(period))),
     remaining: Object.freeze(
       remaining.map((date, index) =>

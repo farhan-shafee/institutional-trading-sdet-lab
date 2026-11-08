@@ -75,13 +75,13 @@
 - Wire result includes instrument definition/model/curve snapshot identity, asof/par/spread,clean/dirty/accrued,mark_value_usd,remaining cash flows and explicit conventions. No consideration or settlement-cash field.
 - roundCurveMark(value, numericalAllowance, exactValue?): fixed2 string or NumericalAmbiguityError; use conservative error allowance1e-50 USD (far above bounded80-digit operation error) and exact rational proof when all flow exponents are zero or quote target is rational.
 
-- [ ] Write failing literal forward cases, inverse roundtrips/negative spreads, near-maturity bracket boundaries and just-outside tolerance, invalid input, exact cancellation/half-even marks, dirty-minus-unrounded-accrued, huge-par cents regression, global Decimal context isolation, explicit ambiguous-boundary refusal.
-- [ ] Run missing implementation tests RED.
-- [ ] Implement forward PV, monotone200-step bisection with residual gate, exact quoted target preservation, exact-rational zero-exponent mark and numerical ambiguity admission.
-- [ ] Independently implement Python120+digit cash-flow schedule/accrual/DF/PV and safeguarded Newton; do not import TypeScript/generated application data.
-- [ ] Compare at least144 forward cases spanning3fixtures/3instruments/4dates/4spreads, representative inverse solves plus endpoint/nearmaturity/literal cent cases. Expected all tolerances and cents pass, no skipped discovery.
-- [ ] Run all focused tests and full unit suite/typecheck/lint.
-- [ ] Commit task.
+- [x] Write failing literal forward cases, inverse roundtrips/negative spreads, near-maturity bracket boundaries and just-outside tolerance, invalid input, exact cancellation/half-even marks, dirty-minus-unrounded-accrued, huge-par cents regression, global Decimal context isolation, explicit ambiguous-boundary refusal.
+- [x] Run missing implementation tests RED.
+- [x] Implement forward PV, monotone200-step bisection with residual gate, exact quoted target preservation, exact-rational zero-exponent mark and numerical ambiguity admission.
+- [x] Independently implement Python120+digit cash-flow schedule/accrual/DF/PV and safeguarded Newton; do not import TypeScript/generated application data.
+- [x] Compare at least144 forward cases spanning3fixtures/3instruments/4dates/4spreads, representative inverse solves plus endpoint/nearmaturity/literal cent cases. Expected all tolerances and cents pass, no skipped discovery.
+- [x] Run all focused tests and full unit suite/typecheck/lint.
+- [x] Commit task.
 
 ### Task4: Authenticated curve reads and inspectable evidence
 
