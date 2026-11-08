@@ -1,0 +1,147 @@
+{
+  "S01-01": ["test_runtime.RuntimeTests.test_real_two_engine_logon_and_orderly_logout"],
+  "S01-02": ["test_runtime.RuntimeTests.test_acceptor_can_initiate_orderly_logout"],
+  "S02-01": [
+    "test_fault_runtime.FaultRuntimeTests.test_both_testrequest_ids_are_echoed_by_matching_heartbeat",
+    "test_timer_matching_runtime.MatchingTimerRuntime.test_java_matching_callback_cancels_old_deadline_across_live_timer_boundary"
+  ],
+  "S02-02": [
+    "test_fault_runtime.FaultRuntimeTests.test_both_testrequest_ids_are_echoed_by_matching_heartbeat",
+    "test_timer_matching_runtime.MatchingTimerRuntime.test_matching_callback_cancels_old_deadline_across_live_timer_boundary"
+  ],
+  "S02-03": [
+    "test_timer_runtime.TimerRuntimeTests.test_ordinary_heartbeat_cannot_answer_outstanding_go_testrequest"
+  ],
+  "S02-04": [
+    "test_timer_runtime.TimerRuntimeTests.test_ordinary_heartbeat_cannot_answer_outstanding_go_testrequest",
+    "test_timer_java_runtime.JavaTimerRuntime.test_ordinary_heartbeat_cannot_answer_outstanding_java_testrequest"
+  ],
+  "S02-05": [
+    "test_environment.EnvironmentTests.test_both_actual_engine_calendar_checks_and_guard_checks_ran"
+  ],
+  "S03-01": [
+    "test_fault_runtime.FaultRuntimeTests.test_disconnect_reconnect_keeps_sequences_and_original_identity"
+  ],
+  "S03-02": [
+    "test_recovery_runtime.RecoveryRuntimeTests.test_killed_initiator_replays_persisted_unreceived_order"
+  ],
+  "S03-03": [
+    "test_recovery_runtime.RecoveryRuntimeTests.test_killed_acceptor_retains_receive_sequence_without_new_logical_work"
+  ],
+  "S03-04": [
+    "test_environment.EnvironmentTests.test_both_actual_engine_calendar_checks_and_guard_checks_ran"
+  ],
+  "S04-01": [
+    "test_fault_runtime.FaultRuntimeTests.test_dropped_order_is_replayed_before_later_order_callback"
+  ],
+  "S05-01": [
+    "test_fault_runtime.FaultRuntimeTests.test_dropped_ack_retains_execid_and_exact_business_body_on_replay"
+  ],
+  "S06-01": [
+    "test_fault_runtime.FaultRuntimeTests.test_admin_gapfill_does_not_skip_the_retained_application"
+  ],
+  "S06-02": [
+    "test_fault_runtime.FaultRuntimeTests.test_admin_gapfill_does_not_skip_the_retained_application",
+    "test_fault_runtime.FaultRuntimeTests.test_dropped_order_is_replayed_before_later_order_callback"
+  ],
+  "S07-01": [
+    "test_duplicate_runtime.DuplicateRuntimeTests.test_duplicate_possdup_replay_is_not_new_logical_work"
+  ],
+  "S07-02": [
+    "test_transport.TransportTests.test_same_identity_with_changed_business_value_fails_closed"
+  ],
+  "S08-01": [
+    "test_duplicate_runtime.DuplicateRuntimeTests.test_low_sequence_without_possdup_logs_out_without_new_callback"
+  ],
+  "S08-02": [
+    "test_transport.TransportTests.test_selected_profile_rejects_unsupported_reset_identity_and_headers"
+  ],
+  "S08-03": [
+    "test_transport.TransportTests.test_selected_profile_rejects_unsupported_reset_identity_and_headers"
+  ],
+  "S08-04": [
+    "test_transport.TransportTests.test_selected_profile_rejects_unsupported_reset_identity_and_headers"
+  ],
+  "S08-05": [
+    "test_recovery_runtime.RecoveryRuntimeTests.test_changed_checkpoint_bytes_are_not_replaced_on_restart",
+    "test_review_runtime.ReviewRuntime.test_existing_identity_cannot_recreate_deleted_peer_store_in_a_new_lab"
+  ],
+  "S09-01": [
+    "test_wire.WireTests.test_literal_heartbeat",
+    "test_wire.WireTests.test_checksum_and_bodylength_corruption"
+  ],
+  "S09-02": [
+    "test_wire.WireTests.test_fragmentation_and_coalescing",
+    "test_wire.WireTests.test_eof_rejects_unfinished_frame"
+  ],
+  "S09-03": [
+    "test_runtime.RuntimeTests.test_exact_decimal_application_probes_both_directions",
+    "test_runtime.RuntimeTests.test_cancel_and_cancel_reject_callbacks_remain_transport_only"
+  ],
+  "S09-04": [
+    "test_transport.TransportTests.test_selected_profile_rejects_unsupported_reset_identity_and_headers"
+  ],
+  "S09-05": ["host:current_compatibility"],
+  "S10-01": [
+    "test_ownership.OwnershipTests.test_second_writer_denied",
+    "test_ownership.OwnershipTests.test_existing_owner_cannot_be_replaced",
+    "test_ownership.OwnershipTests.test_unowned_populated_directory_denied"
+  ],
+  "S10-02": ["test_ownership.OwnershipTests.test_non_loopback_and_reset_configuration_denied"],
+  "S10-03": [
+    "host:runtime_namespace",
+    "test_gate_controls.GateControls.test_daemon_logging_cannot_write_outside_the_evidence_budget"
+  ],
+  "S11-01": [
+    "test_exact_limits.ExactLimitTests.test_exact_frame_and_buffer_boundary_and_one_over",
+    "test_exact_limits.ExactLimitTests.test_exact_field_and_value_boundary_and_one_over"
+  ],
+  "S11-02": ["test_wire.WireTests.test_batch_backpressure_does_not_drop_seventeenth_frame"],
+  "S11-03": [
+    "test_exact_limits.ExactLimitTests.test_exact_store_limit_and_one_over_retain_every_byte",
+    "test_quota_runtime.QuotaRuntimeTests.test_exhausted_budget_denies_send_without_deleting_evidence"
+  ],
+  "S11-04": [
+    "test_cleanup.CleanupTests.test_forced_cleanup_is_bounded_failed_and_limited_to_owned_process"
+  ],
+  "S12-01": [
+    "test_recovery_runtime.RecoveryRuntimeTests.test_killed_initiator_replays_persisted_unreceived_order"
+  ],
+  "S12-02": [
+    "test_recovery_runtime.RecoveryRuntimeTests.test_killed_acceptor_retains_receive_sequence_without_new_logical_work"
+  ],
+  "S12-03": [
+    "test_recovery_runtime.RecoveryRuntimeTests.test_changed_checkpoint_bytes_are_not_replaced_on_restart"
+  ],
+  "S13-01": [
+    "test_gate_controls.GateControls.test_empty_missing_case_and_missing_expectation_cannot_pass_admission",
+    "test_gate_controls.GateControls.test_test_discovery_and_result_must_cover_bound_ids",
+    "test_gate_controls.GateControls.test_changed_literal_expectation_and_profile_limit_are_denied"
+  ],
+  "S13-02": [
+    "test_gate_controls.GateControls.test_missing_tool_and_wrong_pins_are_fixed_failures",
+    "test_preflight.PreflightTests.test_wrong_hash_refused",
+    "test_environment.EnvironmentTests.test_actual_jars_and_dictionary_match_frozen_hashes",
+    "test_environment.EnvironmentTests.test_compiled_go_dependencies_retain_exact_license_bytes"
+  ],
+  "S13-03": [
+    "test_gate_controls.GateControls.test_nonzero_deadline_and_output_overflow_are_not_success",
+    "test_review_controls.ReviewControls.test_valid_child_events_have_a_total_count_limit",
+    "test_review_controls.ReviewControls.test_ignored_child_output_still_consumes_a_total_byte_budget",
+    "test_matrix_output.MatrixOutputTests.test_receipt_starts_on_its_own_line_with_visible_case_progress"
+  ],
+  "S13-04": [
+    "test_gate_controls.GateControls.test_nonzero_deadline_and_output_overflow_are_not_success",
+    "test_review_controls.ReviewControls.test_an_unstarted_run_cannot_emit_a_complete_success_receipt",
+    "test_gate_controls.GateControls.test_missing_host_tool_retains_a_failed_summary_without_running_commands"
+  ],
+  "S14-01": [
+    "test_runtime.RuntimeTests.test_cancel_and_cancel_reject_callbacks_remain_transport_only",
+    "test_environment.EnvironmentTests.test_runtime_has_no_application_sdk_or_database_configuration"
+  ],
+  "S15-01": [
+    "host:preservation",
+    "test_gate_controls.GateControls.test_preservation_hash_cannot_accept_changed_original",
+    "test_gate_controls.GateControls.test_build_inputs_are_frozen_and_mid_run_changes_are_denied"
+  ]
+}

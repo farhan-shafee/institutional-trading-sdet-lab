@@ -35,14 +35,15 @@
     "test:financial": "tsx scripts/verify-financial.ts",
     "test:postgres": "node --import tsx scripts/test-postgres.ts",
     "test:workflow-browser": "node --import tsx scripts/test-workflow-browser.ts",
-    "validate:all": "npm run validate && npm test -- --repeat-each=2 && npm run test:postgres && npm run test:postgres && npm run build:ui && npm run test:workflow-browser && npm run test:workflow-browser -- --repeat-each=2 && npm run test:public-demo",
+    "validate:all": "npm run validate && npm test -- --repeat-each=2 && npm run test:postgres && npm run test:postgres && npm run build:ui && npm run test:workflow-browser && npm run test:workflow-browser -- --repeat-each=2 && npm run test:public-demo && npm run test:fix-session",
     "db:local": "node --import tsx scripts/workflow-local.ts",
     "sandbox:client": "node --import tsx scripts/sandbox-client.ts",
     "reconcile:local": "node --import tsx scripts/reconcile.ts",
     "test:fix44": "node --import tsx scripts/verify-fix44.ts",
     "interview:verify": "npm run build:ui && node --import tsx scripts/interview.ts --verify",
     "interview:demo": "npm run build:ui && node --import tsx scripts/interview.ts --manual",
-    "test:public-demo": "npm run build:ui && python3 scripts/test-public-demo.py --verify"
+    "test:public-demo": "npm run build:ui && python3 scripts/test-public-demo.py --verify",
+    "test:fix-session": "node --import tsx scripts/test-fix-session.ts"
   },
   "dependencies": {
     "decimal.js": "10.6.0",
