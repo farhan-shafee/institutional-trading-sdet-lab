@@ -1,5 +1,6 @@
 """Opt-in engine bridge. No database credential, financial command or socket listener outside the container."""
 import hashlib
+import errno
 import argparse
 import json
 import os
@@ -25,7 +26,7 @@ class LiveTransport(FaultTransport):
         super().__init__(lab)
         self.body_fields={**BODY_FIELDS,'D':BODY_FIELDS['D']+' 75','8':BODY_FIELDS['8']+' 59 41 103 75','F':BODY_FIELDS['F']+' 37 167 58','9':BODY_FIELDS['9']+' 60'}
         self.writes={direction:queue.Queue(1) for direction in ('J_TO_G','G_TO_J')}
-        self.writers=[]
+        self.writers=[];self.retired_lock=threading.RLock();self.retired_targets=set();self.retired_receive_errors=[]
 
     def record(self,direction,stage,raw):
         fields=super().record(direction,stage,raw)
@@ -39,25 +40,62 @@ class LiveTransport(FaultTransport):
             self.writers.append(worker);worker.start()
         super().start()
 
+    def retired(self,target):
+        with self.retired_lock:return target in self.retired_targets
+
+    def quiesce_connection(self):
+        # Only this physical connection is retired; later socket objects remain live.
+        with self.lab.gate.lock:
+            self.lab.gate.expire()
+            if self.lab.gate.active or self.lab.gate.pending_application:raise BridgeError('LIVE_QUIESCE_UNRESOLVED')
+            channels=tuple(self.sockets)
+            if len(channels)!=2 or channels[0] is channels[1]:raise BridgeError('LIVE_QUIESCE_CONNECTION')
+            with self.retired_lock:
+                if len(self.retired_targets|set(channels))>16:raise BridgeError('LIVE_CONNECTION_QUOTA')
+                self.retired_targets.update(channels)
+
+    def receive(self,source,size):
+        try:return super().receive(source,size)
+        except OSError as error:
+            if not self.retired(source) or error.errno not in (errno.EBADF,errno.ECONNRESET,errno.ECONNABORTED,errno.ENOTCONN,errno.ESHUTDOWN):raise
+            with self.retired_lock:
+                if len(self.retired_receive_errors)>=16:raise LabError('LIVE_RETIRED_RECEIVE_QUOTA') from None
+                self.retired_receive_errors.append(error.errno)
+            return b''
+
     def forward(self,direction,raw,target):
         application=decode_frame(raw)['35'] in ('D','8','F','9')
         def schedule(original):
             try:self.writes[direction].put_nowait((original,target))
             except queue.Full:raise BridgeError('FORWARD_QUEUE_FULL') from None
-        try:
-            if application:self.lab.gate.offer(direction,raw,schedule)
-            else:self.lab.gate.offer_admin(direction,raw,schedule)
-        except BridgeError as error:raise LabError('LIVE_'+str(error)) from None
+        with self.lab.gate.lock:
+            if application and self.retired(target):raise LabError('LIVE_RETIRED_APPLICATION_UNRESOLVED')
+            try:
+                if application:self.lab.gate.offer(direction,raw,schedule)
+                else:self.lab.gate.offer_admin(direction,raw,schedule)
+            except BridgeError as error:raise LabError('LIVE_'+str(error)) from None
 
     def _write(self,direction):
         while not self.stop.is_set():
             try:raw,target=self.writes[direction].get(timeout=.05)
             except queue.Empty:continue
             try:
-                super().forward(direction,raw,target)
-                if decode_frame(raw)['35'] not in ('D','8','F','9'):self.lab.gate.forwarded_admin(direction,raw)
-            except (OSError,ValueError,LabError):
-                if not self.stop.is_set():self.lab.fail('LIVE_FORWARD_IO')
+                application=decode_frame(raw)['35'] in ('D','8','F','9')
+                interrupted=self.retired(target)
+                if interrupted and application:raise LabError('LIVE_RETIRED_APPLICATION_UNRESOLVED')
+                if not interrupted:
+                    try:
+                        with self.send_lock:target.sendall(raw)
+                    except (OSError,ValueError):
+                        if application or not self.retired(target):raise
+                        interrupted=True
+                self.record(direction,'interrupted_admin_bytes' if interrupted else 'forwarded_bytes',raw)
+                if not application:
+                    if interrupted:self.lab.gate.interrupted_admin(direction,raw)
+                    else:self.lab.gate.forwarded_admin(direction,raw)
+            except (OSError,ValueError,LabError) as error:
+                code=('LIVE_FORWARD_OS_'+str(error.errno) if isinstance(error,OSError) and isinstance(error.errno,int) and error.errno>=0 else 'LIVE_FORWARD_'+str(error) if isinstance(error,(BridgeError,LabError)) and re.fullmatch('[A-Z0-9_]{1,80}',str(error)) else 'LIVE_FORWARD_IO')
+                if not self.stop.is_set():self.lab.fail(code)
             finally:self.writes[direction].task_done()
 
     def close(self):
@@ -117,15 +155,19 @@ class LiveRuntime(Lab):
         self.armed=True;self.gate.resume()
 
     def reconnect(self,restart_role='none'):
-        self.transport.drain()
-        if restart_role not in ('none','go','java') or not self.armed or self.reconnecting or self.gate.pending:raise BridgeError('LIVE_RECONNECT_UNRESOLVED')
+        if restart_role not in ('none','go','java') or not self.armed or self.reconnecting or self.gate.pending_application:raise BridgeError('LIVE_RECONNECT_UNRESOLVED')
         if self.connection_count>=8:raise BridgeError('LIVE_CONNECTION_QUOTA')
         self.gate.suspend();self.armed=False;self.reconnecting=True
-        mark=self.mark();before=dict(self.connections);previous=self.connection_id
+        mark=self.mark();before=dict(self.connections);previous=self.connection_id;paused_initiator=False
         try:
+            self.transport.quiesce_connection()
+            self.transport.drain()
+            # Hold automatic reconnect until the replacement acceptor has emitted READY.
+            if restart_role=='go':self.pause('java');paused_initiator=True
             if restart_role!='none':self.checkpoint_kill(restart_role,1,1)
             self.transport.disconnect()
             if restart_role!='none':self.restart(restart_role)
+            if paused_initiator:self.resume('java');paused_initiator=False
             deadline=time.monotonic()+15
             for role in ('go','java'):
                 self.wait(role,'LOGON',after=mark,timeout=max(.001,deadline-time.monotonic()),predicate=lambda e,r=role:e['pid']==self.children[r].pid)
@@ -135,7 +177,11 @@ class LiveRuntime(Lab):
             if self.connection_id in self.connection_ids:raise BridgeError('LIVE_CONNECTION_IDENTITY')
             self.connection_ids.add(self.connection_id);self.connection_count+=1
             return {'version':1,'profile':PROFILE,'kind':'CONNECTED','run_id':self.identity,'session_id':self.session_id,'store_id':self.store_id,'connection_id':self.connection_id,'previous_connection_id':previous,'runtime_hash':self.runtime_hash,'store_hash':self.store_hash,'go_pid':str(self.children['go'].pid),'java_pid':str(self.children['java'].pid)}
-        finally:self.reconnecting=False
+        finally:
+            if paused_initiator:
+                try:self.resume('java')
+                except (OSError,LabError):self.fail('LIVE_RECONNECT_RESUME')
+            self.reconnecting=False
 
     def _publish(self,event):
         event={**event,'session_id':self.session_id,'store_id':self.store_id,'connection_id':self.connection_id}
@@ -174,7 +220,7 @@ class LiveRuntime(Lab):
         # Keep the engine receipt separate from SQL financial verification. The
         # outer protocol will export bounded summaries, never relabel this receipt.
         self.check_budget()
-        self.receipt.update(profile=PROFILE,session_id=self.session_id,store_id=self.store_id,connection_id=self.connection_id,runtime_hash=self.runtime_hash,store_hash=self.store_hash,bridge_bytes=self.bridge_bytes)
+        self.receipt.update(profile=PROFILE,session_id=self.session_id,store_id=self.store_id,connection_id=self.connection_id,runtime_hash=self.runtime_hash,store_hash=self.store_hash,bridge_bytes=self.bridge_bytes,interrupted_admin_frames=sum(f['stage']=='interrupted_admin_bytes' for f in self.transport.frames),retired_receive_errors=list(self.transport.retired_receive_errors))
 
 def _uuid(value):
     try:

@@ -154,6 +154,11 @@ class LaneGate:
             if len(lane)==1:self._start(entry)
             return entry['id']
 
+    def interrupted_admin(self,direction,raw):
+        with self.lock:
+            if self.active:self._failure('ADMIN_INTERRUPTION_NOT_QUIESCED')
+            self.forwarded_admin(direction,raw)
+
     def forwarded_admin(self,direction,raw):
         with self.lock:
             self.expire();lane=self.lanes.get(direction);entry=lane[0] if lane else None

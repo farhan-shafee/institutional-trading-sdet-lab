@@ -32,6 +32,30 @@ class SelectedEngineTests(unittest.TestCase):
             lab.gate.ack(observed['observation_id'],'ACCEPT')
         self.assertTrue(lab.receipt['transport_evidence_complete']);self.assertTrue(lab.receipt['session_continuity_verified']);self.assertFalse(lab.receipt['financial_application_verified'])
 
+    def test_immediate_peer_restart_waits_for_the_replacement_acceptor_before_reconnect(self):
+        events=queue.Queue();run=str(uuid4())
+        runtime=LiveRuntime(Path('/state')/run,run,str(uuid4()),str(uuid4()),str(uuid4()),'a'*64,events.put_nowait)
+        with runtime as lab:
+            lab.start();lab.arm(lab.connection_id)
+            order=str(uuid4());ack={**lab.ack_probe(order),'59':'1'}
+            def accepted(role,fields):
+                lab.send(role,fields)
+                observed=events.get(timeout=5);self.assertEqual(observed['kind'],'OBSERVED')
+                lab.gate.ack(observed['observation_id'],'OBSERVE')
+                callback=events.get(timeout=5);self.assertEqual(callback['kind'],'CALLBACK')
+                self.assertEqual(callback['observation_id'],observed['observation_id'])
+                lab.gate.ack(observed['observation_id'],'ACCEPT')
+            accepted('java',lab.order_probe(order));accepted('go',ack)
+            connections={lab.connection_id}
+            for role in ('none','go','java'):
+                result=lab.reconnect(role)
+                self.assertNotIn(result['connection_id'],connections);connections.add(result['connection_id'])
+                lab.arm(result['connection_id']);accepted('go',ack)
+            self.assertEqual(lab.connections,{'go':4,'java':4})
+        self.assertTrue(lab.receipt['transport_evidence_complete'])
+        self.assertTrue(lab.receipt['session_continuity_verified'])
+        self.assertFalse(lab.receipt['financial_application_verified'])
+
     def test_real_D_8_F_9_callbacks_preserve_original_bytes_and_all_required_fields(self):
         events=queue.Queue();run=str(uuid4());order=str(uuid4());cancel=str(uuid4())
         runtime=LiveRuntime(Path('/state')/run,run,str(uuid4()),str(uuid4()),str(uuid4()),'a'*64,events.put_nowait)

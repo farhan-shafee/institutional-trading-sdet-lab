@@ -7,6 +7,7 @@ import sys
 import time
 import unittest
 import tempfile
+import threading
 from uuid import uuid4
 from types import SimpleNamespace
 
@@ -33,6 +34,65 @@ class BridgeProtocolTests(unittest.TestCase):
                 self.assertEqual(events,[])
                 with path.open('r+b') as file:file.truncate(remaining)
                 lab.emit(event);self.assertEqual(events,[event]);self.assertEqual(lab.bridge_bytes+lab.owner.budget(),MAX_RUNTIME_BYTES)
+
+    def transport_case(self,temporary):
+        run,session,store,connection=[str(uuid4()) for unused in range(4)]
+        return LiveRuntime(Path(temporary)/run,run,session,store,connection,'a'*64,lambda event:None)
+
+    def write_pending(self,transport):
+        worker=threading.Thread(target=transport._write,args=('J_TO_G',),daemon=True);worker.start()
+        try:transport.drain()
+        finally:transport.stop.set();worker.join(timeout=1)
+        self.assertFalse(worker.is_alive())
+
+    def test_reconnect_retirement_retains_interrupted_admin_without_writing_the_closed_socket(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            lab=self.transport_case(temporary)
+            source,target=socket.socketpair()
+            with source,target,lab.owner:
+                transport=lab.transport;transport.sockets=[source,target]
+                transport.quiesce_connection()
+                heartbeat=encode_fault_frame({'35':'0','49':'TRADEFLOW','56':'ATLAS','34':'3','52':'20261107-12:00:00.000'})
+                transport.forward('J_TO_G',heartbeat,source);source.close()
+                self.write_pending(transport)
+                self.assertEqual(lab.errors,[]);self.assertEqual(lab.gate.pending,0)
+                self.assertEqual([(f['stage'],f['raw_hex']) for f in transport.frames],[('interrupted_admin_bytes',heartbeat.hex())])
+
+    def test_unplanned_closed_socket_write_remains_unresolved(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            lab=self.transport_case(temporary)
+            source,target=socket.socketpair()
+            with source,target,lab.owner:
+                transport=lab.transport
+                heartbeat=encode_fault_frame({'35':'0','49':'TRADEFLOW','56':'ATLAS','34':'3','52':'20261107-12:00:00.000'})
+                transport.forward('J_TO_G',heartbeat,source);source.close()
+                self.write_pending(transport)
+                self.assertEqual(len(lab.errors),1);self.assertTrue(lab.errors[0].startswith('LIVE_FORWARD_'))
+                self.assertEqual(lab.gate.pending,1);self.assertEqual(transport.frames,[])
+
+    def test_retired_socket_cannot_rebind_application_bytes_to_the_next_connection(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            lab=self.transport_case(temporary)
+            source,target=socket.socketpair()
+            with source,target,lab.owner:
+                transport=lab.transport;transport.sockets=[source,target]
+                transport.quiesce_connection()
+                from driver import LabError
+                with self.assertRaisesRegex(LabError,'LIVE_RETIRED_APPLICATION_UNRESOLVED'):
+                    transport.forward('J_TO_G',self.frame(),source)
+                self.assertEqual(lab.gate.pending,0);self.assertEqual(transport.frames,[])
+
+    def test_only_an_explicitly_retired_owned_socket_can_complete_a_reset_as_disconnect(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            lab=self.transport_case(temporary)
+            source,target=socket.socketpair();foreign,peer=socket.socketpair()
+            with source,target,foreign,peer,lab.owner:
+                transport=lab.transport;transport.sockets=[source,target]
+                transport.quiesce_connection();source.close();foreign.close()
+                self.assertEqual(transport.receive(source,8192),b'')
+                self.assertEqual(len(transport.retired_receive_errors),1)
+                with self.assertRaises(OSError):transport.receive(foreign,8192)
+                self.assertEqual(len(transport.retired_receive_errors),1)
 
     def frame(self):
         rows=json.loads((ROOT/'test-data/fix44/live/manifest.json').read_text())

@@ -84,6 +84,9 @@ class FaultTransport:
         with self.send_lock:target.sendall(raw)
         self.record(direction,'forwarded_bytes',raw)
 
+    def receive(self,source,size):
+        return source.recv(size)
+
     def run(self):
         try:
             while not self.stop.is_set():
@@ -98,7 +101,7 @@ class FaultTransport:
                         readable,_,_=select.select([left,right],[],[],.1)
                         disconnected=False
                         for source in readable:
-                            chunk=source.recv(8192)
+                            chunk=self.receive(source,8192)
                             if not chunk:
                                 framers[source].finish();disconnected=True;break
                             target=right if source is left else left

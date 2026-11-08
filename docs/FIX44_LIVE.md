@@ -65,6 +65,21 @@ statement/lock/idle/transaction bounds. Retry is limited to known pre-COMMIT
 The independent reader retains the existing SELECT-only verifier's pool2/pending4
 and transaction bounds.
 
+Controlled reconnect first retires the exact old socket objects and drains their
+bounded writer queues. Administrative bytes interrupted by that planned retirement
+are retained as interrupted_admin_bytes, never as forwarded bytes. A retired
+socket cannot supply an application frame to the next connection. Unexpected
+socket errors remain unresolved; only named closure/reset errors on explicitly
+retired sockets can complete the old read as a disconnect. The receipt retains
+those error numbers and interrupted-admin counts. Complete transport evidence
+accounts for those interruptions and does not establish delivery.
+
+During replacement of the Go acceptor, the Java initiator is paused until the new
+acceptor emits READY. Existing connection, acknowledgment and socket deadlines
+remain unchanged. The mandatory native regression exercises immediate reconnect
+and both peer restarts; four socket controls force retired-admin interruption and
+check that unplanned I/O and retired application input remain fail-closed.
+
 ## Crash outcomes
 
 The process-kill controls target an actual fill after an owned acknowledgment.
@@ -96,10 +111,10 @@ npm ci
 npm run test:fix-live-application
 ```
 
-The mandatory89-control gate builds a fresh pinned image, creates private owned
+The mandatory94-control gate builds a fresh pinned image, creates private owned
 PostgreSQL instances, installs schema9 explicitly, checks runtime isolation,
 freezes source inputs and retains failed attempts with ownership-checked cleanup.
-Its groups are16 bridge/native,10 independent Python,30 SQL admission,5 controller,
+Its groups are21 bridge/native,10 independent Python,30 SQL admission,5 controller,
 14 independent application/reconciliation,8 real process-kill recovery and6
 lifecycle controls. The lifecycle set includes both conventions/BUY/SELL fills,
 rejection, cancel rejection/acknowledgment, partial cancel, pending-cancel fills,
