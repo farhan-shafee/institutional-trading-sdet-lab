@@ -23,7 +23,7 @@ REPLACEMENTS = {
 }
 RECEIPT = {
     'version': 1, 'scope': 'phase4-posttrade-preservation-controls-v3',
-    'preservation_controls': 18, 'admission_controls': 6, 'passed': 24,
+    'preservation_controls': 19, 'admission_controls': 6, 'passed': 25,
     'failures': 0, 'errors': 0, 'skipped': 0, 'expected_failures': 0,
     'unexpected_successes': 0,
 }
@@ -188,7 +188,7 @@ class AdmissionV3(unittest.TestCase):
         controls = module('preservation_v3_controls')
         controls.admit_control_receipt('diagnostic\n' + json.dumps(RECEIPT))
         wrong = [
-            {}, {**RECEIPT, 'passed': 13}, {**RECEIPT, 'preservation_controls': 8},
+            {}, {**RECEIPT, 'passed': 13}, {**RECEIPT, 'passed': 24}, {**RECEIPT, 'preservation_controls': 8},
             {**RECEIPT, 'skipped': 1}, {**RECEIPT, 'version': True},
             {**RECEIPT, 'scope': 'phase4a-preservation-controls-v2'},
             {k: v for k, v in RECEIPT.items() if k != 'errors'},

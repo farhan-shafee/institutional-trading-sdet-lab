@@ -1,4 +1,5 @@
 """Native entry points must admit only the approved current source before allocating."""
+import ast
 import contextlib
 import importlib.util
 import io
@@ -68,6 +69,45 @@ class NativeCallers(unittest.TestCase):
         for name in SCRIPTS:
             with self.subTest(script=name):
                 self.check(name, False)
+
+    def test_session_snapshot_detects_changes_to_every_new_control_dependency(self):
+        sys.path.insert(0, str(ROOT / 'tools/fix-session'))
+        from gate import GateError, input_identity, require_same_inputs
+        tree = ast.parse((ROOT / 'scripts/test-fix-session.py').read_text())
+        main = next(item for item in tree.body if isinstance(item, ast.FunctionDef) and item.name == 'main')
+        function = next(item for item in main.body if isinstance(item, ast.FunctionDef) and item.name == 'source_inputs')
+        with tempfile.TemporaryDirectory() as directory:
+            root = self.fixture(directory)
+            # The real session input function also requires package/host paths.
+            names = [
+                'package.json', 'package-lock.json', 'scripts/test-fix-session.py',
+                'scripts/test-fix-session.ts', 'scripts/verify-fix-session-compatibility.ts',
+                'verification/vendor/quickfix/FIX44.xml', 'tools/fix-session/Dockerfile.dockerignore',
+                'tools/fix-session/java/pom.xml', 'scripts/test-fix-live-application.py',
+                'scripts/verify-posttrade-journey.py',
+            ]
+            for name in names:
+                target = root / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes((ROOT / name).read_bytes())
+            namespace = {'ROOT': root, 'input_identity': input_identity}
+            exec(compile(ast.Module(body=[function], type_ignores=[]),
+                         'actual-session-source-inputs', 'exec'), namespace)
+            inputs = namespace['source_inputs']
+            for name in [
+                'scripts/test-fix-live-application.py', 'scripts/verify-posttrade-journey.py',
+                'contracts/fix-live-application-v1.json', 'contracts/posttrade-native-v1.json',
+            ]:
+                with self.subTest(dependency=name):
+                    before = inputs()
+                    target = root / name
+                    original = target.read_bytes()
+                    try:
+                        target.write_bytes(original + b'\nchanged after snapshot\n')
+                        with self.assertRaisesRegex(GateError, '^SOURCE_CHANGED_DURING_GATE$'):
+                            require_same_inputs(before, inputs())
+                    finally:
+                        target.write_bytes(original)
 
     def test_all_native_callers_reject_an_unapproved_original_before_commands(self):
         for name in SCRIPTS:

@@ -1,4 +1,4 @@
-"""Require the unchanged historical13 and current11 source controls before native allocation."""
+"""Require the unchanged historical13 and current12 source controls before native allocation."""
 import hashlib
 import io
 import json
@@ -32,13 +32,14 @@ PRESERVATION = tuple('test_v3_controls.PreservationV3.' + name for name in (
     'test_historical_fixture_is_exact_and_cannot_replace_current_admission',
 ))
 CALLERS = (
+    'test_v3_callers.NativeCallers.test_session_snapshot_detects_changes_to_every_new_control_dependency',
     'test_v3_callers.NativeCallers.test_all_native_callers_admit_exact_approved_source_before_allocation',
     'test_v3_callers.NativeCallers.test_all_native_callers_reject_an_unapproved_original_before_commands',
 )
 ADMISSION = ('test_v3_controls.AdmissionV3.test_only_complete_typed_v3_receipt_is_admitted',)
 CONTROL_RECEIPT = {
     'version': 1, 'scope': 'phase4-posttrade-preservation-controls-v3',
-    'preservation_controls': 18, 'admission_controls': 6, 'passed': 24,
+    'preservation_controls': 19, 'admission_controls': 6, 'passed': 25,
     'failures': 0, 'errors': 0, 'skipped': 0, 'expected_failures': 0,
     'unexpected_successes': 0,
 }

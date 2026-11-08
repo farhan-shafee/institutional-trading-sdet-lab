@@ -65,7 +65,7 @@ class GateControls(unittest.TestCase):
                 text='';name=Path(path).stem
                 if name=='preservation-v3-controls':
                     self.assertEqual(args,[sys.executable,'tools/fix-session/preservation_v3_controls.py'])
-                    text=json.dumps({'version':1,'scope':'phase4-posttrade-preservation-controls-v3','preservation_controls':18,'admission_controls':6,'passed':24,'failures':0,'errors':0,'skipped':0,'expected_failures':0,'unexpected_successes':0})+'\n'
+                    text=json.dumps({'version':1,'scope':'phase4-posttrade-preservation-controls-v3','preservation_controls':19,'admission_controls':6,'passed':25,'failures':0,'errors':0,'skipped':0,'expected_failures':0,'unexpected_successes':0})+'\n'
                 elif args[0]=='node':text='v24.22.0\n'
                 elif args[1]=='build':
                     tag=args[args.index('-t')+1];run_id=tag.split('run-',1)[1];identity.append(run_id)
