@@ -58,11 +58,11 @@
 - curveExponent(snapshot, days, spread: Rational, shocksBp?: readonly four rational values): Rational; returns the exact negative integrated rate before exp.
 - discountFactor(snapshot, days, spread='0', shocksBp?): Decimal80. Only internally constructed and validated snapshots are consumed.
 
-- [ ] Write failing tests for literal flat DF day365=0.97044553354850817693/day730=0.94176453358424870954, negative DF>1, day0=1, every knot/midpoint, last supported day3650, reject -1/3651/noninteger/NaN/infinity, fixture/date/schema and identity tampering.
-- [ ] Run focused tests; expect missing-module failure.
-- [ ] Implement fixed fixtures, exact rational log-DF interpolation (no exp/log round trip), canonical SHA binding and deeply immutable snapshots.
-- [ ] Run task1+task2 focused tests, typecheck/lint.
-- [ ] Commit task.
+- [x] Write failing tests for literal flat DF day365=0.97044553354850817693/day730=0.94176453358424870954, negative DF>1, day0=1, every knot/midpoint, last supported day3650, reject -1/3651/noninteger/NaN/infinity, fixture/date/schema and identity tampering.
+- [x] Run focused tests; expect missing-module failure.
+- [x] Implement fixed fixtures, exact rational log-DF interpolation (no exp/log round trip), canonical SHA binding and deeply immutable snapshots.
+- [x] Run task1+task2 focused tests, typecheck/lint.
+- [x] Commit task.
 
 ### Task3: Curve PV and bounded continuous spread
 
