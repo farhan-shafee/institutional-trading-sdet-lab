@@ -101,10 +101,14 @@ export function roundCurveMark(
     if (mark.sub(exactValue.toDecimal()).abs().gt(allowance)) throw new NumericalAmbiguityError();
     return exactValue.fixed(2);
   }
-  const low = mark.sub(allowance).toFixed(2),
-    high = mark.add(allowance).toFixed(2);
+  const rounded = (point: Decimal): string => {
+    const fixed = point.toFixed(2);
+    return decimal80(fixed).isZero() ? '0.00' : fixed;
+  };
+  const low = rounded(mark.sub(allowance)),
+    high = rounded(mark.add(allowance));
   if (low !== high) throw new NumericalAmbiguityError();
-  return decimal80(low).isZero() ? '0.00' : low;
+  return low;
 }
 
 export function curveAnalytics(input: unknown): CurveAnalytics {

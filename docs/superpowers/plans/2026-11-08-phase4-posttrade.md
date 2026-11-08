@@ -46,11 +46,11 @@
 - aggregateDollarRisk(vectors:readonly RiskVector[]):RiskVector; dollarRiskWire(vector):{pv_usd:string,parallel_dv01_usd:string,key_rate_dv01_usd:readonly string[4],stress_pnl_usd:Record<StressId,string>}.
 - Pure math supports all3 curves/instruments; owned post-trade assessment eligibility remains the original2.
 
-- [ ] Write failing tests for literal one-year zero PV970445.53354850817693 and DV0197.04455351659174003221 at par1000000; BUY/SELL sign symmetry, zero/offset aggregate, finite-bump KRD nonidentity, named stresses, invalid fractional-cent/oversized signed par and forged curves.
-- [ ] Run focused tests RED before module implementation.
-- [ ] Implement central finite bumps/stresses using original unrounded curveMeasure and aggregate-before-format; explicitly canonicalize numeric negative zero.
-- [ ] Independently implement Python125 risk repricing and compare72 signed fixture/instrument/date cases at max(0.000001USD,1e-8*absolute oracle). Watch the missing oracle RED then all agreement GREEN.
-- [ ] Run focused/full unit/static checks and commit.
+- [x] Write failing tests for literal one-year zero PV970445.53354850817693 and DV0197.04455351659174003221 at par1000000; BUY/SELL sign symmetry, zero/offset aggregate, finite-bump KRD nonidentity, named stresses, invalid fractional-cent/oversized signed par and forged curves.
+- [x] Run focused tests RED before module implementation.
+- [x] Implement central finite bumps/stresses using original unrounded curveMeasure and aggregate-before-format; explicitly canonicalize numeric negative zero.
+- [x] Independently implement Python125 risk repricing and compare72 signed fixture/instrument/date cases at max(0.000001USD,1e-8*absolute oracle). Watch the missing oracle RED then all agreement GREEN.
+- [x] Run focused/full unit/static checks and commit.
 
 ### Task2: Exact FIFO long/short kernel
 
