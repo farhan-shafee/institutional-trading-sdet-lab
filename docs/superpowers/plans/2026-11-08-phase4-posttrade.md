@@ -92,10 +92,10 @@
 **Files:** Extend the unaccepted010 migration and static checksum; add tests/post-trade/adjustments.test.ts; domain/runtime writer schemas.
 **Interfaces:** CORRECT_PRICE payload{execution_id,expected_revision,clean_price}; BUST payload{execution_id,expected_revision}. SQL returns immutable original-key receipt/root reference. Register only actual owned raw execution.
 
-- [ ] Write failing full/partial-root correction/bust, two-correction bound, terminal bust, changed immutable fields/foreign root denials, stale-revision concurrent winners, raw ledger/order/FIX unchanged, auth-before-replay and retained historical source tests.
-- [ ] Write literal0.01par valid clean10 correction cash0; exact half-even/accrual; scalar bracket endpoints and out-of-range price tests against an independent oracle.
-- [ ] Implement exact rational scalar-bracket admission (bounded integer-power comparison) and reuse original execution_cents/accrual conventions; append compensation/replacement2 events or full compensation1. Settled-without-reversal rejects before effects.
-- [ ] Execute RED->GREEN, SQL cost/count/cleanup and full affected suites, commit new010 checksum deliberately.
+- [x] Write failing full/partial-root correction/bust, two-correction bound, terminal bust, changed immutable fields/foreign root denials, stale-revision concurrent winners, raw ledger/order/FIX unchanged, auth-before-replay and retained historical source tests.
+- [x] Write literal0.01par valid clean10 correction cash0; exact half-even/accrual; scalar bracket endpoints and out-of-range price tests against an independent oracle.
+- [x] Implement exact rational scalar-bracket admission (bounded integer-power comparison) and reuse original execution_cents/accrual conventions; append compensation/replacement2 events or full compensation1. Settled-without-reversal rejects before effects.
+- [x] Execute RED->GREEN, SQL cost/count/cleanup and full affected suites, commit new010 checksum deliberately.
 
 ### Task5: Funded DVP and reversal
 

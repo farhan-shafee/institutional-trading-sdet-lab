@@ -66,8 +66,9 @@ CREATE UNIQUE INDEX posttrade_reverse_once ON fi.posttrade_settlement_outcomes(s
 CREATE TABLE fi.posttrade_commands (
  sandbox_id uuid NOT NULL REFERENCES fi.posttrade_books(sandbox_id) ON DELETE CASCADE,
  id uuid NOT NULL DEFAULT gen_random_uuid(),idempotency_key text NOT NULL CHECK(idempotency_key ~ '^[A-Za-z0-9_-]{8,128}$'),
- operation text NOT NULL CHECK(operation IN ('INITIALIZE','REGISTER','CORRECT','BUST','SETTLE','REVERSE')),
+ operation text NOT NULL CHECK(operation IN ('INITIALIZE','REGISTER','CORRECT_PRICE','BUST','SETTLE','REVERSE')),
  request_hash text NOT NULL CHECK(request_hash ~ '^[a-f0-9]{64}$'),
+ request_payload jsonb NOT NULL CHECK(jsonb_typeof(request_payload)='object' AND octet_length(request_payload::text)<=2048),
  command_seq bigint NOT NULL CHECK(command_seq BETWEEN 1 AND 97),
  capability_generation bigint NOT NULL CHECK(capability_generation BETWEEN 1 AND 1000000000),
  actor_id uuid NOT NULL,http_status integer NOT NULL CHECK(http_status IN (200,201,409)),
@@ -173,11 +174,11 @@ BEGIN
  OR EXISTS(SELECT 1 FROM fi.posttrade_commands c WHERE c.sandbox_id=sid AND
  (SELECT array_agg(event_type ORDER BY event_index) FROM fi.posttrade_events e WHERE e.sandbox_id=sid AND e.command_seq=c.command_seq)
  IS DISTINCT FROM CASE c.operation WHEN 'INITIALIZE' THEN ARRAY['FUNDING'] WHEN 'REGISTER' THEN ARRAY['REGISTERED']
- WHEN 'CORRECT' THEN ARRAY['COMPENSATE','REPLACEMENT'] WHEN 'BUST' THEN ARRAY['BUST']
+ WHEN 'CORRECT_PRICE' THEN ARRAY['COMPENSATE','REPLACEMENT'] WHEN 'BUST' THEN ARRAY['BUST']
  WHEN 'REVERSE' THEN ARRAY['CASH_REVERSED','SECURITY_REVERSED']
  WHEN 'SETTLE' THEN CASE WHEN c.http_status=409 THEN ARRAY['SETTLEMENT_FAILED'] ELSE ARRAY['CASH_POSTED','SECURITY_POSTED'] END END)
  OR EXISTS(SELECT 1 FROM fi.posttrade_revisions v JOIN fi.posttrade_commands c USING(sandbox_id,command_seq)
- WHERE v.sandbox_id=sid AND c.operation<>CASE WHEN v.revision=0 THEN 'REGISTER' ELSE 'CORRECT' END)
+ WHERE v.sandbox_id=sid AND c.operation<>CASE WHEN v.revision=0 THEN 'REGISTER' ELSE 'CORRECT_PRICE' END)
  OR EXISTS(SELECT 1 FROM fi.posttrade_roots r JOIN fi.posttrade_commands c ON(c.sandbox_id,c.command_seq)=(r.sandbox_id,r.registration_seq)
  WHERE r.sandbox_id=sid AND c.operation<>'REGISTER')
  OR b.command_count<>(SELECT count(*) FROM fi.posttrade_commands WHERE sandbox_id=sid)
@@ -190,7 +191,7 @@ BEGIN
  OR (SELECT count(*) FROM fi.posttrade_roots WHERE sandbox_id=sid)>8
  OR EXISTS(SELECT 1 FROM fi.posttrade_commands c WHERE c.sandbox_id=sid AND
  (SELECT count(*) FROM fi.posttrade_events e WHERE e.sandbox_id=sid AND e.command_seq=c.command_seq)<>
- CASE WHEN c.operation IN ('CORRECT','REVERSE') OR (c.operation='SETTLE' AND c.http_status=200) THEN 2 ELSE 1 END)
+ CASE WHEN c.operation IN ('CORRECT_PRICE','REVERSE') OR (c.operation='SETTLE' AND c.http_status=200) THEN 2 ELSE 1 END)
  OR EXISTS(SELECT 1 FROM fi.posttrade_commands c LEFT JOIN fi_control.command_keys k USING(sandbox_id,idempotency_key)
  WHERE c.sandbox_id=sid AND k.domain IS DISTINCT FROM 'POSTTRADE')
  OR EXISTS(SELECT 1 FROM fi.posttrade_roots r JOIN fi.executions x ON (x.sandbox_id,x.id)=(r.sandbox_id,r.execution_id)
@@ -208,7 +209,7 @@ DO $integrity$ DECLARE t text;BEGIN
  END LOOP;
 END $integrity$;
 
-CREATE FUNCTION fi_control.record_posttrade(sid uuid,p_key text,p_hash text,p_op text,p_generation bigint,p_actor uuid,p_status integer,p_body jsonb,p_events jsonb)
+CREATE FUNCTION fi_control.record_posttrade(sid uuid,p_key text,p_hash text,p_op text,p_generation bigint,p_actor uuid,p_status integer,p_body jsonb,p_events jsonb,p_payload jsonb)
 RETURNS jsonb LANGUAGE plpgsql SET search_path=pg_catalog AS $$
 DECLARE seq bigint;item jsonb;i integer:=0;n integer;
 BEGIN
@@ -216,8 +217,8 @@ BEGIN
  IF n NOT BETWEEN 1 AND 2 THEN RAISE EXCEPTION 'Invalid post-trade event cost';END IF;
  UPDATE fi.posttrade_books SET command_count=command_count+1,event_count=event_count+n
  WHERE sandbox_id=sid RETURNING command_count INTO STRICT seq;
- INSERT INTO fi.posttrade_commands(sandbox_id,idempotency_key,operation,request_hash,command_seq,capability_generation,actor_id,http_status,response_body)
- VALUES(sid,p_key,p_op,p_hash,seq,p_generation,p_actor,p_status,p_body);
+ INSERT INTO fi.posttrade_commands(sandbox_id,idempotency_key,operation,request_hash,request_payload,command_seq,capability_generation,actor_id,http_status,response_body)
+ VALUES(sid,p_key,p_op,p_hash,p_payload,seq,p_generation,p_actor,p_status,p_body);
  FOR item IN SELECT value FROM jsonb_array_elements(p_events) LOOP
  INSERT INTO fi.posttrade_events(sandbox_id,command_seq,event_index,event_type,execution_id,instrument_revision,economic_cash_cents,economic_par_amount,cash_cents,par_amount)
  VALUES(sid,seq,i,item->>'event_type',(item->>'execution_id')::uuid,item->>'instrument_revision',
@@ -235,9 +236,52 @@ BEGIN
  RETURN fi_control.result(p_status,p_body);
 END $$;
 
+
+-- Integer comparisons certify the original periodic-yield quote bracket;
+-- no floating point or transcendental approximation determines cash admission.
+CREATE FUNCTION fi_control.posttrade_integer_power(n numeric,e integer) RETURNS numeric
+LANGUAGE plpgsql IMMUTABLE SET search_path=pg_catalog AS $$
+DECLARE result numeric:=1;base numeric:=n;k integer:=e;
+BEGIN
+ IF n<0 OR n<>trunc(n) OR e<0 OR e>184 OR n IS NULL OR e IS NULL THEN RAISE EXCEPTION 'Invalid bounded integer power';END IF;
+ WHILE k>0 LOOP
+ IF k%2=1 THEN result:=result*base;END IF;
+ k:=k/2;IF k>0 THEN base:=base*base;END IF;
+ END LOOP;
+ RETURN result;
+END $$;
+CREATE FUNCTION fi_control.posttrade_quote_valid(contract jsonb,quote text) RETURNS boolean
+LANGUAGE plpgsql IMMUTABLE SET search_path=pg_catalog AS $$
+DECLARE a integer[];following date;n integer;i integer;j integer;bn integer;bd integer;
+ an numeric;ad numeric;tn numeric;td numeric;c numeric;left_value numeric;right_value numeric;
+BEGIN
+ IF quote IS NULL OR quote !~ '^(0|[1-9][0-9]{0,4})\.[0-9]{12}$' THEN RETURN false;END IF;
+ a:=fi_control.execution_accrual(contract);
+ following:=fi_control.posttrade_window_end((contract->>'settlement_date')::date);
+ n:=1+((2031-extract(year FROM following)::integer)*12+1-extract(month FROM following)::integer)/6;
+ IF n NOT BETWEEN 1 AND 12 THEN RETURN false;END IF;
+ c:=quote::numeric*1000000000000;td:=1000000000000::numeric*a[2];
+ FOR j IN 1..2 LOOP
+ bn:=CASE WHEN j=1 THEN 3 ELSE 19 END;bd:=CASE WHEN j=1 THEN 2 ELSE 20 END;
+ an:=0;
+ FOR i IN 0..n-1 LOOP
+ an:=an+(CASE WHEN i=n-1 THEN 102 ELSE 2 END)*
+ fi_control.posttrade_integer_power(bd,i)*fi_control.posttrade_integer_power(bn,n-1-i);
+ END LOOP;
+ ad:=fi_control.posttrade_integer_power(bn,n-1);
+ tn:=c*a[2]+2*a[1]*1000000000000::numeric+(CASE WHEN j=1 THEN 50 ELSE -50 END)*a[2];
+ IF tn<=0 THEN IF j=1 THEN RETURN false;ELSE CONTINUE;END IF;END IF;
+ left_value:=fi_control.posttrade_integer_power(an*td,a[2])*fi_control.posttrade_integer_power(bd,a[2]-a[1]);
+ right_value:=fi_control.posttrade_integer_power(ad*tn,a[2])*fi_control.posttrade_integer_power(bn,a[2]-a[1]);
+ IF (j=1 AND left_value>right_value) OR (j=2 AND left_value<right_value) THEN RETURN false;END IF;
+ END LOOP;
+ RETURN true;
+END $$;
+
 CREATE FUNCTION fi_control.posttrade_command(p_id uuid,p_proof text,p_generation bigint,p_operation text,p_payload jsonb,p_key text,p_actor uuid)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,fi_control,fi,pg_temp AS $$
 DECLARE s fi.sandboxes%ROWTYPE;b fi.posttrade_books%ROWTYPE;receipt fi.posttrade_commands%ROWTYPE;
+ r fi.posttrade_roots%ROWTYPE;v fi.posttrade_revisions%ROWTYPE;original_contract jsonb;quote text;corrected_cash bigint;recorded timestamptz;
  x fi.executions%ROWTYPE;start_date date;end_date date;hash text;body jsonb;events jsonb;seq bigint;sign integer;
 BEGIN
  IF p_id IS NULL OR p_proof IS NULL OR p_generation IS NULL OR p_actor IS NULL OR p_operation IS NULL
@@ -271,7 +315,7 @@ BEGIN
  INSERT INTO fi.posttrade_security_balances(sandbox_id,instrument_revision) VALUES(p_id,'phase1-ust-1'),(p_id,'phase1-corp-1');
  body:=jsonb_build_object('model_version','OWNED_POSTTRADE_SOURCE_V1','sandbox_id',p_id,'window',jsonb_build_object('start',start_date,'end',end_date),'opening_cash_cents','10000000000','posttrade_command_seq','1');
  events:=jsonb_build_array(jsonb_build_object('event_type','FUNDING','cash_cents','10000000000'));
- RETURN fi_control.record_posttrade(p_id,p_key,hash,p_operation,p_generation,p_actor,201,body,events);
+ RETURN fi_control.record_posttrade(p_id,p_key,hash,p_operation,p_generation,p_actor,201,body,events,p_payload);
  END IF;
  IF b.sandbox_id IS NULL THEN RETURN fi_control.failure(409,'POSTTRADE_NOT_INITIALIZED');END IF;
  IF p_operation='REGISTER' THEN
@@ -295,7 +339,53 @@ BEGIN
  body:=jsonb_build_object('execution_id',x.id,'revision',0,'posttrade_command_seq',seq::text);
  events:=jsonb_build_array(jsonb_build_object('event_type','REGISTERED','execution_id',x.id,'instrument_revision',x.instrument_revision,
  'economic_cash_cents',(-sign*x.consideration_cents)::text,'economic_par_amount',(sign*x.par_amount)::text));
- RETURN fi_control.record_posttrade(p_id,p_key,hash,p_operation,p_generation,p_actor,201,body,events);
+ RETURN fi_control.record_posttrade(p_id,p_key,hash,p_operation,p_generation,p_actor,201,body,events,p_payload);
+ END IF;
+
+ IF p_operation IN ('CORRECT_PRICE','BUST') THEN
+ IF (SELECT array_agg(key ORDER BY key) FROM jsonb_object_keys(p_payload) key)
+ IS DISTINCT FROM (CASE WHEN p_operation='CORRECT_PRICE' THEN ARRAY['clean_price','execution_id','expected_revision'] ELSE ARRAY['execution_id','expected_revision'] END)
+ OR jsonb_typeof(p_payload->'execution_id')<>'string'
+ OR p_payload->>'execution_id' !~ '^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$'
+ OR jsonb_typeof(p_payload->'expected_revision')<>'number' OR p_payload->>'expected_revision' !~ '^[0-2]$'
+ THEN RETURN fi_control.failure(400,'VALIDATION_ERROR');END IF;
+ IF p_operation='CORRECT_PRICE' AND (jsonb_typeof(p_payload->'clean_price')<>'string'
+ OR p_payload->>'clean_price' !~ '^(0|[1-9][0-9]{0,4})\.[0-9]{12}$')
+ THEN RETURN fi_control.failure(400,'VALIDATION_ERROR');END IF;
+ SELECT * INTO r FROM fi.posttrade_roots WHERE sandbox_id=p_id AND execution_id=(p_payload->>'execution_id')::uuid;
+ IF NOT FOUND THEN RETURN fi_control.failure(404,'EXECUTION_NOT_REGISTERED');END IF;
+ SELECT * INTO v FROM fi.posttrade_revisions WHERE sandbox_id=p_id AND execution_id=r.execution_id ORDER BY revision DESC LIMIT 1;
+ IF EXISTS(SELECT 1 FROM fi.posttrade_busts WHERE sandbox_id=p_id AND execution_id=r.execution_id)
+ THEN RETURN fi_control.failure(409,'EXECUTION_BUSTED');END IF;
+ IF v.revision<>(p_payload->>'expected_revision')::integer THEN RETURN fi_control.failure(409,'ADJUSTMENT_REVISION_CONFLICT');END IF;
+ IF EXISTS(SELECT 1 FROM fi.posttrade_settlement_outcomes so WHERE (so.sandbox_id,so.execution_id,so.revision)=(p_id,r.execution_id,v.revision) AND so.outcome='SETTLED')
+ AND NOT EXISTS(SELECT 1 FROM fi.posttrade_settlement_outcomes so WHERE (so.sandbox_id,so.execution_id,so.revision)=(p_id,r.execution_id,v.revision) AND so.outcome='REVERSED')
+ THEN RETURN fi_control.failure(409,'SETTLEMENT_REVERSAL_REQUIRED');END IF;
+ seq:=b.command_count+1;sign:=CASE WHEN r.side='BUY' THEN 1 ELSE -1 END;
+ IF p_operation='CORRECT_PRICE' THEN
+ IF v.revision>=2 THEN RETURN fi_control.failure(409,'CORRECTION_LIMIT_REACHED');END IF;
+ SELECT o.contract INTO STRICT original_contract FROM fi.orders o JOIN fi.executions e ON(e.sandbox_id,e.order_id)=(o.sandbox_id,o.id)
+ WHERE e.sandbox_id=p_id AND e.id=r.execution_id;
+ quote:=p_payload->>'clean_price';
+ IF NOT fi_control.posttrade_quote_valid(original_contract,quote) THEN RETURN fi_control.failure(400,'QUOTE_OUTSIDE_PRICING_RANGE');END IF;
+ corrected_cash:=fi_control.execution_cents(original_contract||jsonb_build_object('clean_price',quote),r.par_amount);
+ INSERT INTO fi.posttrade_revisions(sandbox_id,execution_id,revision,clean_price,consideration_cents,command_seq)
+ VALUES(p_id,r.execution_id,v.revision+1,quote,corrected_cash,seq) RETURNING recorded_at INTO recorded;
+ events:=jsonb_build_array(jsonb_build_object('event_type','COMPENSATE','execution_id',r.execution_id,'instrument_revision',r.instrument_revision,
+ 'economic_cash_cents',(sign*v.consideration_cents)::text,'economic_par_amount',(-sign*r.par_amount)::text),
+ jsonb_build_object('event_type','REPLACEMENT','execution_id',r.execution_id,'instrument_revision',r.instrument_revision,
+ 'economic_cash_cents',(-sign*corrected_cash)::text,'economic_par_amount',(sign*r.par_amount)::text));
+ body:=jsonb_build_object('execution_id',r.execution_id,'revision',v.revision+1,'clean_price',quote,'consideration_cents',corrected_cash::text,
+ 'posttrade_command_seq',seq::text,'recorded_at',to_char(recorded AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'));
+ ELSE
+ INSERT INTO fi.posttrade_busts(sandbox_id,execution_id,revision,command_seq)
+ VALUES(p_id,r.execution_id,v.revision,seq) RETURNING recorded_at INTO recorded;
+ events:=jsonb_build_array(jsonb_build_object('event_type','BUST','execution_id',r.execution_id,'instrument_revision',r.instrument_revision,
+ 'economic_cash_cents',(sign*v.consideration_cents)::text,'economic_par_amount',(-sign*r.par_amount)::text));
+ body:=jsonb_build_object('execution_id',r.execution_id,'revision',v.revision,'busted',true,'posttrade_command_seq',seq::text,
+ 'recorded_at',to_char(recorded AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'));
+ END IF;
+ RETURN fi_control.record_posttrade(p_id,p_key,hash,p_operation,p_generation,p_actor,201,body,events,p_payload);
  END IF;
  RETURN fi_control.failure(400,'VALIDATION_ERROR');
 END $$;
@@ -340,7 +430,7 @@ BEGIN
  WHERE x.sandbox_id=p_id AND x.command_seq<=raw_seq AND raw_count<=8;
  RETURN fi_control.result(200,jsonb_build_object('model_version','OWNED_POSTTRADE_SOURCE_V1','sandbox_id',p_id,'generation',s.generation::text,
  'raw_command_seq',raw_seq::text,'last_execution_command_seq',(SELECT COALESCE(max(command_seq),0)::text FROM fi.executions WHERE sandbox_id=p_id AND command_seq<=raw_seq),
- 'posttrade_command_seq',post_seq::text,'last_adjustment_seq',(SELECT COALESCE(max(command_seq),0)::text FROM fi.posttrade_commands WHERE sandbox_id=p_id AND command_seq<=post_seq AND operation IN ('CORRECT','BUST')),
+ 'posttrade_command_seq',post_seq::text,'last_adjustment_seq',(SELECT COALESCE(max(command_seq),0)::text FROM fi.posttrade_commands WHERE sandbox_id=p_id AND command_seq<=post_seq AND operation IN ('CORRECT_PRICE','BUST')),
  'initialized',b.sandbox_id IS NOT NULL,'window',CASE WHEN b.sandbox_id IS NOT NULL THEN jsonb_build_object('start',b.economic_start_date,'end',b.economic_end_date) END,
  'opening_cash_cents',CASE WHEN b.sandbox_id IS NOT NULL THEN '10000000000' END,
  'available_cash_cents',CASE WHEN b.sandbox_id IS NOT NULL THEN (SELECT COALESCE(sum(cash_cents),0)::text FROM fi.posttrade_events WHERE sandbox_id=p_id AND command_seq<=post_seq) END,
@@ -373,3 +463,100 @@ ALTER TABLE fi.posttrade_busts ADD FOREIGN KEY(sandbox_id,command_seq)
 ALTER TABLE fi.posttrade_settlement_outcomes ADD UNIQUE(sandbox_id,command_seq);
 ALTER TABLE fi.posttrade_settlement_outcomes ADD FOREIGN KEY(sandbox_id,command_seq)
  REFERENCES fi.posttrade_commands(sandbox_id,command_seq) DEFERRABLE INITIALLY DEFERRED;
+
+
+CREATE FUNCTION fi_control.posttrade_adjustments_consistent() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
+DECLARE sid uuid:=NEW.sandbox_id;
+BEGIN
+ IF NOT EXISTS(SELECT 1 FROM fi.posttrade_books WHERE sandbox_id=sid) THEN RETURN NULL;END IF;
+ IF EXISTS(SELECT 1 FROM fi.posttrade_revisions WHERE sandbox_id=sid GROUP BY execution_id HAVING count(*)<>max(revision)+1)
+ OR EXISTS(SELECT 1 FROM fi.posttrade_busts bu JOIN fi.posttrade_revisions v USING(sandbox_id,execution_id)
+ WHERE bu.sandbox_id=sid AND (v.revision>bu.revision OR v.command_seq>bu.command_seq))
+ OR EXISTS(SELECT 1 FROM fi.posttrade_revisions v JOIN fi.posttrade_roots r USING(sandbox_id,execution_id)
+ JOIN fi.executions x ON(x.sandbox_id,x.id)=(r.sandbox_id,r.execution_id)
+ JOIN fi.orders o ON(o.sandbox_id,o.id)=(x.sandbox_id,x.order_id)
+ WHERE v.sandbox_id=sid AND v.revision>0 AND (NOT fi_control.posttrade_quote_valid(o.contract,v.clean_price)
+ OR v.consideration_cents<>fi_control.execution_cents(o.contract||jsonb_build_object('clean_price',v.clean_price),r.par_amount)))
+ OR (SELECT COALESCE(sum(economic_cash_cents),0) FROM fi.posttrade_events WHERE sandbox_id=sid)<>
+ (SELECT COALESCE(sum(CASE WHEN r.side='BUY' THEN -v.consideration_cents ELSE v.consideration_cents END),0)
+ FROM fi.posttrade_roots r JOIN LATERAL(SELECT * FROM fi.posttrade_revisions v WHERE (v.sandbox_id,v.execution_id)=(r.sandbox_id,r.execution_id) ORDER BY revision DESC LIMIT 1) v ON true
+ WHERE r.sandbox_id=sid AND NOT EXISTS(SELECT 1 FROM fi.posttrade_busts bu WHERE (bu.sandbox_id,bu.execution_id)=(r.sandbox_id,r.execution_id)))
+ OR EXISTS(SELECT 1 FROM fi.instrument_versions iv WHERE iv.id IN ('phase1-ust-1','phase1-corp-1') AND
+ (SELECT COALESCE(sum(economic_par_amount),0) FROM fi.posttrade_events WHERE sandbox_id=sid AND instrument_revision=iv.id)<>
+ (SELECT COALESCE(sum(CASE WHEN r.side='BUY' THEN r.par_amount ELSE -r.par_amount END),0) FROM fi.posttrade_roots r WHERE r.sandbox_id=sid AND r.instrument_revision=iv.id
+ AND NOT EXISTS(SELECT 1 FROM fi.posttrade_busts bu WHERE (bu.sandbox_id,bu.execution_id)=(r.sandbox_id,r.execution_id))))
+ OR EXISTS(SELECT 1 FROM fi.posttrade_events e LEFT JOIN fi.posttrade_roots r USING(sandbox_id,execution_id)
+ WHERE e.sandbox_id=sid AND (
+ (e.event_type<>'FUNDING' AND (r.execution_id IS NULL OR e.instrument_revision IS DISTINCT FROM r.instrument_revision))
+ OR (e.event_type IN ('REGISTERED','COMPENSATE','REPLACEMENT','BUST') AND (e.cash_cents<>0 OR e.par_amount<>0))
+ OR (e.event_type NOT IN ('REGISTERED','COMPENSATE','REPLACEMENT','BUST') AND (e.economic_cash_cents<>0 OR e.economic_par_amount<>0))))
+ OR EXISTS(SELECT 1 FROM fi.posttrade_events e JOIN fi.posttrade_roots r USING(sandbox_id,execution_id)
+ JOIN fi.posttrade_revisions v ON(v.sandbox_id,v.execution_id,v.command_seq)=(e.sandbox_id,e.execution_id,e.command_seq)
+ WHERE e.sandbox_id=sid AND e.event_type IN ('REGISTERED','REPLACEMENT') AND
+ (e.economic_cash_cents,e.economic_par_amount) IS DISTINCT FROM
+ (CASE WHEN r.side='BUY' THEN -v.consideration_cents ELSE v.consideration_cents END,
+ CASE WHEN r.side='BUY' THEN r.par_amount ELSE -r.par_amount END))
+ OR EXISTS(SELECT 1 FROM fi.posttrade_events e JOIN fi.posttrade_roots r USING(sandbox_id,execution_id)
+ JOIN fi.posttrade_revisions v ON(v.sandbox_id,v.execution_id,v.command_seq)=(e.sandbox_id,e.execution_id,e.command_seq)
+ JOIN fi.posttrade_revisions prior_v ON(prior_v.sandbox_id,prior_v.execution_id,prior_v.revision)=(v.sandbox_id,v.execution_id,v.revision-1)
+ WHERE e.sandbox_id=sid AND e.event_type='COMPENSATE' AND
+ (e.economic_cash_cents,e.economic_par_amount) IS DISTINCT FROM
+ (CASE WHEN r.side='BUY' THEN prior_v.consideration_cents ELSE -prior_v.consideration_cents END,
+ CASE WHEN r.side='BUY' THEN -r.par_amount ELSE r.par_amount END))
+ OR EXISTS(SELECT 1 FROM fi.posttrade_events e JOIN fi.posttrade_roots r USING(sandbox_id,execution_id)
+ JOIN fi.posttrade_busts bu ON(bu.sandbox_id,bu.execution_id,bu.command_seq)=(e.sandbox_id,e.execution_id,e.command_seq)
+ JOIN fi.posttrade_revisions v ON(v.sandbox_id,v.execution_id,v.revision)=(bu.sandbox_id,bu.execution_id,bu.revision)
+ WHERE e.sandbox_id=sid AND e.event_type='BUST' AND
+ (e.economic_cash_cents,e.economic_par_amount) IS DISTINCT FROM
+ (CASE WHEN r.side='BUY' THEN v.consideration_cents ELSE -v.consideration_cents END,
+ CASE WHEN r.side='BUY' THEN -r.par_amount ELSE r.par_amount END))
+ THEN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Inconsistent immutable post-trade adjustments';END IF;
+ RETURN NULL;
+END $$;
+DO $integrity$ DECLARE t text;BEGIN
+ FOREACH t IN ARRAY ARRAY['posttrade_roots','posttrade_revisions','posttrade_busts','posttrade_commands','posttrade_events'] LOOP
+ EXECUTE format('CREATE CONSTRAINT TRIGGER adjustment_complete AFTER INSERT ON fi.%I DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fi_control.posttrade_adjustments_consistent()',t);
+ END LOOP;
+END $integrity$;
+
+
+CREATE FUNCTION fi_control.posttrade_payloads_consistent() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
+DECLARE sid uuid;
+BEGIN
+ IF TG_TABLE_NAME='command_keys' THEN
+ IF TG_OP='DELETE' THEN
+ IF OLD.domain<>'POSTTRADE' THEN RETURN NULL;END IF;sid:=OLD.sandbox_id;
+ ELSE
+ IF NEW.domain<>'POSTTRADE' AND (TG_OP='INSERT' OR OLD.domain<>'POSTTRADE') THEN RETURN NULL;END IF;sid:=NEW.sandbox_id;
+ END IF;
+ ELSE sid:=NEW.sandbox_id;END IF;
+ IF NOT EXISTS(SELECT 1 FROM fi.posttrade_books WHERE sandbox_id=sid) THEN RETURN NULL;END IF;
+ IF EXISTS(SELECT 1 FROM fi.posttrade_commands c WHERE c.sandbox_id=sid AND
+ (c.request_hash<>encode(sha256(convert_to(jsonb_build_object('version','OWNED_POSTTRADE_COMMAND_V1','sandbox_id',c.sandbox_id,'operation',c.operation,'payload',c.request_payload)::text,'UTF8')),'hex')
+ OR c.response_body->>'posttrade_command_seq' IS DISTINCT FROM c.command_seq::text
+ OR NOT EXISTS(SELECT 1 FROM fi_control.command_keys k WHERE (k.sandbox_id,k.idempotency_key,k.domain)=(c.sandbox_id,c.idempotency_key,'POSTTRADE'))))
+ OR EXISTS(SELECT 1 FROM fi_control.command_keys k WHERE k.sandbox_id=sid AND k.domain='POSTTRADE'
+ AND NOT EXISTS(SELECT 1 FROM fi.posttrade_commands c WHERE(c.sandbox_id,c.idempotency_key)=(k.sandbox_id,k.idempotency_key)))
+ OR EXISTS(SELECT 1 FROM fi.posttrade_revisions v JOIN fi.posttrade_commands c USING(sandbox_id,command_seq)
+ WHERE v.sandbox_id=sid AND ((c.request_payload->>'execution_id')::uuid IS DISTINCT FROM v.execution_id
+ OR (c.response_body->>'execution_id')::uuid IS DISTINCT FROM v.execution_id
+ OR (c.response_body->>'revision')::integer IS DISTINCT FROM v.revision
+ OR (v.revision>0 AND (c.request_payload->>'clean_price' IS DISTINCT FROM v.clean_price
+ OR (c.request_payload->>'expected_revision')::integer IS DISTINCT FROM v.revision-1
+ OR c.response_body->>'clean_price' IS DISTINCT FROM v.clean_price
+ OR c.response_body->>'consideration_cents' IS DISTINCT FROM v.consideration_cents::text))))
+ OR EXISTS(SELECT 1 FROM fi.posttrade_busts bu JOIN fi.posttrade_commands c USING(sandbox_id,command_seq)
+ WHERE bu.sandbox_id=sid AND (c.operation<>'BUST'
+ OR (c.request_payload->>'execution_id')::uuid IS DISTINCT FROM bu.execution_id
+ OR (c.request_payload->>'expected_revision')::integer IS DISTINCT FROM bu.revision
+ OR (c.response_body->>'execution_id')::uuid IS DISTINCT FROM bu.execution_id
+ OR c.response_body->'busted' IS DISTINCT FROM 'true'::jsonb))
+ THEN RAISE EXCEPTION USING ERRCODE='23514',MESSAGE='Inconsistent original-key post-trade receipt';END IF;
+ RETURN NULL;
+END $$;
+CREATE CONSTRAINT TRIGGER payload_complete AFTER INSERT ON fi.posttrade_commands DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW EXECUTE FUNCTION fi_control.posttrade_payloads_consistent();
+CREATE CONSTRAINT TRIGGER posttrade_registry_complete AFTER INSERT OR UPDATE OR DELETE ON fi_control.command_keys DEFERRABLE INITIALLY DEFERRED
+FOR EACH ROW EXECUTE FUNCTION fi_control.posttrade_payloads_consistent();
