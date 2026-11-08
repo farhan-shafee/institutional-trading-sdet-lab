@@ -8,17 +8,36 @@ Reviewed **November 6, 2026**. The public institutional workflow is accepted and
 
 The canonical public domain passed analytics/RFQ/execution/cancellation/reconciliation in Chromium, Firefox and WebKit, including 4002-cent execution consideration, genuine clean merge/tree provenance, reload, read-only viewer and cross-visitor isolation. Dedicated PostgreSQL 17.10/TLS and its owner-authorized restart passed. See the [release receipt](PUBLIC_WORKFLOW_RELEASE_2026-11-06.md) and [production runbook](RAILWAY_PRODUCTION.md) for actual deployment IDs, policy, certificate operation, rollback and limits.
 
-## Local session runtime candidate — November 7, 2026
+## Local FIX runtime and financial ingress - November 7, 2026
 
 [PR #34](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/34)
-implements the selected local Phase3C1 runtime. Both unchanged engines use an
-explicit TradeFlow matching-TestRequest response guard. The pre-metadata
-qualification passed43/43 cases and78/78 controls; complete candidate results
-and current checks are in the [runtime guide](FIX44_RUNTIME.md) and PR.
-Financial SDK handoff remains unfinished: current engine bytes still return
-FIELD_ORDER in the old decoder. No Phase3C/Phase4, merge, deployment or human
-acceptance follows from this implementation. Earlier accepted milestones and
-public release records below retain their dated scope.
+merged normally as GitHub-verified
+6aabe3416ee5977d85bc943e346f5ded34d3bb5c, preserving the qualified runtime tree.
+All nine post-merge CI jobs passed. The standalone Phase 3C1 matrix remains
+43 scenarios / 89 controls. Both pinned engines use the explicit TradeFlow
+matching-TestRequest response guard; no upstream FIX certification is claimed.
+
+[PR #35](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/35)
+contains the opt-in Phase 3C2 application path and its protected-main integration
+record. Actual native D/8/F/9 bytes and validated FromApp callbacks bind to owned
+schema9 evidence before the existing SQL financial authority applies them.
+The separate live decoder preserves the old decoder's FIELD_ORDER negatives.
+
+The continuation repaired replacement-acceptor readiness ordering and added
+explicit retirement of old physical sockets before draining reconnect writes.
+Interrupted admin bytes are retained separately from forwarded bytes; unexpected
+I/O and application bytes from a retired socket remain unresolved. Shutdown also
+settles startup, send and reconnect callers before STOP and rejects command admission
+that resumes after stopping. Accepted same-order work waits for outstanding callbacks
+without blocking their processing, then applies in retained observation order. The mandatory live matrix is now 108 controls, retaining
+all 89 earlier controls and adding five native/socket plus seven lifecycle regressions, two same-order duplex controls and five host filesystem controls. Exact source, complete qualification, first failures,
+review disposition and CI receipts are recorded in PR #35. See the
+[live application guide](FIX44_LIVE.md) for recovery and profile limits.
+
+The public application remains separately pinned to b021602. These local source
+capabilities do not activate hosted FIX, migrate a hosted database or establish
+external delivery/completeness. Phase 4 remains unfinished. Historical milestones
+retain their own exact source and counts.
 
 ## Accepted protocol implementation checkpoint
 
@@ -70,12 +89,19 @@ The app uses dedicated private PostgreSQL, restricted roles, strict CA/hostname 
 | Phase 3A byte/profile layer                           | [FIX 4.4 profile](FIX44_PROFILE.md), bounded application-message bytes                                                      |
 | Phase 3B retained evidence and controlled application | [Foundation](FIX44_FOUNDATION.md), [application](FIX44_APPLICATION.md), original-key recovery and finite protected capacity |
 | Phase 3C0 offline session contract                    | [Session guide](FIX44_SESSION.md), selected A/0/1/5 administrative transcripts and explicit verdicts                        |
+| Phase 3C1 local session runtime                       | [Runtime guide](FIX44_RUNTIME.md), selected pinned peers, matching-response guard and supported retained-store restart      |
+| Phase 3C2 local financial ingress                     | [Live application](FIX44_LIVE.md), actual raw/callback evidence and opt-in schema9 atomic financial handoff                 |
 
 The local FIX application SDK is explicitly server-side and opt-in. The offline session checker does not call it, open a connection or persist session state. Synthetic CompIDs are correlation labels, not authentication. A corpus command succeeds when literal expected reports match, including expected INVALID, INCOMPLETE and OUT_OF_SCOPE cases; not every transcript is conformant.
 
 ## Remaining boundaries
 
-3C0 supplies executable reviewed rules before a runtime session engine. It does not implement transport, heartbeat scheduling, durable session state, resend/reconnect recovery, independent-peer interoperability, verified delivery or external completeness. Later session milestones and Phase 4 entries in the [roadmap](plans/PHASE3C.md) remain proposed and require separate contracts/authorization. No production rollout is implied.
+The 3C0 checker remains offline. The selected local 3C1 runtime and 3C2 financial
+ingress add separately bounded session/recovery/application capabilities. They do
+not establish arbitrary crash durability, full FIX certification, external peer
+interoperability, verified external delivery or external completeness. Phase 4
+remains unfinished and requires its own implementation and qualification.
+No hosted FIX rollout follows from these local source milestones.
 
 All credentials, quotes, orders and executions are synthetic. There is no real venue/dealer connectivity, live market feed, settlement, real-money P&L, production identity/tenant assurance or regulated-trading claim.
 

@@ -18,8 +18,14 @@ import (
 )
 
 var outputMu sync.Mutex
+var selectedLiveOutput *liveEvents
+var selectedLiveFailure <-chan struct{}
 
 func event(kind, payload string) {
+	if selectedLiveOutput != nil {
+		selectedLiveOutput.emit(kind, payload)
+		return
+	}
 	outputMu.Lock()
 	defer outputMu.Unlock()
 	fmt.Printf("EVENT\t%s\t%s\n", kind, base64.StdEncoding.EncodeToString([]byte(payload)))
@@ -89,7 +95,11 @@ func (a *application) ToApp(m *quickfix.Message, id quickfix.SessionID) error {
 	return nil
 }
 func (a *application) FromApp(m *quickfix.Message, id quickfix.SessionID) quickfix.MessageRejectError {
-	event("APP", fields(m))
+	if selectedLiveOutput != nil {
+		event("LIVE_APP", m.String())
+	} else {
+		event("APP", fields(m))
+	}
 	return nil
 }
 
@@ -187,7 +197,15 @@ func run() error {
 	if len(sessions) != 1 {
 		return fmt.Errorf("CONFIG")
 	}
+	selectedLive := false
 	for id, cfg := range sessions {
+		if cfg.HasSetting("TradeFlowIngressProfile") {
+			value, err := cfg.Setting("TradeFlowIngressProfile")
+			if err != nil || value != "live-fix-ingress-v1" {
+				return fmt.Errorf("CONFIG")
+			}
+			selectedLive = true
+		}
 		if id.BeginString != "FIX.4.4" || id.SenderCompID != "ATLAS" || id.TargetCompID != "TRADEFLOW" {
 			return fmt.Errorf("CONFIG")
 		}
@@ -204,6 +222,12 @@ func run() error {
 				return fmt.Errorf("CONFIG")
 			}
 		}
+	}
+	if selectedLive {
+		selectedLiveOutput = newLiveEvents(os.Stdout)
+		selectedLiveFailure = selectedLiveOutput.failed
+		defer selectedLiveOutput.close()
+		event("LIVE_PROFILE", "profile=live-fix-ingress-v1\x01")
 	}
 	app := newApplication()
 	acceptor, err := quickfix.NewAcceptor(app, filestore.NewStoreFactory(settings), settings, quickfix.NewNullLogFactory())
@@ -268,6 +292,8 @@ func run() error {
 				event("PROFILE_TIMEOUT", "112="+requestID+"\x01")
 				finish()
 			}
+		case <-selectedLiveFailure:
+			return fmt.Errorf("LIVE_OUTPUT")
 		case <-app.guardFailure:
 			return fmt.Errorf("PROFILE_REQUEST")
 		}
