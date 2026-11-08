@@ -62,11 +62,11 @@
 - fifo(executions:readonly EconomicExecution[]):{realized_usd:Rational,lots:readonly FifoLot[],positions:readonly {instrument_id,signed_par:Rational}[]}; max8 inputs, unique root IDs, original ordering.
 - Corrections/busts are resolved before the kernel; it does not accept order reopening or derive trade dates.
 
-- [ ] Write failing literal100.88 BUY100 /43.80 SELL40 case (basis60.528,realized3.448), partial multi-lot closures, sell-short/cover, crossing long-to-short,0.01par/cash0, correction at original ordering and duplicate/unsupported input rejection.
-- [ ] Run missing module RED.
-- [ ] Implement exact proportional cash allocations, oldest opposing-lot consumption and immutable results; no intermediate rounding.
-- [ ] Independent Python Fraction reconstructs deterministic <=8-root sequences; compare exact numerator/denominator realization, lots and signed par. Observe oracle RED->GREEN.
-- [ ] Run focused/full unit/static checks and commit.
+- [x] Write failing literal100.88 BUY100 /43.80 SELL40 case (basis60.528,realized3.448), partial multi-lot closures, sell-short/cover, crossing long-to-short,0.01par/cash0, correction at original ordering and duplicate/unsupported input rejection.
+- [x] Run missing module RED.
+- [x] Implement exact proportional cash allocations, oldest opposing-lot consumption and immutable results; no intermediate rounding.
+- [x] Independent Python Fraction reconstructs deterministic <=8-root sequences; compare exact numerator/denominator realization, lots and signed par. Observe oracle RED->GREEN.
+- [x] Run focused/full unit/static checks and commit.
 
 ### Task3: Owned schema10, registration, keys and finite reservation
 
