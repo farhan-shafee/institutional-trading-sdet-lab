@@ -6,7 +6,7 @@ Reviewed **November 8, 2026**. The public institutional workflow is accepted and
 
 The feature candidate adds a separate fictional zero-coupon analytics model and authenticated read-only v2 API. It is not accepted, merged or deployed. The v1 catalogue and calculations remain unchanged; the new instrument is not RFQ/order eligible. See [the economic contract](PHASE4_ECONOMICS.md) and [the concrete review decisions](PHASE4A_REVIEW.md).
 
-All1045 unit tests and all10 new API tests passed at slice level. The existing434-file preservation gate correctly blocks the two additive API integration files; the manifest and guard remain unchanged pending explicit scoped review. Full native qualification is not established for this candidate. Phase4B-F and final cross-phase closeout remain unfinished.
+All1046 unit tests and all10 new API tests passed at slice level. The existing434-file preservation gate correctly blocks the two additive API integration files; the manifest and guard remain unchanged pending explicit scoped review. Full native qualification is not established for this candidate. Phase4B-F and final cross-phase closeout remain unfinished.
 
 ## Current public release
 

@@ -12,8 +12,19 @@ rounded half-even once. It adds no new trading eligibility. Existing coupon
 bond definitions, calculations and v1 responses remain unchanged.
 
 The implementation includes an independent Python Fraction oracle and real
-authenticated HTTP/OpenAPI tests. The candidate passed all1045 unit tests and
+authenticated HTTP/OpenAPI tests. The candidate passed all1046 unit tests and
 all10 new service API tests, plus typecheck, lint and OpenAPI validation.
+Full local validate passed with240 baseline browser/API cases; the repeated
+three-browser/API run passed480 cases with retries0. The final unit suite
+passed1046/1046 after adding a69th independent oracle case and a literal
+large-par penny regression. A deliberately displayed-price cash mutant failed
+the two new assertions; the unchanged real calculation passed.
+
+Independent review found no current calculation/security defect. Its Important
+cash-regression coverage gap is fixed. One Minor item is deferred: committing
+the four near-maturity half-quantum boundary cases. The reviewer executed those
+four cases and4382 endpoint round trips successfully; this is executed probe
+evidence, not committed regression coverage.
 These are executed slice-level results; complete final-source qualification
 is not inferred from them.
 

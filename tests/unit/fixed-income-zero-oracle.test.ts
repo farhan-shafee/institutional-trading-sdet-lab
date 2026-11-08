@@ -22,6 +22,12 @@ void test('zero analytics agrees with independent exact Fraction oracle across d
       par_amount: '999999999.87',
       clean_price: clean,
     });
+  requests.push({
+    instrument_id: 'SYN-ZERO-2031',
+    settlement_date: '2030-01-15',
+    par_amount: '999999999.83',
+    yield: '0.04',
+  });
   const expected = JSON.parse(
     execFileSync(
       'python3',
@@ -29,7 +35,7 @@ void test('zero analytics agrees with independent exact Fraction oracle across d
       { input: JSON.stringify(requests), encoding: 'utf8', timeout: 10000 },
     ),
   ) as Record<string, unknown>[];
-  assert.equal(expected.length, 68);
+  assert.equal(expected.length, 69);
   requests.forEach((q, i) => {
     const actual = zeroAnalytics(q) as unknown as Record<string, unknown>;
     for (const [field, value] of Object.entries(expected[i]!))

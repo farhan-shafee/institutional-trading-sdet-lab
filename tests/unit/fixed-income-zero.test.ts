@@ -114,3 +114,9 @@ void test('zero definitions cannot be mutated across calculations or callers', (
   assert.equal(Object.isFrozen(r.instrument), true);
   assert.equal(zeroAnalytics(request).instrument.maturity_date, '2031-01-15');
 });
+
+void test('zero cash preserves the penny lost by rounding price before consideration', () => {
+  const result = zeroAnalytics({ ...request, par_amount: '999999999.83', yield: '0.04' });
+  assert.equal(result.clean_price, '96.1538461538');
+  assert.equal(result.consideration_usd, '961538461.38');
+});

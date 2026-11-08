@@ -1,6 +1,6 @@
 # Phase 4A Zero-Coupon Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Implement and qualify the additional immutable synthetic zero-coupon instrument without changing accepted v1 analytics.
 
@@ -31,21 +31,21 @@
 **Files:** Create app/domain/fixed-income-v2/zero.ts; tests/unit/fixed-income-zero.test.ts; verification/python/zero_coupon.py.
 **Interfaces:** zeroAnalytics(input: unknown): ZeroAnalytics; zeroInstruments readonly catalogue; cashFlows(settlement: string) returns the single immutable redemption.
 
-- [ ] Write literal schedule, one-year price/inverse, exact cash tie, leap-day, invalid-domain and immutable-definition tests.
-- [ ] Run the tests and record the expected missing-module RED.
-- [ ] Implement the separate versioned model, strict parser and exact rational consideration.
-- [ ] Run focused tests, independent Fraction oracle, then the complete unit suite.
-- [ ] Commit the coherent domain/oracle slice.
+- [x] Write literal schedule, one-year price/inverse, exact cash tie, leap-day, invalid-domain and immutable-definition tests.
+- [x] Run the tests and record the expected missing-module RED.
+- [x] Implement the separate versioned model, strict parser and exact rational consideration.
+- [x] Run focused tests, independent Fraction oracle, then the complete unit suite.
+- [x] Commit the coherent domain/oracle slice.
 
 ### Task 2: authenticated API and schema
 
 **Files:** Modify app/server/fixed-income.ts and contracts/openapi.yaml; add tests/unit/fixed-income-zero-http.test.ts.
 **Interfaces:** GET /api/fixed-income/v2/instruments and /api/fixed-income/v2/analytics; same authenticated session and request admission as v1.
 
-- [ ] Write real loopback HTTP tests for both roles, missing/revoked auth, repeated/unknown fields, full shape and unchanged v1 catalogue.
-- [ ] Run tests RED, implement only the route/schema extension, run tests GREEN.
-- [ ] Run typecheck, lint, format, independent contract validation, financial verification and required baseline/repeated tests.
-- [ ] Commit the API integration.
+- [x] Write real loopback HTTP tests for both roles, missing/revoked auth, repeated/unknown fields, full shape and unchanged v1 catalogue.
+- [x] Run tests RED, implement only the route/schema extension, run tests GREEN.
+- [x] Run typecheck, lint, format, independent contract validation, financial verification and required baseline/repeated tests.
+- [x] Commit the API integration.
 
 ### Task 3: qualification and review
 
@@ -53,6 +53,6 @@
 **Interfaces:** existing full gate commands remain unchanged; new tests must be discovered by them.
 
 - [ ] Run all applicable mandatory gates and preserve failures.
-- [ ] Obtain a fresh independent source/evidence review and fix material findings with RED/GREEN tests.
+- [x] Obtain a fresh independent source/evidence review and fix material findings with RED/GREEN tests.
 - [ ] Open a concrete draft PR for human financial-model acceptance; do not self-accept new conventions.
 - [ ] Record that 4B-F/final Phase4 closeout remain unfinished and production unchanged.
