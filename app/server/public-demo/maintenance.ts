@@ -1,7 +1,7 @@
 import pg from 'pg';
 import { DomainError } from '../../domain/errors.js';
 import { databaseConnection, type DatabaseTarget } from './configuration.js';
-import { verifyPublicProfile } from './profile.js';
+import { verifyPublicProfile, type PublicProfileKind } from './profile.js';
 import { checkoutClient } from '../../persistence/postgres/client-errors.js';
 
 export class PublicDemoMaintenance {
@@ -14,6 +14,7 @@ export class PublicDemoMaintenance {
   constructor(
     target: DatabaseTarget,
     private readonly now = () => performance.now(),
+    private readonly profileKind: PublicProfileKind = 'workflow',
   ) {
     this.pool = new pg.Pool({
       ...databaseConnection(target),
@@ -65,7 +66,7 @@ export class PublicDemoMaintenance {
           "SELECT current_user='tf_maintenance' AND NOT rolsuper AND NOT rolbypassrls AND NOT rolcreatedb AND NOT rolcreaterole AND NOT pg_has_role(current_user,'tf_owner','MEMBER') AS valid FROM pg_roles WHERE rolname=current_user",
         );
         if (!role.rows[0]?.valid) throw new Error('Invalid public maintenance authority.');
-        await verifyPublicProfile(db);
+        await verifyPublicProfile(db, this.profileKind);
         await db.query('SELECT fi_control.purge_public_demo_expired()');
         await db.query('COMMIT');
         if (lease.error) throw lease.error;

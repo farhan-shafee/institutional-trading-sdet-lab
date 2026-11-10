@@ -1,6 +1,6 @@
 # TradeFlow Public Release and Phase 4 Exposure Design
 
-Status: proposed for owner review on November 10, 2026. This is a design proposal, not an implemented release or a deployment authorization.
+Status: owner approved repository implementation and local/CI qualification on November 10, 2026. Implementation is in progress. Hosted preview resources and production cutover still require separate authorization.
 
 ## Purpose and decision
 
@@ -12,27 +12,27 @@ Owner approval of this design would authorize repository implementation and loca
 
 ## Verified starting point
 
-| Surface | Observed state |
-| --- | --- |
-| Protected main | `29dd958f7f42a15841496a23ccfe594bfb864272`, reviewed tree `2fb60dd7e5e6f9c1785bc413965011a856839fd6` |
-| Final source qualification | PR #38 accepted R1–R3, merged normally; all 14 main jobs passed on attempt 1 |
-| Public app | `b0216022cb8ff18de904efea9279c91b3977d55f`, deployment `8d174084-7f30-40cb-a026-fa90f231c4a0`, SUCCESS |
-| Existing public topology | Cloudflare HTTPS → existing cloudflared service → private Railway Node app → private PostgreSQL over verified TLS |
-| Current app budget | 0.5 CPU, 500000000 bytes memory, one replica; no increase is proposed |
-| Current provider state | App has no staged changes; exact source pin remains b021602 |
-| Public functionality | Equities, two coupon-bond analytics, private visitor RFQ/execution/ledger/reconciliation workflow |
-| Newer functionality | Local FIX peers and financial handoff; zero analytics, curves, portfolio risk, corrections, gross settlement and exact FIFO/P&L |
-| Current post-trade activation | Explicit owned loopback schema-10 startup only; ordinary/hosted startup does not select it |
+| Surface                       | Observed state                                                                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Protected main                | `29dd958f7f42a15841496a23ccfe594bfb864272`, reviewed tree `2fb60dd7e5e6f9c1785bc413965011a856839fd6`                            |
+| Final source qualification    | PR #38 accepted R1–R3, merged normally; all 14 main jobs passed on attempt 1                                                    |
+| Public app                    | `b0216022cb8ff18de904efea9279c91b3977d55f`, deployment `8d174084-7f30-40cb-a026-fa90f231c4a0`, SUCCESS                          |
+| Existing public topology      | Cloudflare HTTPS → existing cloudflared service → private Railway Node app → private PostgreSQL over verified TLS               |
+| Current app budget            | 0.5 CPU, 500000000 bytes memory, one replica; no increase is proposed                                                           |
+| Current provider state        | App has no staged changes; exact source pin remains b021602                                                                     |
+| Public functionality          | Equities, two coupon-bond analytics, private visitor RFQ/execution/ledger/reconciliation workflow                               |
+| Newer functionality           | Local FIX peers and financial handoff; zero analytics, curves, portfolio risk, corrections, gross settlement and exact FIFO/P&L |
+| Current post-trade activation | Explicit owned loopback schema-10 startup only; ordinary/hosted startup does not select it                                      |
 
 The historical capacity financial finding remains `UNRESOLVED_NOT_REPRODUCED`, root cause `UNKNOWN`. The owner accepted that unresolved risk for the synthetic local/CI lab. Green qualification and the controlled capture demonstration do not explain it. That acceptance is not a public-release waiver.
 
 ## Approaches considered
 
-| Approach | Delivery and tradeoff | Disposition |
-| --- | --- | --- |
-| Refresh the existing public release and link local reports | Lowest implementation cost; exposes newer stateless APIs if selected, but visitors still cannot operate Phase 4 | Valid smaller release, insufficient for the proposed interactive public target |
-| Interactive synthetic Phase 4 public workstation | Visitors can follow the full financial workflow; requires a new hosted profile, UI, cross-session controls, qualification and controlled release | Recommended proposal |
-| Host native FIX engines alongside the public app | Adds an operational service and exposure surface, exceeds the existing small-app operating assumptions and the approved local FIX boundary | Excluded from this release |
+| Approach                                                   | Delivery and tradeoff                                                                                                                            | Disposition                                                                    |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| Refresh the existing public release and link local reports | Lowest implementation cost; exposes newer stateless APIs if selected, but visitors still cannot operate Phase 4                                  | Valid smaller release, insufficient for the proposed interactive public target |
+| Interactive synthetic Phase 4 public workstation           | Visitors can follow the full financial workflow; requires a new hosted profile, UI, cross-session controls, qualification and controlled release | Recommended proposal                                                           |
+| Host native FIX engines alongside the public app           | Adds an operational service and exposure surface, exceeds the existing small-app operating assumptions and the approved local FIX boundary       | Excluded from this release                                                     |
 
 The recommendation is the assistant's design choice for owner review, not a previously approved expansion. Existing financial contracts, instrument eligibility and numerical conventions remain the source of truth.
 
@@ -40,16 +40,16 @@ The recommendation is the assistant's design choice for owner review, not a prev
 
 Preserve the existing four primary tabs and equity behavior. Extend the existing analytics and dealer-workstation disclosures rather than replacing navigation or introducing another frontend framework.
 
-| Capability | Public surface and behavior |
-| --- | --- |
-| Additional instrument | Add the approved zero-coupon analytics option; label it analytics-only and keep it ineligible for RFQ/order entry |
-| Curves and spreads | Named immutable curve fixture, economic as-of date, curve valuation and continuous z-spread views; no editable market feed or new curve construction |
-| Portfolio risk | Signed PV, parallel DV01, four key-rate dollar sensitivities and the approved stress scenarios |
-| Corrections and busts | Original versus adjusted execution detail, expected revision, price-only correction and terminal full bust |
-| Synthetic settlement | Explicit paper-funding initialization, due/processing dates, available balances, unsettled obligations and FAILED/SETTLED/REVERSED/VOIDED history |
-| FIFO and P&L | Exact-model results displayed at declared scales, realized/unrealized/total P&L, remaining basis and equity bridge |
-| History and recovery | Immutable command outcomes, bounded audit/history pages and original-request recovery after an uncertain response |
-| Native FIX evidence | Revision-bound local/CI capability summary and verification links; no remote engine controls or public socket/session service |
+| Capability            | Public surface and behavior                                                                                                                          |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Additional instrument | Add the approved zero-coupon analytics option; label it analytics-only and keep it ineligible for RFQ/order entry                                    |
+| Curves and spreads    | Named immutable curve fixture, economic as-of date, curve valuation and continuous z-spread views; no editable market feed or new curve construction |
+| Portfolio risk        | Signed PV, parallel DV01, four key-rate dollar sensitivities and the approved stress scenarios                                                       |
+| Corrections and busts | Original versus adjusted execution detail, expected revision, price-only correction and terminal full bust                                           |
+| Synthetic settlement  | Explicit paper-funding initialization, due/processing dates, available balances, unsettled obligations and FAILED/SETTLED/REVERSED/VOIDED history    |
+| FIFO and P&L          | Exact-model results displayed at declared scales, realized/unrealized/total P&L, remaining basis and equity bridge                                   |
+| History and recovery  | Immutable command outcomes, bounded audit/history pages and original-request recovery after an uncertain response                                    |
+| Native FIX evidence   | Revision-bound local/CI capability summary and verification links; no remote engine controls or public socket/session service                        |
 
 Dates are labelled as simulated economic dates or actual recorded UTC. Source sequence, revision and valuation date remain distinct. Detailed provenance belongs in an expandable audit view; credentials, descriptor paths and schema/install details do not enter the visitor flow.
 
@@ -113,17 +113,17 @@ These are required future expected outcomes, not newly executed results. Additio
 
 ## Verification and readiness gates
 
-| Gate | Required evidence |
-| --- | --- |
-| Existing behavior preservation | Exact old financial/migration/source identities, preserved tests and accepted phase ancestry; first failures remain recorded |
-| Hosted profile | Actual dedicated TLS database image; owner/app/reconciler/maintenance separation; grants/RLS; source/profile mismatch rejection and compatibility negatives |
-| API and accounting | Independent wire schemas and SQL/Python reconstruction of cash/par/basis/equity; strict errors, receipts, idempotency and authorization |
-| Browser | Trader/viewer and cross-visitor paths in Chromium, Firefox and WebKit, baseline and repeat with original retry/deadline policy; selected 320px/mobile and keyboard inspection |
-| Lifecycle | Genuine before/after-COMMIT failures, original-key recovery, current session revocation, restart, retention and owned cleanup |
-| Complete integrated source | Locked dependencies/audits, type/lint/format/contracts/workflow, units, independent oracles, build/production smoke, two fresh original and owned PostgreSQL passes, workstation/public-image and all native gates |
-| Independent and human review | No unresolved Critical/Important implementation issue; explicit scope/model/known-risk dispositions bound to the final candidate |
-| Preview operations | Exact source/tree/CLEAN provenance, runtime roles/TLS, real-domain selected journey, cleanup and measured resource behavior inside current limits |
-| Rollback | Executed restore of the captured known-good release/configuration; retained-artifact restoration distinguished from a source rebuild |
+| Gate                           | Required evidence                                                                                                                                                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Existing behavior preservation | Exact old financial/migration/source identities, preserved tests and accepted phase ancestry; first failures remain recorded                                                                                       |
+| Hosted profile                 | Actual dedicated TLS database image; owner/app/reconciler/maintenance separation; grants/RLS; source/profile mismatch rejection and compatibility negatives                                                        |
+| API and accounting             | Independent wire schemas and SQL/Python reconstruction of cash/par/basis/equity; strict errors, receipts, idempotency and authorization                                                                            |
+| Browser                        | Trader/viewer and cross-visitor paths in Chromium, Firefox and WebKit, baseline and repeat with original retry/deadline policy; selected 320px/mobile and keyboard inspection                                      |
+| Lifecycle                      | Genuine before/after-COMMIT failures, original-key recovery, current session revocation, restart, retention and owned cleanup                                                                                      |
+| Complete integrated source     | Locked dependencies/audits, type/lint/format/contracts/workflow, units, independent oracles, build/production smoke, two fresh original and owned PostgreSQL passes, workstation/public-image and all native gates |
+| Independent and human review   | No unresolved Critical/Important implementation issue; explicit scope/model/known-risk dispositions bound to the final candidate                                                                                   |
+| Preview operations             | Exact source/tree/CLEAN provenance, runtime roles/TLS, real-domain selected journey, cleanup and measured resource behavior inside current limits                                                                  |
+| Rollback                       | Executed restore of the captured known-good release/configuration; retained-artifact restoration distinguished from a source rebuild                                                                               |
 
 Do not increase limits, retries or deadlines to obtain a pass. A recurrence of the retained financial finding blocks progression and requires investigation from the actual captured evidence. A green rerun cannot close it.
 

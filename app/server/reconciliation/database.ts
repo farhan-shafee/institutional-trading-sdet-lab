@@ -3,6 +3,8 @@ import { DomainError } from '../../domain/errors.js';
 import { financialSource, migrationChecksums } from '../../domain/workflow/database-contract.js';
 import { checkoutClient, type ClientLease } from '../../persistence/postgres/client-errors.js';
 import { databaseConnection, type DatabaseTarget } from '../public-demo/configuration.js';
+import { postTradeMigrationChecksums } from '../../domain/post-trade/database-contract.js';
+import { verifyPublicProfile } from '../public-demo/profile.js';
 export type VerificationHooks = {
   beforeCommit?: () => void | Promise<void>;
   afterCommit?: () => void | Promise<void>;
@@ -15,7 +17,27 @@ export class VerificationDatabase {
   constructor(
     url: DatabaseTarget,
     private readonly hooks: VerificationHooks = {},
+    private readonly profile?: 'public-posttrade-v1',
   ) {
+    if (profile) {
+      const ssl = typeof url === 'string' ? undefined : url.ssl;
+      if (
+        typeof url === 'string' ||
+        url.connectionString !== undefined ||
+        url.user !== 'tf_reconciler' ||
+        !/^tradeflow_public_demo_[a-f0-9]{16}$/.test(url.database ?? '') ||
+        !url.host ||
+        !ssl ||
+        typeof ssl !== 'object' ||
+        typeof ssl.ca !== 'string' ||
+        !ssl.ca.includes('BEGIN CERTIFICATE') ||
+        ssl.ca.includes('PRIVATE KEY') ||
+        ssl.rejectUnauthorized !== true ||
+        !/^[a-z0-9][a-z0-9-]{0,61}\.railway\.internal$/.test(ssl.servername ?? '') ||
+        Object.keys(ssl).some((key) => !['ca', 'rejectUnauthorized', 'servername'].includes(key))
+      )
+        throw new Error('A dedicated public reconciler target with verified TLS is required.');
+    }
     this.pool = new pg.Pool({
       ...databaseConnection(url),
       max: 2,
@@ -62,13 +84,28 @@ export class VerificationDatabase {
       if (
         !role.rows[0]?.valid ||
         source.rows[0]?.financial_source !== financialSource ||
-        JSON.stringify(versions.rows) !== JSON.stringify(migrationChecksums)
+        JSON.stringify(versions.rows) !==
+          JSON.stringify(this.profile ? postTradeMigrationChecksums : migrationChecksums)
       )
         throw new DomainError(
           503,
           'SCHEMA_INCOMPATIBLE',
           'Reconciliation schema/role is incompatible.',
         );
+      if (this.profile) {
+        await verifyPublicProfile(client, 'posttrade');
+        const isolation = await client.query<{ valid: boolean }>(`SELECT
+          NOT has_function_privilege(current_user,'fi_control.posttrade_command(uuid,text,bigint,text,jsonb,text,uuid)','EXECUTE')
+          AND NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+            WHERE n.nspname='fi' AND c.relname LIKE 'posttrade_%' AND c.relkind='r'
+            AND (NOT c.relrowsecurity OR NOT c.relforcerowsecurity OR has_table_privilege(current_user,c.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE'))) AS valid`);
+        if (!isolation.rows[0]?.valid)
+          throw new DomainError(
+            503,
+            'SCHEMA_INCOMPATIBLE',
+            'Public reconciliation authority is incompatible.',
+          );
+      }
       verify();
       const result = await work(client);
       if (!readOnly) await hooks.beforeCommit?.();

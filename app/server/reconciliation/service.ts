@@ -21,10 +21,11 @@ export class ReconciliationService {
     readonly database: WorkflowDatabase,
     url?: DatabaseTarget,
     hooks?: RunnerHooks,
+    profile?: 'public-posttrade-v1',
   ) {
-    this.runner = url ? new ReconciliationRunner(url, hooks) : undefined;
+    this.runner = url ? new ReconciliationRunner(url, hooks, profile) : undefined;
     this.metadata = url
-      ? verificationManifest().catch(() => undefined)
+      ? verificationManifest(profile).catch(() => undefined)
       : Promise.resolve(undefined);
   }
   async close() {

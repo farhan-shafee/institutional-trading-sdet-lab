@@ -1,0 +1,59 @@
+name: TradeFlow public post-trade profile
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-posttrade-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  public-posttrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v6
+      - name: Node 24.18.0
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.18.0'
+          cache: npm
+      - name: Independent Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Audit full and runtime dependency graphs
+        run: npm audit && npm audit --omit=dev
+      - name: Verify exact public profile and unchanged original migrations
+        run: node --import tsx scripts/check-public-posttrade-profile.ts
+      - name: Prefer canonical Ubuntu archive before Azure mirror
+        run: |
+          test -f /etc/apt/apt-mirrors.txt
+          grep -Fq 'mirror+file:/etc/apt/apt-mirrors.txt' /etc/apt/sources.list.d/ubuntu.sources
+          printf '%s\tpriority:%s\n' \
+            'https://archive.ubuntu.com/ubuntu/' 1 \
+            'http://azure.archive.ubuntu.com/ubuntu/' 2 \
+            'https://security.ubuntu.com/ubuntu/' 3 |
+            sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+      - name: Install three browsers and system dependencies
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Actual TLS database and published native application with browser baseline and repeat
+        run: npm run test:public-posttrade
+      - name: Retain qualification receipts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: public-posttrade-receipts-${{ github.run_attempt }}
+          path: .local/public-posttrade-image-evidence-*/receipt.json
+          retention-days: 7
+          if-no-files-found: error
