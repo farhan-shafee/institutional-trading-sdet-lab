@@ -1,0 +1,142 @@
+name: TradeFlow owned post-trade candidate
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: posttrade-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  posttrade-run-a:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Independent Python oracle
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Audit full dependency graph
+        run: npm audit
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev
+      - name: Validate original workflow and database contracts
+        run: npm run workflow:validate
+      - name: Original foundation then complete owned post-trade on fresh databases
+        run: npm run test:posttrade
+      - name: Retain bounded original capacity findings on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: financial-findings-${{ github.job }}-${{ github.run_attempt }}
+          path: artifacts/financial-findings-*/finding-*.json
+          retention-days: 7
+          if-no-files-found: ignore
+
+  posttrade-run-b:
+    needs: posttrade-run-a
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Independent Python oracle
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Audit full dependency graph
+        run: npm audit
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev
+      - name: Validate original workflow and database contracts
+        run: npm run workflow:validate
+      - name: Second full original and post-trade verification on fresh databases
+        run: npm run test:posttrade
+      - name: Retain bounded original capacity findings on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: financial-findings-${{ github.job }}-${{ github.run_attempt }}
+          path: artifacts/financial-findings-*/finding-*.json
+          retention-days: 7
+          if-no-files-found: ignore
+
+  posttrade-native:
+    needs: posttrade-run-b
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Independent native gate and oracle
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Source-admitted actual native journey
+        run: node --import tsx scripts/verify-posttrade-journey.ts
+      - name: Retain bounded evidence including first refusal
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: posttrade-native-${{ github.run_attempt }}
+          path: artifacts/posttrade-native-*/
+          retention-days: 7
+          if-no-files-found: error
+
+  posttrade:
+    needs: [posttrade-run-a, posttrade-run-b, posttrade-native]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions: {}
+    steps:
+      - name: Require both full PostgreSQL passes and the additional native journey
+        if: ${{ always() }}
+        shell: bash
+        env:
+          FIRST_RESULT: ${{ needs['posttrade-run-a'].result }}
+          SECOND_RESULT: ${{ needs['posttrade-run-b'].result }}
+          NATIVE_RESULT: ${{ needs['posttrade-native'].result }}
+        run: |
+          set -euo pipefail
+          test "$FIRST_RESULT" = 'success'
+          test "$SECOND_RESULT" = 'success'
+          test "$NATIVE_RESULT" = 'success'
+      - name: Reject workflow cancellation
+        if: ${{ cancelled() }}
+        shell: bash
+        run: exit 1

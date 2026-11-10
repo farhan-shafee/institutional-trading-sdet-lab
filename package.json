@@ -33,7 +33,7 @@
     "perf:smoke": "tsx scripts/perf-smoke.ts",
     "validate": "npm audit && npm audit --omit=dev && npm run typecheck && npm run lint && npm run format:check && npm run contract:validate && npm run workflow:validate && npm run test:unit && npm run test:financial && npm run test:fix-live && npm run test:fix44 && npm run build && npm run smoke:production && npm test",
     "test:financial": "tsx scripts/verify-financial.ts",
-    "test:postgres": "node --import tsx scripts/test-postgres.ts",
+    "test:postgres": "node --import tsx scripts/postgres-capture-runner.ts",
     "test:workflow-browser": "node --import tsx scripts/test-workflow-browser.ts",
     "validate:all": "npm run validate && npm test -- --repeat-each=2 && npm run test:postgres && npm run test:postgres && npm run build:ui && npm run test:workflow-browser && npm run test:workflow-browser -- --repeat-each=2 && npm run test:public-demo && npm run test:fix-session && npm run test:fix-live-application",
     "db:local": "node --import tsx scripts/workflow-local.ts",
@@ -46,7 +46,9 @@
     "test:fix-session": "node --import tsx scripts/test-fix-session.ts",
     "test:fix-live": "node --import tsx scripts/verify-fix-live.ts",
     "test:fix-live-sql": "node --import tsx --test --test-timeout=30000 tests/fix-live/sql.test.ts",
-    "test:fix-live-application": "node --import tsx scripts/test-fix-live-application.ts"
+    "test:fix-live-application": "node --import tsx scripts/test-fix-live-application.ts",
+    "test:posttrade": "node --import tsx scripts/test-posttrade.ts",
+    "verify:financial-capture": "node --import tsx scripts/verify-financial-finding-capture.ts"
   },
   "dependencies": {
     "decimal.js": "10.6.0",

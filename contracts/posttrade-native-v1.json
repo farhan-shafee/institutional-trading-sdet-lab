@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "profile": "owned-posttrade-native-v1",
+  "physical_schema_revision": 10,
+  "required_tests": 1,
+  "financial_commands": 14,
+  "financial_events": 22,
+  "native_apply_receipts": 5,
+  "raw_executions": 3,
+  "gate_seconds": 900,
+  "owned_budget": {
+    "aggregate_bytes": 67108864,
+    "evidence_bytes": 8388608,
+    "journal_bytes": 25165824
+  },
+  "runtime_contract": "fix-live-application-v1",
+  "preservation": "existing-exact-v2-owner-accepted-only",
+  "external_delivery_verified": false
+}

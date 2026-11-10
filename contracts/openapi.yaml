@@ -341,6 +341,136 @@ paths:
           $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/fixed-income/v3/curves:
+    get:
+      operationId: getSyntheticDiscountCurve
+      summary: Read one immutable synthetic discount-curve snapshot
+      description: Authenticated stateless read for trader and viewer. Select one of three fixed USD
+        fixtures and a strict as-of date from2025-01-15 through2031-01-14. Four node
+        offsets365/730/1825/3650 calendar days, actual days/365 and log-linear discount factors with
+        implicit DF(0)=1; no extrapolation or editable/live inputs. Negative rates and DF>1 are valid.
+        Snapshot SHA256 binds version/model/currency/fixture/asof and all four offsets/rates in
+        canonical fixed order; displayed20-decimal DF values are derived, excluded from identity.
+      parameters:
+        - in: query
+          name: fixture_id
+          required: true
+          schema:
+            type: string
+            enum:
+              - BASE_UP_V1
+              - FLAT_V1
+              - NEGATIVE_V1
+        - in: query
+          name: as_of_date
+          required: true
+          schema:
+            type: string
+            format: date
+            pattern: ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+            maxLength: 10
+      responses:
+        '200':
+          description: Versioned synthetic curve response; all financial values are decimal strings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscountCurveSnapshot'
+        '400':
+          description:
+            Invalid input (VALIDATION_ERROR), or explicit unavailable numerical rounding boundary
+            (NUMERICAL_AMBIGUITY).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/fixed-income/v3/analytics:
+    get:
+      operationId: getSyntheticCurveAnalytics
+      summary: Read curve marks and continuous z-spread analytics
+      description: Authenticated read for both roles. Exactly one z_spread or clean_price;
+        unknown/repeated query fields fail. Spread[-0.10,1.00], continuous exp(-z*t); bounded200-step
+        bisection with per100 price residual<1e-24, permitting only half a10-decimal displayed-price
+        quantum at bracket endpoints. Original contractual cash flows on/before asof excluded; coupon
+        day-count accrual unchanged and unrounded. Par1..1000000000, at most2 fractional digits.
+        Isolated80-digit HALF_EVEN calculations. Dollar marks use unrounded PV with a numerical
+        ambiguity guard; exact rational ties use exact HALF_EVEN. Marks never post settlement cash,
+        alter books or extend zero-instrument trading eligibility.
+      parameters:
+        - in: query
+          name: fixture_id
+          required: true
+          schema:
+            type: string
+            enum:
+              - BASE_UP_V1
+              - FLAT_V1
+              - NEGATIVE_V1
+        - in: query
+          name: as_of_date
+          required: true
+          schema:
+            type: string
+            format: date
+            pattern: ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+            maxLength: 10
+        - in: query
+          name: instrument_id
+          required: true
+          schema:
+            type: string
+            enum:
+              - SYN-UST-2031
+              - SYN-CORP-2031
+              - SYN-ZERO-2031
+        - in: query
+          name: par_amount
+          required: true
+          schema:
+            type: string
+            maxLength: 13
+            pattern: ^[0-9]{1,10}(\.[0-9]{1,2})?$
+        - in: query
+          name: z_spread
+          required: false
+          schema:
+            type: string
+            maxLength: 24
+            pattern: ^-?[0-9]{1,10}(\.[0-9]{1,12})?$
+        - in: query
+          name: clean_price
+          required: false
+          schema:
+            type: string
+            maxLength: 24
+            pattern: ^-?[0-9]{1,10}(\.[0-9]{1,12})?$
+      responses:
+        '200':
+          description: Versioned synthetic curve response; all financial values are decimal strings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscountCurveAnalytics'
+        '400':
+          description:
+            Invalid input (VALIDATION_ERROR), or explicit unavailable numerical rounding boundary
+            (NUMERICAL_AMBIGUITY).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/session:
     post:
       tags:
@@ -3007,6 +3137,1062 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sandboxId}/posttrade:
+    get:
+      operationId: readOwnedPostTrade
+      tags:
+        - Owned post-trade
+      summary: Read complete owned post-trade source
+      description: Available only through explicitly constructed owned local schema10
+        mode. Current session, sandbox capability and generation are verified
+        before replay and before returning. Default, hosted and public profiles
+        remain off. Uninitialized balances are null. More than eight,
+        unregistered, unsupported or uncovered roots make assessment
+        unavailable; reads never write or fabricate a zero.
+      parameters:
+        - name: sandboxId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: raw_as_of_seq
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: ^(?:0|[1-9][0-9]?|[1-4][0-9]{2}|50[0-9]|51[0-2])$
+          description: Optional raw command cutoff, not above current sequence.
+        - name: posttrade_as_of_seq
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: ^(?:0|[1-9]|[1-8][0-9]|9[0-7])$
+          description: Optional post-trade cutoff, not above current sequence. An
+            incoherent pair produces explicit unavailable coverage.
+      responses:
+        '200':
+          description: Source-bound owned result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostTradeSource'
+        '400':
+          description: Invalid bounded input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Current session required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Current role or scope does not allow the action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Owned resource unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Current state, source or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Existing admission or durable capacity limit reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable or outcome unknown; recover the original key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sandboxId}/posttrade/initialize:
+    post:
+      operationId: initializeOwnedPostTrade
+      tags:
+        - Owned post-trade
+      summary: Initialize fixed funded book
+      description: 'Available only through explicitly constructed owned local schema10
+        mode. Current session, sandbox capability and generation are verified
+        before replay and before returning. Default, hosted and public profiles
+        remain off. Current trader role and trade capability are required. Once
+        only: USD100000000 cash and zero securities with opposite funding. Fixed
+        window from economic start to exclusive next coupon.'
+      parameters:
+        - name: sandboxId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+          description: Same key and same payload return the immutable original result
+            after current authentication and capability checks. Recover this
+            original key after OUTCOME_UNKNOWN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostTradeInitializeRequest'
+      responses:
+        '201':
+          description: Immutable accepted outcome. Same-key replay retains the original
+            status and body.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostTradeInitialization'
+        '400':
+          description: Invalid bounded input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Current session required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Current role or scope does not allow the action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Owned resource unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Current state, source or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Existing admission or durable capacity limit reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable or outcome unknown; recover the original key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sandboxId}/posttrade/risk:
+    get:
+      operationId: readOwnedPortfolioRisk
+      tags:
+        - Owned post-trade
+      summary: Assess complete corrected portfolio risk
+      description: Available only through explicitly constructed owned local schema10
+        mode. Current session, sandbox capability and generation are verified
+        before replay and before returning. Default, hosted and public profiles
+        remain off. No client positions or instrument terms. Central
+        one-basis-point parallel and four key-rate dollar risks use unrounded
+        PV. An unavailable result has reasons and no metrics.
+      parameters:
+        - name: sandboxId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: fixture_id
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - BASE_UP_V1
+              - FLAT_V1
+              - NEGATIVE_V1
+        - name: as_of_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: raw_as_of_seq
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: ^(?:0|[1-9][0-9]?|[1-4][0-9]{2}|50[0-9]|51[0-2])$
+          description: Optional raw command cutoff, not above current sequence.
+        - name: posttrade_as_of_seq
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: ^(?:0|[1-9]|[1-8][0-9]|9[0-7])$
+          description: Optional post-trade cutoff, not above current sequence. An
+            incoherent pair produces explicit unavailable coverage.
+      responses:
+        '200':
+          description: Source-bound owned result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostTradeRiskAssessment'
+        '400':
+          description: Invalid bounded input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Current session required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Current role or scope does not allow the action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Owned resource unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Current state, source or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Existing admission or durable capacity limit reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable or outcome unknown; recover the original key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sandboxId}/posttrade/pnl:
+    get:
+      operationId: readOwnedPortfolioPnl
+      tags:
+        - Owned post-trade
+      summary: Assess exact FIFO and equity bridge
+      description: Available only through explicitly constructed owned local schema10
+        mode. Current session, sandbox capability and generation are verified
+        before replay and before returning. Default, hosted and public profiles
+        remain off. FIFO uses corrected economic roots in original command order
+        and exact partial cash allocation. Settled availability uses
+        POSTTRADE_SOURCE_SEQUENCE, not valuation-date historical cash;
+        processing watermark is separate. Settlement never realizes P&L again.
+        Aggregate-only HALF_EVEN displays disclose presentation delta.
+      parameters:
+        - name: sandboxId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: fixture_id
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - BASE_UP_V1
+              - FLAT_V1
+              - NEGATIVE_V1
+        - name: as_of_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: raw_as_of_seq
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: ^(?:0|[1-9][0-9]?|[1-4][0-9]{2}|50[0-9]|51[0-2])$
+          description: Optional raw command cutoff, not above current sequence.
+        - name: posttrade_as_of_seq
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: ^(?:0|[1-9]|[1-8][0-9]|9[0-7])$
+          description: Optional post-trade cutoff, not above current sequence. An
+            incoherent pair produces explicit unavailable coverage.
+      responses:
+        '200':
+          description: Source-bound owned result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostTradePnlAssessment'
+        '400':
+          description: Invalid bounded input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Current session required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Current role or scope does not allow the action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Owned resource unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Current state, source or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Existing admission or durable capacity limit reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable or outcome unknown; recover the original key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sandboxId}/posttrade/commands/{key}:
+    get:
+      operationId: readOwnedPostTradeCommand
+      tags:
+        - Owned post-trade
+      summary: Recover immutable financial command receipt
+      description: Available only through explicitly constructed owned local schema10
+        mode. Current session, sandbox capability and generation are verified
+        before replay and before returning. Default, hosted and public profiles
+        remain off. Authentication uses current generation even when receipt
+        generation is historical; original key recovers an uncertain COMMIT.
+      parameters:
+        - name: sandboxId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+      responses:
+        '200':
+          description: Source-bound owned result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostTradeCommandReceipt'
+        '400':
+          description: Invalid bounded input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Current session required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Current role or scope does not allow the action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Owned resource unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Current state, source or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Existing admission or durable capacity limit reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable or outcome unknown; recover the original key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sandboxId}/posttrade/audit-events:
+    get:
+      operationId: readOwnedPostTradeAudit
+      tags:
+        - Owned post-trade
+      summary: Read bounded stable financial audit page
+      description: Available only through explicitly constructed owned local schema10
+        mode. Current session, sandbox capability and generation are verified
+        before replay and before returning. Default, hosted and public profiles
+        remain off. Opaque authenticated cursor expires after300seconds and
+        binds sandbox, generation, both source cutoffs, position and page limit.
+        A continuation preserves its original page limit.
+      parameters:
+        - name: sandboxId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: ^(?:[1-9]|[1-9][0-9]|100)$
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 1024
+      responses:
+        '200':
+          description: Source-bound owned result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostTradeAudit'
+        '400':
+          description: Invalid bounded input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Current session required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Current role or scope does not allow the action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Owned resource unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Current state, source or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Existing admission or durable capacity limit reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable or outcome unknown; recover the original key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sandboxId}/posttrade/executions/{executionId}/register:
+    post:
+      operationId: registerOwnedExecution
+      tags:
+        - Owned post-trade
+      summary: Register one complete original execution root
+      description: Available only through explicitly constructed owned local schema10
+        mode. Current session, sandbox capability and generation are verified
+        before replay and before returning. Default, hosted and public profiles
+        remain off. Current trader role and trade capability are required. At
+        most eight original eligible roots; copies immutable identity, full
+        original filled par, side, definition and agreed date. No client
+        economic fields.
+      parameters:
+        - name: sandboxId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: executionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+          description: Same key and same payload return the immutable original result
+            after current authentication and capability checks. Recover this
+            original key after OUTCOME_UNKNOWN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostTradeRegisterRequest'
+      responses:
+        '201':
+          description: Immutable accepted outcome. Same-key replay retains the original
+            status and body.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostTradeRegistration'
+        '400':
+          description: Invalid bounded input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Current session required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Current role or scope does not allow the action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Owned resource unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Current state, source or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Existing admission or durable capacity limit reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable or outcome unknown; recover the original key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sandboxId}/posttrade/executions/{executionId}/corrections:
+    post:
+      operationId: correctOwnedExecutionPrice
+      tags:
+        - Owned post-trade
+      summary: Append price-only correction
+      description: Available only through explicitly constructed owned local schema10
+        mode. Current session, sandbox capability and generation are verified
+        before replay and before returning. Default, hosted and public profiles
+        remain off. Current trader role and trade capability are required. At
+        most two corrections, compensation plus replacement. Preserves full par,
+        side, instrument, agreed settlement date and original ledger/order/FIX
+        rows. A settled revision must be reversed first.
+      parameters:
+        - name: sandboxId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: executionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+          description: Same key and same payload return the immutable original result
+            after current authentication and capability checks. Recover this
+            original key after OUTCOME_UNKNOWN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostTradeCorrectionRequest'
+      responses:
+        '201':
+          description: Immutable accepted outcome. Same-key replay retains the original
+            status and body.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostTradeCorrection'
+        '400':
+          description: Invalid bounded input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Current session required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Current role or scope does not allow the action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Owned resource unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Current state, source or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Existing admission or durable capacity limit reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable or outcome unknown; recover the original key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sandboxId}/posttrade/executions/{executionId}/busts:
+    post:
+      operationId: bustOwnedExecution
+      tags:
+        - Owned post-trade
+      summary: Append terminal full-root bust
+      description: Available only through explicitly constructed owned local schema10
+        mode. Current session, sandbox capability and generation are verified
+        before replay and before returning. Default, hosted and public profiles
+        remain off. Current trader role and trade capability are required.
+        Removes the entire original filled root economically; a partial original
+        fill is still one full root. A settled revision must be reversed first.
+      parameters:
+        - name: sandboxId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: executionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+          description: Same key and same payload return the immutable original result
+            after current authentication and capability checks. Recover this
+            original key after OUTCOME_UNKNOWN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostTradeRevisionRequest'
+      responses:
+        '201':
+          description: Immutable accepted outcome. Same-key replay retains the original
+            status and body.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostTradeBust'
+        '400':
+          description: Invalid bounded input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Current session required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Current role or scope does not allow the action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Owned resource unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Current state, source or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Existing admission or durable capacity limit reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable or outcome unknown; recover the original key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sandboxId}/posttrade/executions/{executionId}/settlements:
+    post:
+      operationId: settleOwnedExecution
+      tags:
+        - Owned post-trade
+      summary: Attempt full gross funded delivery versus payment
+      description: Available only through explicitly constructed owned local schema10
+        mode. Current session, sandbox capability and generation are verified
+        before replay and before returning. Default, hosted and public profiles
+        remain off. Current trader role and trade capability are required.
+        All-or-nothing cash and securities; no netting, borrowing or partial
+        settlement. Explicit weekday at or after original due date, inside
+        window and not before admitted processing watermark (including FAILED).
+        At most two failed attempts per root; accepted failures replay
+        immutably. This chronological processing rule remains proposed for final
+        owner acceptance.
+      parameters:
+        - name: sandboxId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: executionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+          description: Same key and same payload return the immutable original result
+            after current authentication and capability checks. Recover this
+            original key after OUTCOME_UNKNOWN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostTradeSettlementRequest'
+      responses:
+        '200':
+          description: Immutable accepted outcome. Same-key replay retains the original
+            status and body.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostTradeSettled'
+        '400':
+          description: Invalid bounded input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Current session required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Current role or scope does not allow the action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Owned resource unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Admitted insufficient-funds failure has an immutable receipt and no
+            balance postings; new-key retry may succeed. Other conflicts have an
+            error body.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/PostTradeSettlementFailed'
+                  - $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Existing admission or durable capacity limit reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable or outcome unknown; recover the original key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sandboxId}/posttrade/executions/{executionId}/reversals:
+    post:
+      operationId: reverseOwnedSettlement
+      tags:
+        - Owned post-trade
+      summary: Reverse one settled revision
+      description: Available only through explicitly constructed owned local schema10
+        mode. Current session, sandbox capability and generation are verified
+        before replay and before returning. Default, hosted and public profiles
+        remain off. Current trader role and trade capability are required. Equal
+        opposite gross legs once only, with no negative cash or securities. Date
+        cannot precede original posting or admitted processing watermark.
+        Reversed revision cannot settle again; correction can create a new
+        revision.
+      parameters:
+        - name: sandboxId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: executionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^[A-Za-z0-9_-]{8,128}$
+          description: Same key and same payload return the immutable original result
+            after current authentication and capability checks. Recover this
+            original key after OUTCOME_UNKNOWN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostTradeSettlementRequest'
+      responses:
+        '200':
+          description: Immutable accepted outcome. Same-key replay retains the original
+            status and body.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostTradeReversed'
+        '400':
+          description: Invalid bounded input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Current session required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Current role or scope does not allow the action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Owned resource unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Current state, source or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Existing admission or durable capacity limit reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable or outcome unknown; recover the original key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/fixed-income/v1/sandboxes/{sandboxId}/posttrade/executions/{executionId}/history:
+    get:
+      operationId: readOwnedExecutionHistory
+      tags:
+        - Owned post-trade
+      summary: Read raw identity, revisions, bust and settlement history
+      description: Available only through explicitly constructed owned local schema10
+        mode. Current session, sandbox capability and generation are verified
+        before replay and before returning. Default, hosted and public profiles
+        remain off. Bounded to three revisions, one terminal bust and eight
+        settlement outcomes. Actual UTC audit times are distinct from agreed and
+        simulated processing dates.
+      parameters:
+        - name: sandboxId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: executionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Source-bound owned result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostTradeHistory'
+        '400':
+          description: Invalid bounded input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Current session required.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Current role or scope does not allow the action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Owned resource unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Current state, source or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Existing admission or durable capacity limit reached.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable or outcome unknown; recover the original key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -3109,6 +4295,241 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    DiscountCurveNode:
+      type: object
+      additionalProperties: false
+      required:
+        - offset_days
+        - zero_rate
+        - discount_factor
+      properties:
+        offset_days:
+          type: integer
+          enum:
+            - 365
+            - 730
+            - 1825
+            - 3650
+        zero_rate:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{12}$
+        discount_factor:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{20}$
+    DiscountCurveSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - version
+        - model_version
+        - currency
+        - fixture_id
+        - as_of_date
+        - nodes
+        - snapshot_id
+      properties:
+        version:
+          type: integer
+          enum:
+            - 1
+        model_version:
+          type: string
+          enum:
+            - DISCOUNT_LOG_LINEAR_ACT365F_V1
+        currency:
+          type: string
+          enum:
+            - USD
+        fixture_id:
+          type: string
+          enum:
+            - BASE_UP_V1
+            - FLAT_V1
+            - NEGATIVE_V1
+        as_of_date:
+          type: string
+          format: date
+          pattern: ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+        nodes:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items:
+            $ref: '#/components/schemas/DiscountCurveNode'
+        snapshot_id:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+    DiscountCurveCashFlow:
+      type: object
+      additionalProperties: false
+      required:
+        - payment_date
+        - days
+        - amount_per_100
+        - discount_factor
+      properties:
+        payment_date:
+          type: string
+          format: date
+          pattern: ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+        days:
+          type: integer
+          minimum: 1
+          maximum: 3650
+        amount_per_100:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{10}$
+        discount_factor:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{20}$
+    DiscountCurveConventions:
+      type: object
+      additionalProperties: false
+      required:
+        - curve_time_basis
+        - interpolation
+        - spread_compounding
+        - precision_digits
+        - rounding
+        - price_unit
+        - valuation_unit
+        - discount_factor_decimals
+      properties:
+        curve_time_basis:
+          type: string
+          enum:
+            - ACT_365F
+        interpolation:
+          type: string
+          enum:
+            - LOG_LINEAR_DISCOUNT_FACTOR
+        spread_compounding:
+          type: string
+          enum:
+            - CONTINUOUS
+        precision_digits:
+          type: integer
+          enum:
+            - 80
+        rounding:
+          type: string
+          enum:
+            - ROUND_HALF_EVEN
+        price_unit:
+          type: string
+          enum:
+            - per 100 par
+        valuation_unit:
+          type: string
+          enum:
+            - USD mark, not settlement cash
+        discount_factor_decimals:
+          type: integer
+          enum:
+            - 20
+    DiscountCurveAnalytics:
+      type: object
+      additionalProperties: false
+      required:
+        - model_version
+        - instrument_id
+        - definition_version
+        - curve
+        - as_of_date
+        - par_amount
+        - z_spread
+        - clean_price
+        - dirty_price
+        - accrued_interest
+        - mark_value_usd
+        - remaining_cash_flows
+        - conventions
+      properties:
+        model_version:
+          type: string
+          enum:
+            - DISCOUNT_LOG_LINEAR_ACT365F_V1
+        instrument_id:
+          type: string
+          enum:
+            - SYN-UST-2031
+            - SYN-CORP-2031
+            - SYN-ZERO-2031
+        definition_version:
+          type: string
+          minLength: 1
+        curve:
+          $ref: '#/components/schemas/DiscountCurveSnapshot'
+        as_of_date:
+          type: string
+          format: date
+          pattern: ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+        par_amount:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{2}$
+        z_spread:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{12}$
+        clean_price:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{10}$
+        dirty_price:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{10}$
+        accrued_interest:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{10}$
+        mark_value_usd:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{2}$
+        remaining_cash_flows:
+          type: array
+          minItems: 1
+          maxItems: 12
+          items:
+            $ref: '#/components/schemas/DiscountCurveCashFlow'
+        conventions:
+          $ref: '#/components/schemas/DiscountCurveConventions'
+      oneOf:
+        - type: object
+          required:
+            - instrument_id
+            - definition_version
+          properties:
+            instrument_id:
+              type: string
+              enum:
+                - SYN-UST-2031
+            definition_version:
+              type: string
+              enum:
+                - phase1-ust-1
+        - type: object
+          required:
+            - instrument_id
+            - definition_version
+          properties:
+            instrument_id:
+              type: string
+              enum:
+                - SYN-CORP-2031
+            definition_version:
+              type: string
+              enum:
+                - phase1-corp-1
+        - type: object
+          required:
+            - instrument_id
+            - definition_version
+          properties:
+            instrument_id:
+              type: string
+              enum:
+                - SYN-ZERO-2031
+            definition_version:
+              type: string
+              enum:
+                - SYN-ZERO-2031_V1
     PublicDemoStatus:
       oneOf:
         - type: object
@@ -5638,3 +7059,1401 @@ components:
                 - $ref: '#/components/schemas/ErrorResponse'
             actor_id: *a3
             created_at: *a31
+
+    PostTradeInitializeRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - economic_start_date
+      properties:
+        economic_start_date:
+          type: string
+          format: date
+    PostTradeRegisterRequest:
+      type: object
+      additionalProperties: false
+      properties: {}
+    PostTradeRevisionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - expected_revision
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 0
+          maximum: 2
+    PostTradeCorrectionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - expected_revision
+        - clean_price
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 0
+          maximum: 2
+        clean_price:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]{0,4})\.[0-9]{12}$
+    PostTradeSettlementRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - expected_revision
+        - processing_date
+      properties:
+        expected_revision:
+          type: integer
+          minimum: 0
+          maximum: 2
+        processing_date:
+          type: string
+          format: date
+          description: Explicit weekday, not before agreed due date, within the fixed
+            window and not before admitted processing watermark. Actual audit
+            UTC remains separate.
+    PostTradeInitialization:
+      type: object
+      additionalProperties: false
+      required:
+        - model_version
+        - settlement_model_version
+        - sandbox_id
+        - window
+        - opening_cash_cents
+        - posttrade_command_seq
+      properties:
+        model_version:
+          type: string
+          enum:
+            - OWNED_POSTTRADE_SOURCE_V1
+        settlement_model_version:
+          type: string
+          enum:
+            - SYNTHETIC_GROSS_AGREED_DATE_WEEKDAYS_V1
+        sandbox_id:
+          type: string
+          format: uuid
+        window:
+          type: object
+          additionalProperties: false
+          required:
+            - start
+            - end
+          properties:
+            start:
+              type: string
+              format: date
+              description: Fixed economic start,2025-01-15 through2031-01-14.
+            end:
+              type: string
+              format: date
+              description: Exclusive first contractual coupon after start; applies even to
+                closed or busted roots.
+        opening_cash_cents:
+          type: string
+          enum:
+            - '10000000000'
+        posttrade_command_seq:
+          type: string
+          enum:
+            - '1'
+    PostTradeRegistration:
+      type: object
+      additionalProperties: false
+      required:
+        - execution_id
+        - revision
+        - posttrade_command_seq
+      properties:
+        execution_id:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          enum:
+            - 0
+        posttrade_command_seq:
+          type: string
+          pattern: ^(?:[1-9]|[1-8][0-9]|9[0-7])$
+    PostTradeCorrection:
+      type: object
+      additionalProperties: false
+      required:
+        - execution_id
+        - revision
+        - clean_price
+        - consideration_cents
+        - posttrade_command_seq
+        - recorded_at
+      properties:
+        execution_id:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          enum:
+            - 1
+            - 2
+        clean_price:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]{0,4})\.[0-9]{12}$
+        consideration_cents:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]{0,13})$
+        posttrade_command_seq:
+          type: string
+          pattern: ^(?:[1-9]|[1-8][0-9]|9[0-7])$
+        recorded_at:
+          type: string
+          format: date-time
+          description: Actual UTC audit time; never a financial trade or simulated
+            processing date.
+    PostTradeBust:
+      type: object
+      additionalProperties: false
+      required:
+        - execution_id
+        - revision
+        - busted
+        - posttrade_command_seq
+        - recorded_at
+      properties:
+        execution_id:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          minimum: 0
+          maximum: 2
+        busted:
+          type: boolean
+          enum:
+            - true
+        posttrade_command_seq:
+          type: string
+          pattern: ^(?:[1-9]|[1-8][0-9]|9[0-7])$
+        recorded_at:
+          type: string
+          format: date-time
+          description: Actual UTC audit time; never a financial trade or simulated
+            processing date.
+    PostTradeSettled:
+      type: object
+      additionalProperties: false
+      required:
+        - execution_id
+        - revision
+        - settlement_model_version
+        - processing_date
+        - outcome_id
+        - posttrade_command_seq
+        - recorded_at
+        - settlement_state
+      properties:
+        execution_id:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          minimum: 0
+          maximum: 2
+        settlement_model_version:
+          type: string
+          enum:
+            - SYNTHETIC_GROSS_AGREED_DATE_WEEKDAYS_V1
+        processing_date:
+          type: string
+          format: date
+        outcome_id:
+          type: string
+          format: uuid
+        posttrade_command_seq:
+          type: string
+          pattern: ^(?:[1-9]|[1-8][0-9]|9[0-7])$
+        recorded_at:
+          type: string
+          format: date-time
+          description: Actual UTC audit time; never a financial trade or simulated
+            processing date.
+        settlement_state:
+          type: string
+          enum:
+            - SETTLED
+    PostTradeReversed:
+      type: object
+      additionalProperties: false
+      required:
+        - execution_id
+        - revision
+        - settlement_model_version
+        - processing_date
+        - outcome_id
+        - posttrade_command_seq
+        - recorded_at
+        - settlement_state
+      properties:
+        execution_id:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          minimum: 0
+          maximum: 2
+        settlement_model_version:
+          type: string
+          enum:
+            - SYNTHETIC_GROSS_AGREED_DATE_WEEKDAYS_V1
+        processing_date:
+          type: string
+          format: date
+        outcome_id:
+          type: string
+          format: uuid
+        posttrade_command_seq:
+          type: string
+          pattern: ^(?:[1-9]|[1-8][0-9]|9[0-7])$
+        recorded_at:
+          type: string
+          format: date-time
+          description: Actual UTC audit time; never a financial trade or simulated
+            processing date.
+        settlement_state:
+          type: string
+          enum:
+            - REVERSED
+    PostTradeSettlementFailed:
+      type: object
+      additionalProperties: false
+      required:
+        - execution_id
+        - revision
+        - settlement_model_version
+        - processing_date
+        - outcome_id
+        - posttrade_command_seq
+        - recorded_at
+        - settlement_state
+        - reason
+      properties:
+        execution_id:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          minimum: 0
+          maximum: 2
+        settlement_model_version:
+          type: string
+          enum:
+            - SYNTHETIC_GROSS_AGREED_DATE_WEEKDAYS_V1
+        processing_date:
+          type: string
+          format: date
+        outcome_id:
+          type: string
+          format: uuid
+        posttrade_command_seq:
+          type: string
+          pattern: ^(?:[1-9]|[1-8][0-9]|9[0-7])$
+        recorded_at:
+          type: string
+          format: date-time
+          description: Actual UTC audit time; never a financial trade or simulated
+            processing date.
+        settlement_state:
+          type: string
+          enum:
+            - FAILED
+        reason:
+          type: string
+          enum:
+            - INSUFFICIENT_CASH
+            - INSUFFICIENT_SECURITIES
+    PostTradeRoot:
+      type: object
+      additionalProperties: false
+      required:
+        - execution_id
+        - command_seq
+        - instrument_id
+        - definition_version
+        - side
+        - par_amount
+        - value_date
+        - original_consideration_cents
+        - original_clean_price
+        - raw_recorded_at
+        - registered
+        - registration_seq
+        - current_revision
+        - active_clean_price
+        - active_consideration_cents
+        - busted
+        - settlement_state
+      properties:
+        execution_id:
+          type: string
+          format: uuid
+        command_seq:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]?|[1-4][0-9]{2}|50[0-9]|51[0-2])$
+        instrument_id:
+          type: string
+          minLength: 1
+          maxLength: 64
+        definition_version:
+          type: string
+          minLength: 1
+          maxLength: 128
+        side:
+          type: string
+          enum:
+            - BUY
+            - SELL
+        par_amount:
+          type: string
+          pattern: ^[0-9]+\.[0-9]{2}$
+        value_date:
+          type: string
+          format: date
+        original_consideration_cents:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]{0,13})$
+        original_clean_price:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]{0,4})\.[0-9]{12}$
+        raw_recorded_at:
+          type: string
+          format: date-time
+          description: Actual UTC audit time; never a financial trade or simulated
+            processing date.
+        registered:
+          type: boolean
+        registration_seq:
+          type: string
+          pattern: ^(?:[1-9]|[1-8][0-9]|9[0-7])$
+          nullable: true
+        current_revision:
+          type: integer
+          minimum: 0
+          maximum: 2
+          nullable: true
+        active_clean_price:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]{0,4})\.[0-9]{12}$
+          nullable: true
+        active_consideration_cents:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]{0,13})$
+          nullable: true
+        busted:
+          type: boolean
+        settlement_state:
+          type: string
+          enum:
+            - PENDING
+            - FAILED
+            - SETTLED
+            - REVERSED
+            - VOIDED
+            - null
+          nullable: true
+    PostTradeSource:
+      type: object
+      additionalProperties: false
+      required:
+        - model_version
+        - settlement_model_version
+        - sandbox_id
+        - generation
+        - raw_command_seq
+        - last_execution_command_seq
+        - posttrade_command_seq
+        - last_adjustment_seq
+        - initialized
+        - window
+        - opening_cash_cents
+        - available_cash_cents
+        - available_securities
+        - processing_date_watermark
+        - raw_execution_count
+        - inventory_truncated
+        - roots
+        - coverage
+      properties:
+        model_version:
+          type: string
+          enum:
+            - OWNED_POSTTRADE_SOURCE_V1
+        settlement_model_version:
+          type: string
+          enum:
+            - SYNTHETIC_GROSS_AGREED_DATE_WEEKDAYS_V1
+        sandbox_id:
+          type: string
+          format: uuid
+        generation:
+          type: string
+          pattern: ^(?:[1-9][0-9]{0,8}|1000000000)$
+        raw_command_seq:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]?|[1-4][0-9]{2}|50[0-9]|51[0-2])$
+        last_execution_command_seq:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]?|[1-4][0-9]{2}|50[0-9]|51[0-2])$
+        posttrade_command_seq:
+          type: string
+          pattern: ^(?:0|[1-9]|[1-8][0-9]|9[0-7])$
+        last_adjustment_seq:
+          type: string
+          pattern: ^(?:0|[1-9]|[1-8][0-9]|9[0-7])$
+        initialized:
+          type: boolean
+        window:
+          type: object
+          additionalProperties: false
+          required:
+            - start
+            - end
+          properties:
+            start:
+              type: string
+              format: date
+              description: Fixed economic start,2025-01-15 through2031-01-14.
+            end:
+              type: string
+              format: date
+              description: Exclusive first contractual coupon after start; applies even to
+                closed or busted roots.
+          nullable: true
+        opening_cash_cents:
+          type: string
+          enum:
+            - '10000000000'
+            - null
+          nullable: true
+        available_cash_cents:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]{0,13})$
+          nullable: true
+        available_securities:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - instrument_id
+              - available_par
+            properties:
+              instrument_id:
+                type: string
+                enum:
+                  - SYN-UST-2031
+                  - SYN-CORP-2031
+              available_par:
+                type: string
+                pattern: "^[0-9]{1,10}(?:\\.[0-9]{1,2})?$"
+          minItems: 2
+          maxItems: 2
+          nullable: true
+        processing_date_watermark:
+          type: string
+          format: date
+          nullable: true
+        raw_execution_count:
+          type: integer
+          minimum: 0
+          maximum: 512
+        inventory_truncated:
+          type: boolean
+        roots:
+          type: array
+          items:
+            $ref: '#/components/schemas/PostTradeRoot'
+          minItems: 0
+          maxItems: 8
+        coverage:
+          type: object
+          additionalProperties: false
+          required:
+            - complete
+            - reasons
+          properties:
+            complete:
+              type: boolean
+            reasons:
+              type: array
+              items:
+                type: string
+                enum:
+                  - POSTTRADE_NOT_INITIALIZED
+                  - ROOT_LIMIT_EXCEEDED
+                  - UNREGISTERED_EXECUTION
+                  - EXECUTION_OUTSIDE_ECONOMIC_WINDOW
+                  - SOURCE_CUTOFF_INCOHERENT
+              minItems: 0
+              maxItems: 5
+    PostTradeAssessmentSource:
+      type: object
+      additionalProperties: false
+      required:
+        - source_model_version
+        - source_id
+        - sandbox_id
+        - generation
+        - raw_command_seq
+        - last_execution_command_seq
+        - posttrade_command_seq
+        - last_adjustment_seq
+        - initialized
+        - raw_execution_count
+        - window
+        - processing_date_watermark
+        - balance_basis
+      properties:
+        source_model_version:
+          type: string
+          enum:
+            - OWNED_POSTTRADE_SOURCE_V1
+        source_id:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        sandbox_id:
+          type: string
+          format: uuid
+        generation:
+          type: string
+          pattern: ^(?:[1-9][0-9]{0,8}|1000000000)$
+        raw_command_seq:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]?|[1-4][0-9]{2}|50[0-9]|51[0-2])$
+        last_execution_command_seq:
+          type: string
+          pattern: ^(?:0|[1-9][0-9]?|[1-4][0-9]{2}|50[0-9]|51[0-2])$
+        posttrade_command_seq:
+          type: string
+          pattern: ^(?:0|[1-9]|[1-8][0-9]|9[0-7])$
+        last_adjustment_seq:
+          type: string
+          pattern: ^(?:0|[1-9]|[1-8][0-9]|9[0-7])$
+        initialized:
+          type: boolean
+        raw_execution_count:
+          type: integer
+          minimum: 0
+          maximum: 512
+        window:
+          type: object
+          additionalProperties: false
+          required:
+            - start
+            - end
+          properties:
+            start:
+              type: string
+              format: date
+              description: Fixed economic start,2025-01-15 through2031-01-14.
+            end:
+              type: string
+              format: date
+              description: Exclusive first contractual coupon after start; applies even to
+                closed or busted roots.
+          nullable: true
+        processing_date_watermark:
+          type: string
+          format: date
+          nullable: true
+        balance_basis:
+          type: string
+          enum:
+            - POSTTRADE_SOURCE_SEQUENCE
+    PostTradeDollarRisk:
+      type: object
+      additionalProperties: false
+      required:
+        - pv_usd
+        - parallel_dv01_usd
+        - key_rate_dv01_usd
+        - stress_pnl_usd
+      properties:
+        pv_usd:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{2}$
+        parallel_dv01_usd:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{8}$
+        key_rate_dv01_usd:
+          type: array
+          items:
+            type: string
+            pattern: ^-?[0-9]+\.[0-9]{8}$
+          minItems: 4
+          maxItems: 4
+        stress_pnl_usd:
+          type: object
+          additionalProperties: false
+          required:
+            - PARALLEL_UP_100
+            - PARALLEL_DOWN_100
+            - STEEPENER_V1
+          properties:
+            PARALLEL_UP_100:
+              type: string
+              pattern: ^-?[0-9]+\.[0-9]{8}$
+            PARALLEL_DOWN_100:
+              type: string
+              pattern: ^-?[0-9]+\.[0-9]{8}$
+            STEEPENER_V1:
+              type: string
+              pattern: ^-?[0-9]+\.[0-9]{8}$
+    PostTradeRiskInstrument:
+      type: object
+      additionalProperties: false
+      required:
+        - pv_usd
+        - parallel_dv01_usd
+        - key_rate_dv01_usd
+        - stress_pnl_usd
+        - instrument_id
+        - definition_version
+        - signed_par
+      properties:
+        pv_usd:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{2}$
+        parallel_dv01_usd:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{8}$
+        key_rate_dv01_usd:
+          type: array
+          items:
+            type: string
+            pattern: ^-?[0-9]+\.[0-9]{8}$
+          minItems: 4
+          maxItems: 4
+        stress_pnl_usd:
+          type: object
+          additionalProperties: false
+          required:
+            - PARALLEL_UP_100
+            - PARALLEL_DOWN_100
+            - STEEPENER_V1
+          properties:
+            PARALLEL_UP_100:
+              type: string
+              pattern: ^-?[0-9]+\.[0-9]{8}$
+            PARALLEL_DOWN_100:
+              type: string
+              pattern: ^-?[0-9]+\.[0-9]{8}$
+            STEEPENER_V1:
+              type: string
+              pattern: ^-?[0-9]+\.[0-9]{8}$
+        instrument_id:
+          type: string
+          enum:
+            - SYN-UST-2031
+            - SYN-CORP-2031
+        definition_version:
+          type: string
+          enum:
+            - phase1-ust-1
+            - phase1-corp-1
+        signed_par:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{2}$
+    PostTradeRisk:
+      type: object
+      additionalProperties: false
+      required:
+        - total
+        - instruments
+      properties:
+        total:
+          $ref: '#/components/schemas/PostTradeDollarRisk'
+        instruments:
+          type: array
+          items:
+            $ref: '#/components/schemas/PostTradeRiskInstrument'
+          minItems: 2
+          maxItems: 2
+          description: Exactly one UST and one corporate profile, in that order; each
+            definition is the original immutable instrument version. Runtime
+            tuple validation enforces identity and order.
+    PostTradeExactUsd:
+      type: object
+      additionalProperties: false
+      required:
+        - numerator
+        - denominator
+      properties:
+        numerator:
+          type: string
+          pattern: ^-?(?:0|[1-9][0-9]{0,255})$
+        denominator:
+          type: string
+          pattern: ^[1-9][0-9]{0,255}$
+    PostTradeLot:
+      type: object
+      additionalProperties: false
+      required:
+        - opening_execution_id
+        - instrument_id
+        - side
+        - remaining_par
+        - remaining_basis_or_proceeds_exact_usd
+      properties:
+        opening_execution_id:
+          type: string
+          format: uuid
+        instrument_id:
+          type: string
+          enum:
+            - SYN-UST-2031
+            - SYN-CORP-2031
+        side:
+          type: string
+          enum:
+            - LONG
+            - SHORT
+        remaining_par:
+          type: string
+          pattern: ^[0-9]+\.[0-9]{2}$
+        remaining_basis_or_proceeds_exact_usd:
+          $ref: '#/components/schemas/PostTradeExactUsd'
+    PostTradePnl:
+      type: object
+      additionalProperties: false
+      required:
+        - opening_cash_usd
+        - available_cash_usd
+        - signed_unsettled_cash_usd
+        - economic_security_mark_usd
+        - equity_usd
+        - realized_pnl_usd
+        - realized_pnl_exact_usd
+        - unrealized_pnl_usd
+        - total_pnl_usd
+        - presentation_rounding_delta_usd
+        - available_securities
+        - lots
+      properties:
+        opening_cash_usd:
+          type: string
+          enum:
+            - '100000000.00'
+        available_cash_usd:
+          type: string
+          pattern: ^[0-9]+\.[0-9]{2}$
+          description: Available funded cash at source sequence; never a historical cash
+            balance inferred from valuation date.
+        signed_unsettled_cash_usd:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{2}$
+        economic_security_mark_usd:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{2}$
+        equity_usd:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{2}$
+        realized_pnl_usd:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{2}$
+        realized_pnl_exact_usd:
+          $ref: '#/components/schemas/PostTradeExactUsd'
+        unrealized_pnl_usd:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{2}$
+        total_pnl_usd:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{2}$
+        presentation_rounding_delta_usd:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{2}$
+        available_securities:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - instrument_id
+              - available_par
+            properties:
+              instrument_id:
+                type: string
+                enum:
+                  - SYN-UST-2031
+                  - SYN-CORP-2031
+              available_par:
+                type: string
+                pattern: ^[0-9]+\.[0-9]{2}$
+          minItems: 2
+          maxItems: 2
+          description: One account for each original eligible profile; settled
+            availability is separate from adjusted economic exposure.
+        lots:
+          type: array
+          items:
+            $ref: '#/components/schemas/PostTradeLot'
+          minItems: 0
+          maxItems: 8
+    PostTradeUnavailable:
+      type: object
+      additionalProperties: false
+      required:
+        - model_version
+        - assessment_id
+        - source
+        - curve
+        - as_of_date
+        - currency
+        - models
+        - status
+        - reasons
+      properties:
+        model_version:
+          type: string
+          enum:
+            - OWNED_PORTFOLIO_ASSESSMENT_V1
+        assessment_id:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        source:
+          $ref: '#/components/schemas/PostTradeAssessmentSource'
+        curve:
+          $ref: '#/components/schemas/DiscountCurveSnapshot'
+        as_of_date:
+          type: string
+          format: date
+        currency:
+          type: string
+          enum:
+            - USD
+        models:
+          type: object
+          additionalProperties: false
+          required:
+            - risk
+            - fifo
+            - settlement
+          properties:
+            risk:
+              type: string
+              enum:
+                - CURVE_DOLLAR_RISK_ACT365F_V1
+            fifo:
+              type: string
+              enum:
+                - FIFO_DIRTY_USD_V1
+            settlement:
+              type: string
+              enum:
+                - SYNTHETIC_GROSS_AGREED_DATE_WEEKDAYS_V1
+        status:
+          type: string
+          enum:
+            - UNAVAILABLE
+        reasons:
+          type: array
+          items:
+            type: string
+            enum:
+              - POSTTRADE_NOT_INITIALIZED
+              - ROOT_LIMIT_EXCEEDED
+              - UNREGISTERED_EXECUTION
+              - EXECUTION_OUTSIDE_ECONOMIC_WINDOW
+              - SOURCE_CUTOFF_INCOHERENT
+              - SOURCE_INCOMPLETE
+              - UNSUPPORTED_DEFINITION
+              - VALUATION_OUTSIDE_ECONOMIC_WINDOW
+              - VALUATION_BEFORE_VALUE_DATE
+              - SOURCE_ACCOUNTING_MISMATCH
+              - NUMERICAL_AMBIGUITY
+          minItems: 1
+          maxItems: 11
+    PostTradeRiskAvailable:
+      type: object
+      additionalProperties: false
+      required:
+        - model_version
+        - assessment_id
+        - source
+        - curve
+        - as_of_date
+        - currency
+        - models
+        - status
+        - risk
+      properties:
+        model_version:
+          type: string
+          enum:
+            - OWNED_PORTFOLIO_ASSESSMENT_V1
+        assessment_id:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        source:
+          $ref: '#/components/schemas/PostTradeAssessmentSource'
+        curve:
+          $ref: '#/components/schemas/DiscountCurveSnapshot'
+        as_of_date:
+          type: string
+          format: date
+        currency:
+          type: string
+          enum:
+            - USD
+        models:
+          type: object
+          additionalProperties: false
+          required:
+            - risk
+            - fifo
+            - settlement
+          properties:
+            risk:
+              type: string
+              enum:
+                - CURVE_DOLLAR_RISK_ACT365F_V1
+            fifo:
+              type: string
+              enum:
+                - FIFO_DIRTY_USD_V1
+            settlement:
+              type: string
+              enum:
+                - SYNTHETIC_GROSS_AGREED_DATE_WEEKDAYS_V1
+        status:
+          type: string
+          enum:
+            - AVAILABLE
+        risk:
+          $ref: '#/components/schemas/PostTradeRisk'
+    PostTradePnlAvailable:
+      type: object
+      additionalProperties: false
+      required:
+        - model_version
+        - assessment_id
+        - source
+        - curve
+        - as_of_date
+        - currency
+        - models
+        - status
+        - pnl
+      properties:
+        model_version:
+          type: string
+          enum:
+            - OWNED_PORTFOLIO_ASSESSMENT_V1
+        assessment_id:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        source:
+          $ref: '#/components/schemas/PostTradeAssessmentSource'
+        curve:
+          $ref: '#/components/schemas/DiscountCurveSnapshot'
+        as_of_date:
+          type: string
+          format: date
+        currency:
+          type: string
+          enum:
+            - USD
+        models:
+          type: object
+          additionalProperties: false
+          required:
+            - risk
+            - fifo
+            - settlement
+          properties:
+            risk:
+              type: string
+              enum:
+                - CURVE_DOLLAR_RISK_ACT365F_V1
+            fifo:
+              type: string
+              enum:
+                - FIFO_DIRTY_USD_V1
+            settlement:
+              type: string
+              enum:
+                - SYNTHETIC_GROSS_AGREED_DATE_WEEKDAYS_V1
+        status:
+          type: string
+          enum:
+            - AVAILABLE
+        pnl:
+          $ref: '#/components/schemas/PostTradePnl'
+    PostTradeRiskAssessment:
+      oneOf:
+        - $ref: '#/components/schemas/PostTradeUnavailable'
+        - $ref: '#/components/schemas/PostTradeRiskAvailable'
+    PostTradePnlAssessment:
+      oneOf:
+        - $ref: '#/components/schemas/PostTradeUnavailable'
+        - $ref: '#/components/schemas/PostTradePnlAvailable'
+    PostTradeCommandReceipt:
+      type: object
+      additionalProperties: false
+      required:
+        - command
+      properties:
+        command:
+          type: object
+          additionalProperties: false
+          required:
+            - id
+            - idempotency_key
+            - operation
+            - command_seq
+            - capability_generation
+            - actor_id
+            - http_status
+            - request_hash
+            - request_payload
+            - response_body
+            - recorded_at
+          properties:
+            id:
+              type: string
+              format: uuid
+            idempotency_key:
+              type: string
+              pattern: ^[A-Za-z0-9_-]{8,128}$
+            operation:
+              type: string
+              enum:
+                - INITIALIZE
+                - REGISTER
+                - CORRECT_PRICE
+                - BUST
+                - SETTLE
+                - REVERSE
+            command_seq:
+              type: string
+              pattern: ^(?:[1-9]|[1-8][0-9]|9[0-7])$
+            capability_generation:
+              type: string
+              pattern: ^(?:[1-9][0-9]{0,8}|1000000000)$
+            actor_id:
+              type: string
+              format: uuid
+            http_status:
+              type: integer
+              enum:
+                - 200
+                - 201
+                - 409
+            request_hash:
+              type: string
+              pattern: ^[a-f0-9]{64}$
+            request_payload:
+              type: object
+              description: Immutable submitted financial fields, never capabilities or
+                connection material.
+            response_body:
+              oneOf:
+                - $ref: '#/components/schemas/PostTradeInitialization'
+                - $ref: '#/components/schemas/PostTradeRegistration'
+                - $ref: '#/components/schemas/PostTradeCorrection'
+                - $ref: '#/components/schemas/PostTradeBust'
+                - $ref: '#/components/schemas/PostTradeSettled'
+                - $ref: '#/components/schemas/PostTradeReversed'
+                - $ref: '#/components/schemas/PostTradeSettlementFailed'
+            recorded_at:
+              type: string
+              format: date-time
+              description: Actual UTC audit time; never a financial trade or simulated
+                processing date.
+    PostTradeHistory:
+      type: object
+      additionalProperties: false
+      required:
+        - source
+        - registered
+        - original_execution
+        - revisions
+        - bust
+        - settlement_outcomes
+      properties:
+        source:
+          $ref: '#/components/schemas/PostTradeAssessmentSource'
+        registered:
+          type: boolean
+        original_execution:
+          type: object
+          additionalProperties: false
+          required:
+            - execution_id
+            - source_event_id
+            - order_id
+            - fill_sequence
+            - raw_command_seq
+            - instrument_id
+            - definition_version
+            - side
+            - par_amount
+            - quoted_settlement_date
+            - original_clean_price
+            - original_consideration_cents
+            - raw_decided_at
+            - raw_recorded_at
+          properties:
+            execution_id:
+              type: string
+              format: uuid
+            source_event_id:
+              type: string
+              format: uuid
+            order_id:
+              type: string
+              format: uuid
+            fill_sequence:
+              type: integer
+              minimum: 1
+              maximum: 8
+            raw_command_seq:
+              type: string
+              pattern: ^(?:0|[1-9][0-9]?|[1-4][0-9]{2}|50[0-9]|51[0-2])$
+            instrument_id:
+              type: string
+              minLength: 1
+              maxLength: 64
+            definition_version:
+              type: string
+              minLength: 1
+              maxLength: 128
+            side:
+              type: string
+              enum:
+                - BUY
+                - SELL
+            par_amount:
+              type: string
+              pattern: ^[0-9]+\.[0-9]{2}$
+            quoted_settlement_date:
+              type: string
+              format: date
+            original_clean_price:
+              type: string
+              pattern: ^(?:0|[1-9][0-9]{0,4})\.[0-9]{12}$
+            original_consideration_cents:
+              type: string
+              pattern: ^(?:0|[1-9][0-9]{0,13})$
+            raw_decided_at:
+              type: string
+              format: date-time
+              description: Actual UTC audit time; never a financial trade or simulated
+                processing date.
+            raw_recorded_at:
+              type: string
+              format: date-time
+              description: Actual UTC audit time; never a financial trade or simulated
+                processing date.
+        revisions:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - revision
+              - clean_price
+              - consideration_cents
+              - posttrade_command_seq
+              - recorded_at
+            properties:
+              revision:
+                type: integer
+                minimum: 0
+                maximum: 2
+              clean_price:
+                type: string
+                pattern: ^(?:0|[1-9][0-9]{0,4})\.[0-9]{12}$
+              consideration_cents:
+                type: string
+                pattern: ^(?:0|[1-9][0-9]{0,13})$
+              posttrade_command_seq:
+                type: string
+                pattern: ^(?:[1-9]|[1-8][0-9]|9[0-7])$
+              recorded_at:
+                type: string
+                format: date-time
+                description: Actual UTC audit time; never a financial trade or simulated
+                  processing date.
+          minItems: 0
+          maxItems: 3
+        bust:
+          type: object
+          additionalProperties: false
+          required:
+            - revision
+            - posttrade_command_seq
+            - recorded_at
+          properties:
+            revision:
+              type: integer
+              minimum: 0
+              maximum: 2
+            posttrade_command_seq:
+              type: string
+              pattern: ^(?:[1-9]|[1-8][0-9]|9[0-7])$
+            recorded_at:
+              type: string
+              format: date-time
+              description: Actual UTC audit time; never a financial trade or simulated
+                processing date.
+          nullable: true
+        settlement_outcomes:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - outcome_id
+              - revision
+              - outcome
+              - processing_date
+              - reason
+              - posting_id
+              - posttrade_command_seq
+              - recorded_at
+            properties:
+              outcome_id:
+                type: string
+                format: uuid
+              revision:
+                type: integer
+                minimum: 0
+                maximum: 2
+              outcome:
+                type: string
+                enum:
+                  - FAILED
+                  - SETTLED
+                  - REVERSED
+              processing_date:
+                type: string
+                format: date
+              reason:
+                type: string
+                enum:
+                  - INSUFFICIENT_CASH
+                  - INSUFFICIENT_SECURITIES
+                  - null
+                nullable: true
+              posting_id:
+                type: string
+                format: uuid
+                nullable: true
+              posttrade_command_seq:
+                type: string
+                pattern: ^(?:[1-9]|[1-8][0-9]|9[0-7])$
+              recorded_at:
+                type: string
+                format: date-time
+                description: Actual UTC audit time; never a financial trade or simulated
+                  processing date.
+          minItems: 0
+          maxItems: 8
+    PostTradeAuditEvent:
+      type: object
+      additionalProperties: false
+      required:
+        - command_seq
+        - event_index
+        - event_type
+        - execution_id
+        - definition_version
+        - economic_cash_cents
+        - economic_par_change
+        - available_cash_cents
+        - available_par_change
+        - counterparty_cash_cents
+        - counterparty_par_change
+        - actor_id
+        - recorded_at
+      properties:
+        command_seq:
+          type: string
+          pattern: ^(?:[1-9]|[1-8][0-9]|9[0-7])$
+        event_index:
+          type: integer
+          minimum: 0
+          maximum: 1
+        event_type:
+          type: string
+          enum:
+            - FUNDING
+            - REGISTERED
+            - COMPENSATE
+            - REPLACEMENT
+            - BUST
+            - SETTLEMENT_FAILED
+            - CASH_POSTED
+            - SECURITY_POSTED
+            - CASH_REVERSED
+            - SECURITY_REVERSED
+        execution_id:
+          type: string
+          format: uuid
+          nullable: true
+        definition_version:
+          type: string
+          minLength: 1
+          maxLength: 128
+          nullable: true
+        economic_cash_cents:
+          type: string
+          pattern: ^-?[0-9]{1,14}$
+        economic_par_change:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{2}$
+        available_cash_cents:
+          type: string
+          pattern: ^-?[0-9]{1,14}$
+        available_par_change:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{2}$
+        counterparty_cash_cents:
+          type: string
+          pattern: ^-?[0-9]{1,14}$
+        counterparty_par_change:
+          type: string
+          pattern: ^-?[0-9]+\.[0-9]{2}$
+        actor_id:
+          type: string
+          format: uuid
+        recorded_at:
+          type: string
+          format: date-time
+          description: Actual UTC audit time; never a financial trade or simulated
+            processing date.
+    PostTradeAudit:
+      type: object
+      additionalProperties: false
+      required:
+        - source
+        - events
+        - as_of_seq
+        - next_cursor
+      properties:
+        source:
+          $ref: '#/components/schemas/PostTradeAssessmentSource'
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/PostTradeAuditEvent'
+          minItems: 0
+          maxItems: 100
+        as_of_seq:
+          type: string
+          pattern: ^(?:0|[1-9]|[1-8][0-9]|9[0-7])$
+        next_cursor:
+          type: string
+          maxLength: 1024
+          nullable: true

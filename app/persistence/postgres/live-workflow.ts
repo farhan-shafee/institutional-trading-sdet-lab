@@ -122,7 +122,7 @@ export class LiveWorkflowDatabase extends WorkflowDatabase {
       this.livePending--;
     }
   }
-  private async liveCompatible(db: pg.PoolClient): Promise<void> {
+  protected async liveCompatible(db: pg.PoolClient): Promise<void> {
     const role = await db.query<{ valid: boolean }>(`SELECT current_user='tf_app'
       AND NOT rolsuper AND NOT rolbypassrls AND NOT rolcreatedb AND NOT rolcreaterole
       AND NOT pg_has_role(current_user,'tf_owner','MEMBER')
