@@ -55,5 +55,6 @@ jobs:
         with:
           name: public-posttrade-receipts-${{ github.run_attempt }}
           path: .local/public-posttrade-image-evidence-*/receipt.json
+          include-hidden-files: true
           retention-days: 7
           if-no-files-found: error

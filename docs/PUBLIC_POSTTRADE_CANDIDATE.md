@@ -45,6 +45,14 @@ The exact [additional source-admission proposal](PUBLIC_POSTTRADE_SOURCE_ADMISSI
 
 Production was re-read through Railway during this work: exact app sourceb021602, deployment8d174084 SUCCESS,0.5CPU/500000000bytes/one replica, no staged environment or service changes. No preview or deployment was performed.
 
+## Published checkpoint and CI artifact correction
+
+Published head `592feb56255c8c552fb284ecc8aaab7305b324bc` has the exact tree `bf25da08e6c5ff40a26cc4262c8b229665b4d3bd`. On the owned workstation, the full actual native-application gate passed14 database/API cases,21 browser baseline and42 repeat cases, pinned Node24.18.0 and CLEAN source throughout. The exact native image, schema10/TLS, role/identity refusal, secret scan and complete owned cleanup passed. Snapshot `cef2e813ba31d07b450f4019ede98972d383c54cb7098ef2214f80641cf16959`; retained evidence84d197450a8b3cb936134427d5b451bb.
+
+The PR CI synthetic merge `07e94b783dfa868af601b1f81fef20c71de8544e` has that same tree and ordered parents29dd958 +592feb5. It is a CI merge ref, not a protected-main merge. Its new public native-image command also reported zero exits, CLEAN provenance, role/identity refusal, secret scan and complete cleanup. The job then failed at artifact upload: `actions/upload-artifact@v7` excluded the hidden `.local` path and found no receipt. Both push/PR failures are retained: [push42924036331](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42924036331), [PR42924043258](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42924043258).
+
+The correction enables the documented `include-hidden-files` input while retaining the exact `receipt.json` filter, seven-day retention and strict missing-file error. It changes artifact collection only. Completed source-refusal and application results remain retained; configured concurrency may supersede unfinished jobs when this correction is published. No cancelled/superseded job is a passing qualification. The corrected immutable head requires its own CI result and nonempty receipt-artifact verification.
+
 ## Remaining acceptance gates
 
 - Final immutable commit/tree/CLEAN receipts: ordinary validate and repeat, two fresh original and owned PostgreSQL passes, workstation/public-v1/new actual native-image/browser qualification.
