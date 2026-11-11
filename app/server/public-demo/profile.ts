@@ -1,10 +1,16 @@
 import type pg from 'pg';
 import { DomainError } from '../../domain/errors.js';
+import { publicPostTradeProfileChecksum } from './posttrade-profile.js';
 
 export const publicProfileChecksum =
   'cfa58430fe84656729eaf5fd0ed61db16da061927c619d9a336de4647dbbed32';
 
-export async function verifyPublicProfile(db: pg.PoolClient | pg.Client): Promise<void> {
+export type PublicProfileKind = 'workflow' | 'posttrade';
+
+export async function verifyPublicProfile(
+  db: pg.PoolClient | pg.Client,
+  kind: PublicProfileKind = 'workflow',
+): Promise<void> {
   const result = await db.query<{
     profile_name: string;
     profile_version: number;
@@ -18,9 +24,10 @@ export async function verifyPublicProfile(db: pg.PoolClient | pg.Client): Promis
   const row = result.rows[0];
   if (
     result.rows.length !== 1 ||
-    row?.profile_name !== 'public-workflow-v1' ||
+    row?.profile_name !== (kind === 'posttrade' ? 'public-posttrade-v1' : 'public-workflow-v1') ||
     row.profile_version !== 1 ||
-    row.source_checksum !== publicProfileChecksum ||
+    row.source_checksum !==
+      (kind === 'posttrade' ? publicPostTradeProfileChecksum : publicProfileChecksum) ||
     !row.correct_database
   )
     throw new DomainError(

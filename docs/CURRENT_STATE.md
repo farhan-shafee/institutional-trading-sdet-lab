@@ -1,6 +1,23 @@
 # TradeFlow current state and evidence
 
-Reviewed **November 8, 2026**. The public institutional workflow is accepted and deployed at `b021602`. The app remains explicitly pinned when subsequent documentation commits merge. Earlier milestones below retain their exact source/counts and first-failure evidence.
+Reviewed **November 10, 2026**. This index separates accepted local/CI source, the public Phase 4 implementation candidate and the deployed public release.
+
+| Goal stage                                     | State and evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Financial acceptance and protected integration | Complete in [PR #38](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/38): merge `29dd958f7f42a15841496a23ccfe594bfb864272`, tree `2fb60dd7e5e6f9c1785bc413965011a856839fd6`                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Main verification                              | All 14 jobs / five workflows passed on attempt 1: [quality](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42814934974), [persistence](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42814934888), [native session](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42814934973), [native application](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42814934932), [post-trade](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42814935028) |
+| Interactive public Phase 4                     | Owner-approved implementation/local/CI scope in draft PR #39; [candidate receipt](PUBLIC_POSTTRADE_CANDIDATE.md) and [operation/recovery](PUBLIC_POSTTRADE.md). Exact additional source admission and final acceptance remain required                                                                                                                                                                                                                                                                                                                                                             |
+| Hosted preview / production                    | Separate decisions, unperformed by PR #39. Existing public source remains `b0216022cb8ff18de904efea9279c91b3977d55f`, deployment `8d174084-7f30-40cb-a026-fa90f231c4a0`                                                                                                                                                                                                                                                                                                                                                                                                                            |
+
+The owner accepted R1–R3: admitted processing dates are nondecreasing including FAILED; reversal cannot precede posting; available balances follow recorded post-trade source sequence independently of mark date/UTC; admitted FAILED retains an immutable receipt, while pre-admission rejection consumes no financial key.
+
+PR #38 main verification included 1108 units, 252 baseline/504 repeated API/browser cases, four original455-case PostgreSQL suites, two owned77-case suites,99/198 workstation cases, native43 scenarios/89 controls, native application118 controls and the separate1-test financial journey. All financial suites returned retained capacity to zero. These counts belong to that exact accepted merge, not the newer PR #39 candidate.
+
+The earlier capacity finding remains **UNRESOLVED_NOT_REPRODUCED / UNKNOWN**. Its detailed row was lost before capture. The owner accepted unresolved risk for the synthetic local/CI lab only; this is not a public-release waiver. Original log SHA256 `c589bdf5136a2f76cba95e79109c6a11bfc3f80846c0679e630bc84cb2e2e823`. Green runs and the controlled capture demonstration do not establish its cause.
+
+## Historical November 8 checkpoint
+
+The following paragraphs retain the pre-acceptance candidate state. Their former integration blockers were disposed of in PR #38 as recorded above; the unknown cause itself remains unknown.
 
 ## Phase4A merged and integrated Phase4B-F candidate - November8,2026
 
@@ -55,7 +72,7 @@ review disposition and CI receipts are recorded in PR #35. See the
 
 The public application remains separately pinned to b021602. These local source
 capabilities do not activate hosted FIX, migrate a hosted database or establish
-external delivery/completeness. Phase 4 remains unfinished. Historical milestones
+external delivery/completeness. Phase 4 was unfinished at this historical checkpoint. Historical milestones
 retain their own exact source and counts.
 
 ## Accepted protocol implementation checkpoint
@@ -119,7 +136,7 @@ The 3C0 checker remains offline. The selected local 3C1 runtime and 3C2 financia
 ingress add separately bounded session/recovery/application capabilities. They do
 not establish arbitrary crash durability, full FIX certification, external peer
 interoperability, verified external delivery or external completeness. Phase 4
-remains unfinished and requires its own implementation and qualification.
+local/CI acceptance is recorded above; public Phase 4 delivery has separate gates.
 No hosted FIX rollout follows from these local source milestones.
 
 All credentials, quotes, orders and executions are synthetic. There is no real venue/dealer connectivity, live market feed, settlement, real-money P&L, production identity/tenant assurance or regulated-trading claim.

@@ -21,6 +21,7 @@ import type { RunnerHooks } from '../reconciliation/runner.js';
 import { handleRfq } from './rfq-routes.js';
 import type { DatabaseTarget } from '../public-demo/configuration.js';
 import { PostTradeWorkflowDatabase } from '../../persistence/postgres/post-trade-workflow.js';
+import { PublicPostTradeWorkflowDatabase } from '../../persistence/postgres/public-post-trade-workflow.js';
 import { PostTradeService } from '../post-trade/service.js';
 import { handlePostTrade } from '../post-trade/routes.js';
 
@@ -47,17 +48,20 @@ export class WorkflowRoutes {
     database?: WorkflowDatabase,
     reconcilerUrl?: DatabaseTarget,
     hooks?: RunnerHooks,
+    publicProfile?: 'public-posttrade-v1',
   ) {
     this.bindings = new WorkflowBindings(now);
     this.service = databaseUrl
       ? new WorkflowService(database ?? new WorkflowDatabase(databaseUrl))
       : undefined;
     this.postTrade =
-      typeof databaseUrl === 'string' && database instanceof PostTradeWorkflowDatabase
+      (typeof databaseUrl === 'string' && database instanceof PostTradeWorkflowDatabase) ||
+      (publicProfile === 'public-posttrade-v1' &&
+        database instanceof PublicPostTradeWorkflowDatabase)
         ? new PostTradeService(database)
         : undefined;
     this.reconciliation = this.service
-      ? new ReconciliationService(this.service.database, reconcilerUrl, hooks)
+      ? new ReconciliationService(this.service.database, reconcilerUrl, hooks, publicProfile)
       : undefined;
   }
   async close(): Promise<void> {

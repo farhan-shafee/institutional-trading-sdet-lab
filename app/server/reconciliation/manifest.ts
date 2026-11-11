@@ -9,6 +9,8 @@ import {
   type VerificationMetadata,
 } from '../../domain/workflow/reconciliation.js';
 import { migrationChecksums, financialSource } from '../../domain/workflow/database-contract.js';
+import { postTradeMigrationChecksums } from '../../domain/post-trade/database-contract.js';
+import { publicPostTradeProfileChecksum } from '../public-demo/posttrade-profile.js';
 export const verificationSources = {
   foundation: {
     file: 'foundation.sql',
@@ -39,7 +41,9 @@ export async function verificationQueries() {
   }
   return queries;
 }
-export async function verificationManifest(): Promise<VerificationMetadata> {
+export async function verificationManifest(
+  profile?: 'public-posttrade-v1',
+): Promise<VerificationMetadata> {
   await verificationQueries();
   const git = async (args: string[]) =>
     (await execute('git', args, { timeout: 1000, maxBuffer: 1024 * 1024 })).stdout.trim();
@@ -62,5 +66,15 @@ export async function verificationManifest(): Promise<VerificationMetadata> {
       verificationNames.map((n) => [n, verificationSources[n].hash]),
     ),
     schema_checksums: migrationChecksums,
+    ...(profile
+      ? {
+          engine_version: 'reconciliation-public-posttrade-v1',
+          schema_revision: 10,
+          schema_checksums: postTradeMigrationChecksums,
+          verification_scope: 'RAW_WORKFLOW_BASE_8',
+          public_profile: profile,
+          public_profile_checksum: publicPostTradeProfileChecksum,
+        }
+      : {}),
   });
 }

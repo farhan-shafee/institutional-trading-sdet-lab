@@ -861,19 +861,30 @@ footer {
   cursor: pointer;
   font-weight: 700;
 }
+.fi-panel pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.fi-panel select {
+  max-width: 100%;
+  min-width: 0;
+  contain: paint;
+}
 .fi-form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: 1rem;
 }
 .fi-form label {
-  display: grid;
-  gap: 0.4rem;
+  display: block;
   min-width: 0;
 }
 .fi-form input,
 .fi-form select {
+  display: block;
+  margin-top: 0.4rem;
   width: 100%;
+  max-width: 100%;
   min-width: 0;
 }
 #fi-results {
