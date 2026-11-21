@@ -14,6 +14,7 @@ export type PublicDemoConfiguration = {
   app: pg.PoolConfig;
   reconciler: pg.PoolConfig;
   maintenance: pg.PoolConfig;
+  postTrade?: true;
 };
 
 /** Explicit opt-in is separate from the unchanged local workflow configuration. */
@@ -22,6 +23,9 @@ export function readPublicDemoConfiguration(
   mode: string,
 ): PublicDemoConfiguration | undefined {
   const activation = env.TRADEFLOW_PUBLIC_DEMO ?? 'off';
+  const postTrade = env.TRADEFLOW_PUBLIC_POSTTRADE ?? 'off';
+  if (!['on', 'off'].includes(postTrade) || (postTrade === 'on' && activation !== 'on'))
+    throw new Error('Public post-trade requires explicit public demo activation.');
   const supplied = publicDemoSettingNames.slice(1).some((name) => env[name] !== undefined);
   if (activation === 'off' && !supplied) return undefined;
   try {
@@ -72,7 +76,12 @@ export function readPublicDemoConfiguration(
         ssl: { ca, rejectUnauthorized: true, servername: url.hostname },
       };
     });
-    return { app: targets[0]!, reconciler: targets[1]!, maintenance: targets[2]! };
+    return {
+      app: targets[0]!,
+      reconciler: targets[1]!,
+      maintenance: targets[2]!,
+      ...(postTrade === 'on' ? { postTrade: true as const } : {}),
+    };
   } catch {
     // Never include a URL, password, CA input or a low-level parser exception.
     throw new Error(

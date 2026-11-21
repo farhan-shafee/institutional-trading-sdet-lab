@@ -1,6 +1,8 @@
-# Owned post-trade candidate
+# Accepted owned post-trade model
 
-This is an isolated local/CI schema10 candidate under Phase4 final financial, model and test acceptance. It is off in the standard application, the hosted pool profile and production. There is no public UI or deployment step.
+The owner accepted the finite model, R1–R3 and unresolved historical risk for the local/CI synthetic lab in PR #38, merged as `29dd958f7f42a15841496a23ccfe594bfb864272`. The private owned schema10 path remains off in standard startup. Production remains the separately pinned November 6 release.
+
+Draft PR #39 adds a separate explicitly selected public post-trade profile and browser UI; it does not broaden the private owned-only guard. See [public operation/recovery](PUBLIC_POSTTRADE.md), [candidate receipt](PUBLIC_POSTTRADE_CANDIDATE.md) and [current state](CURRENT_STATE.md).
 
 ## Financial scope
 
@@ -10,7 +12,7 @@ Explicit initialization funds USD100000000 cash and zero securities against oppo
 
 Settlement is full gross delivery versus payment on an explicit weekday at or after the original agreed due date, inside the fixed window. Insufficient funds create a FAILED receipt with no balance postings. The same failed key replays that failure; a new key can retry. A root has at most two failed attempts and each revision can post and reverse once. Reverse settled revisions before correcting or busting. Reversal also requires nonnegative cash and securities.
 
-**Proposed for final owner acceptance:** admitted processing dates, including FAILED attempts, are nondecreasing; reversal cannot precede its posting. Available balances use POSTTRADE_SOURCE_SEQUENCE, separately from the valuation date and actual UTC audit timestamp. This prevents assets obtained in a later simulated state from funding an earlier state.
+**Accepted R1–R2:** admitted processing dates, including FAILED attempts, are nondecreasing; reversal cannot precede its posting. Available balances use POSTTRADE_SOURCE_SEQUENCE, separately from the valuation date and actual UTC audit timestamp. This prevents assets obtained in a later simulated state from funding an earlier state.
 
 ## Owned API
 
@@ -53,7 +55,7 @@ The original shared512-command/1024-event ceilings and existing admission, pool,
 
 New real PostgreSQL suites cover SQL reconstruction, concurrency, settlement chronology, exact capacity, current ownership and uncertain-commit recovery. Independent Python Decimal125/Fraction calculations check risk, corrected execution cash and exact FIFO/equity. Actual HTTP bodies are validated against separately authored additive OpenAPI schemas.
 
-The owner approved exactly the three additional source exceptions for native testing; see the [source-admission contract](PHASE4_SOURCE_ADMISSION.md). Native FIX qualification, resolution of the retained local financial finding, final model/test acceptance and integration remain pending. A source-preservation refusal must remain visible; it is not a passing native journey.
+The owner approved exactly the three additional source exceptions for native testing; see the [source-admission contract](PHASE4_SOURCE_ADMISSION.md). PR #38 completed native qualification, final local/CI acceptance and protected integration. The finding was accepted as unresolved local/CI risk, not resolved. The new PR #39 wiring requires separate exact source admission before its native qualification. A source-preservation refusal remains a refusal, not a passing native journey.
 
 ## Private local commands and report
 

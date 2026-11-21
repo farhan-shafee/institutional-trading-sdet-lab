@@ -21,6 +21,7 @@ import {
   type PostTradeOperation,
 } from '../../domain/post-trade/api-contracts.js';
 import type { PostTradeWorkflowDatabase } from '../../persistence/postgres/post-trade-workflow.js';
+import type { PublicPostTradeWorkflowDatabase } from '../../persistence/postgres/public-post-trade-workflow.js';
 import type { Binding } from '../fixed-income-workflow/bindings.js';
 
 const cursorSchema = z
@@ -47,7 +48,7 @@ const cursorSchema = z
 type Cursor = z.infer<typeof cursorSchema>;
 export class PostTradeService {
   private readonly cursorSecret = randomBytes(32);
-  constructor(readonly database: PostTradeWorkflowDatabase) {}
+  constructor(readonly database: PostTradeWorkflowDatabase | PublicPostTradeWorkflowDatabase) {}
   private async rpc(db: pg.PoolClient, sql: string, values: unknown[]): Promise<WorkflowResult> {
     const query = await db.query<{ result: unknown }>(sql, values);
     const result = workflowResultSchema.parse(query.rows[0]?.result);

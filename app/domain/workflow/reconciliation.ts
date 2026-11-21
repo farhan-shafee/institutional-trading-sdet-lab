@@ -95,6 +95,16 @@ export const metadataSchema = z.discriminatedUnion('engine_version', [
       .array(z.object({ version: z.number().int(), checksum: hash }).strict())
       .length(8),
   }),
+  legacyMetadataSchema.extend({
+    engine_version: z.literal('reconciliation-public-posttrade-v1'),
+    schema_revision: z.literal(10),
+    schema_checksums: z
+      .array(z.object({ version: z.number().int(), checksum: hash }).strict())
+      .length(10),
+    verification_scope: z.literal('RAW_WORKFLOW_BASE_8'),
+    public_profile: z.literal('public-posttrade-v1'),
+    public_profile_checksum: hash,
+  }),
 ]);
 export const snapshotSchema = z
   .object({

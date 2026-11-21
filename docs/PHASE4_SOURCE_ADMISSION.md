@@ -1,6 +1,6 @@
 # Phase4 source admission for native qualification
 
-The owner approved exactly the three additional source hashes in draft PR38 on November8,2026, after reviewing candidate b875714bd50bfe1c12ac4254372c681fe122dd6f. This approval permits native qualification. The unresolved local financial finding, final financial/model/test acceptance, protected integration and public release remain separate.
+The owner approved exactly the three additional source hashes in draft PR38 on November8,2026, after reviewing candidate b875714bd50bfe1c12ac4254372c681fe122dd6f. This approval permits native qualification. PR #38 later completed native qualification, final local/CI acceptance and protected integration; the historical finding was explicitly accepted as unresolved risk for that lab only. Public release remains separate.
 
 ## Immutable approval chain
 
@@ -30,4 +30,4 @@ All three orchestrators and direct post-trade test admission use v3. Source/depe
 
 At b875714,20 non-native push/PR jobs passed on first attempts; six native jobs refused the then-unapproved source and two dependent aggregate jobs failed. All refusal artifacts remain retained.
 
-One separate local original-suite run failed454/455 with one financial SQL finding in the FIX-capacity boundary case. Its detailed row was not captured before the original test cleaned up. Bounded follow-up diagnostics, including a full455-plus77 pass and198 concurrent workstation cases, did not reproduce it; all328 observed financial-query results were clear. Root cause remains unknown. No source correction, retry relaxation or qualification waiver has been made. This remains an integration blocker even if native qualification passes.
+One separate local original-suite run failed454/455 with one financial SQL finding in the FIX-capacity boundary case. Its detailed row was not captured before the original test cleaned up. Bounded follow-up diagnostics, including a full455-plus77 pass and198 concurrent workstation cases, did not reproduce it; all328 observed financial-query results were clear. Root cause remains unknown. No source correction, retry relaxation or qualification waiver has been made. This was an integration blocker at that checkpoint. On November 10 the owner explicitly accepted its unresolved status for synthetic local/CI integration in PR #38. Its cause remains UNKNOWN and that acceptance does not waive public-release risk.

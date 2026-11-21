@@ -19,8 +19,9 @@ export class ReconciliationRunner {
   constructor(
     url: DatabaseTarget,
     private readonly hooks: RunnerHooks = {},
+    profile?: 'public-posttrade-v1',
   ) {
-    this.database = new VerificationDatabase(url);
+    this.database = new VerificationDatabase(url, {}, profile);
   }
   close() {
     return this.database.close();

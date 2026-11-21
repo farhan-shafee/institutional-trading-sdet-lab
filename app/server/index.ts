@@ -21,6 +21,7 @@ import {
 import { SessionStore } from '../domain/session-store.js';
 import { PublicDemoWorkspaces } from './public-demo/workspaces.js';
 import { PublicDemoMaintenance } from './public-demo/maintenance.js';
+import { PublicPostTradeWorkflowDatabase } from '../persistence/postgres/public-post-trade-workflow.js';
 import {
   ConfigurationError,
   readConfiguration,
@@ -144,22 +145,34 @@ export function createApplicationServer(
   const configuration = options.configuration ?? readConfiguration({});
   const now = options.now ?? (() => performance.now());
   const hosted = configuration.mode === 'hosted-demo';
+  const publicProfile = configuration.publicDemo?.postTrade ? 'posttrade' : 'workflow';
+  const database =
+    options.workflowDatabase ??
+    (configuration.publicDemo?.postTrade
+      ? new PublicPostTradeWorkflowDatabase(configuration.publicDemo.app)
+      : undefined);
   const workflow = new WorkflowRoutes(
     configuration.publicDemo?.app ?? configuration.workflow?.databaseUrl,
     now,
-    options.workflowDatabase,
+    database,
     configuration.publicDemo?.reconciler ?? configuration.workflow?.reconcilerUrl,
     options.reconciliationHooks,
+    configuration.publicDemo?.postTrade ? 'public-posttrade-v1' : undefined,
   );
   const sessions = new SessionStore({
     ...(hosted ? { limits: configuration.limits } : {}),
     now,
   });
   const maintenance = configuration.publicDemo
-    ? new PublicDemoMaintenance(configuration.publicDemo.maintenance, now)
+    ? new PublicDemoMaintenance(configuration.publicDemo.maintenance, now, publicProfile)
     : undefined;
   const publicWorkspaces = maintenance
-    ? new PublicDemoWorkspaces(workflow, maintenance, (token) => sessions.authenticate(token))
+    ? new PublicDemoWorkspaces(
+        workflow,
+        maintenance,
+        (token) => sessions.authenticate(token),
+        publicProfile,
+      )
     : undefined;
   maintenance?.start();
   const requests = hosted
@@ -180,6 +193,10 @@ export function createApplicationServer(
       .replace(
         'data-public-workflow="off"',
         `data-public-workflow="${configuration.publicDemo ? 'on' : 'off'}"`,
+      )
+      .replace(
+        'data-public-posttrade="off"',
+        `data-public-posttrade="${configuration.publicDemo?.postTrade ? 'on' : 'off'}"`,
       )
       .replace('a local synthetic trading environment', 'a synthetic public demo')
       .replace(
@@ -271,6 +288,16 @@ export function createApplicationServer(
       respond: (status: number, body: unknown) => json(response, status, body),
     };
     if (publicWorkspaces && (await publicWorkspaces.handle(workflowContext))) return;
+    if (
+      !publicWorkspaces &&
+      method === 'GET' &&
+      url.pathname === '/api/public-demo/posttrade/status'
+    ) {
+      if (url.search)
+        throw new DomainError(400, 'VALIDATION_ERROR', 'Status takes no query parameters.');
+      json(response, 200, { enabled: false, state: 'disabled' });
+      return;
+    }
     if (!publicWorkspaces && method === 'GET' && url.pathname === '/api/public-demo/status') {
       if (url.search)
         throw new DomainError(400, 'VALIDATION_ERROR', 'Status takes no query parameters.');

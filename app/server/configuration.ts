@@ -50,6 +50,7 @@ export function readConfiguration(env: NodeJS.ProcessEnv = process.env): Applica
     'TRADEFLOW_FIXED_INCOME_DATABASE_URL',
     'TRADEFLOW_FIXED_INCOME_RECONCILER_URL',
     ...publicDemoSettingNames,
+    'TRADEFLOW_PUBLIC_POSTTRADE',
     ...Object.keys(limits),
   ]);
   for (const name of Object.keys(env)) {

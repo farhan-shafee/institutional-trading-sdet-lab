@@ -1,9 +1,12 @@
 import { z } from 'zod';
 import { curveSnapshotSchema } from '../fixed-income-v3/contracts.js';
-import { curveFixtureIds } from '../fixed-income-v3/curves.js';
-import { assessmentModel, assessmentReasons } from './assessment.js';
-import { dollarRiskModel } from './risk.js';
-import { fifoModel } from './fifo.js';
+import { curveFixtureIds } from '../fixed-income-v3/wire-identifiers.js';
+import {
+  assessmentModel,
+  assessmentReasons,
+  dollarRiskModel,
+  fifoModel,
+} from './wire-identifiers.js';
 import { settlementModel, initializePostTradeSchema } from './contracts.js';
 import { ownedSourceSchema, ownedRootSchema, availableSecuritySchema } from './source.js';
 

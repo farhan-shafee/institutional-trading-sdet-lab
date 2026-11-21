@@ -29,6 +29,26 @@ tags:
 security:
   - bearerAuth: []
 paths:
+  /api/public-demo/posttrade/status:
+    get:
+      operationId: getPublicPostTradeStatus
+      summary: Read explicitly selected public post-trade availability
+      description: Authenticated read with no query parameters. The separate public-posttrade-v1
+        profile must pass exact schema, source, role, TLS and maintenance checks. This read
+        does not allocate or initialize a workspace. Native FIX remains local/CI only.
+      responses:
+        '200':
+          description: Disabled, ready or unavailable public post-trade state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowStatus'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /api/public-demo/status:
     get:
       operationId: getPublicDemoStatus
@@ -6469,6 +6489,7 @@ components:
         - $ref: '#/components/schemas/ReconciliationMetadataV2'
         - $ref: '#/components/schemas/ReconciliationMetadataV3'
         - $ref: '#/components/schemas/ReconciliationMetadataV4'
+        - $ref: '#/components/schemas/ReconciliationMetadataPublicPostTradeV1'
     ReconciliationMetadataV1:
       type: object
       additionalProperties: false
@@ -6624,6 +6645,99 @@ components:
           type: array
           minItems: 8
           maxItems: 8
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - version
+              - checksum
+            properties:
+              version:
+                type: integer
+              checksum: *a29
+    ReconciliationMetadataPublicPostTradeV1:
+      type: object
+      additionalProperties: false
+      required:
+        - engine_version
+        - source_revision
+        - source_tree
+        - source_state
+        - schema_revision
+        - financial_source
+        - valuation_model
+        - quotation_model
+        - conventions
+        - query_hashes
+        - schema_checksums
+        - verification_scope
+        - public_profile
+        - public_profile_checksum
+      properties:
+        verification_scope:
+          type: string
+          enum: [RAW_WORKFLOW_BASE_8]
+        public_profile:
+          type: string
+          enum: [public-posttrade-v1]
+        public_profile_checksum: *a29
+        engine_version:
+          type: string
+          enum:
+            - reconciliation-public-posttrade-v1
+        source_revision:
+          type: string
+          pattern: ^[a-f0-9]{40}$
+        source_tree:
+          type: string
+          pattern: ^[a-f0-9]{40}$
+        source_state:
+          type: string
+          enum:
+            - CLEAN
+            - DIRTY
+        schema_revision:
+          type: integer
+          enum:
+            - 10
+        financial_source:
+          type: string
+          enum:
+            - 6016fb700840d081fe1fba651c918f0a7e709383
+        valuation_model:
+          type: string
+          enum:
+            - phase1-regular-coupon-v1
+        quotation_model:
+          type: string
+          enum:
+            - synthetic-dealer-grid-v1
+        conventions:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            type: string
+            enum:
+              - ACT_ACT_ICMA
+              - THIRTY_360_US
+        query_hashes:
+          type: object
+          additionalProperties: false
+          required:
+            - foundation
+            - rfq
+            - executions
+            - comparisons
+          properties:
+            foundation: *a29
+            rfq: *a29
+            executions: *a29
+            comparisons: *a29
+        schema_checksums:
+          type: array
+          minItems: 10
+          maxItems: 10
           items:
             type: object
             additionalProperties: false

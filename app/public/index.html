@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/app.js"></script>
   </head>
-  <body data-demo-mode="local" data-public-workflow="off">
+  <body data-demo-mode="local" data-public-workflow="off" data-public-posttrade="off">
     <header class="app-header">
       <a class="brand" href="/" aria-label="TradeFlow home"
         ><span class="brand-mark" aria-hidden="true">TF</span
@@ -417,6 +417,7 @@
               >Instrument<select name="instrument_id">
                 <option value="SYN-UST-2031">Fictional Treasury-style · Actual/Actual ICMA</option>
                 <option value="SYN-CORP-2031">Fictional corporate · US 30/360</option>
+                <option value="SYN-ZERO-2031">Fictional zero coupon · analytics only</option>
               </select></label
             >
             <label
@@ -433,6 +434,47 @@
           </form>
           <p id="fi-error" data-testid="fi-error" role="alert"></p>
           <div id="fi-results" data-testid="fi-results" aria-live="polite"></div>
+          <h3>Named curves and continuous spreads</h3>
+          <p>
+            Immutable synthetic fixtures. Economic dates are simulated; no editable market feed.
+            Enter a continuous z-spread OR a clean price. Marks are USD valuations.
+          </p>
+          <form id="curve-form" class="fi-form" novalidate>
+            <label
+              >Curve instrument<select name="instrument_id">
+                <option value="SYN-UST-2031">Fictional Treasury-style</option>
+                <option value="SYN-CORP-2031">Fictional corporate</option>
+                <option value="SYN-ZERO-2031">Fictional zero coupon · analytics only</option>
+              </select></label
+            >
+            <label
+              >Curve fixture<select name="fixture_id" aria-label="Curve fixture">
+                <option value="BASE_UP_V1">BASE_UP_V1</option>
+                <option value="FLAT_V1">FLAT_V1</option>
+                <option value="NEGATIVE_V1">NEGATIVE_V1</option>
+              </select></label
+            >
+            <label
+              >Curve economic as-of date<input name="as_of_date" type="date" value="2030-01-15"
+            /></label>
+            <label>Curve par USD<input name="par_amount" inputmode="decimal" value="100" /></label>
+            <label
+              >Continuous z-spread (decimal fraction)<input
+                name="z_spread"
+                inputmode="decimal"
+                value="0"
+            /></label>
+            <label
+              >Curve clean quote per 100 par<input name="clean_price" inputmode="decimal"
+            /></label>
+            <button id="curve-submit" type="submit" class="primary">Calculate curve mark</button>
+          </form>
+          <p id="curve-error" data-testid="curve-error" role="alert"></p>
+          <div id="curve-results" data-testid="curve-results" aria-live="polite"></div>
+          <details>
+            <summary>Curve cash flows and provenance</summary>
+            <pre id="curve-provenance"></pre>
+          </details>
         </details>
         <details id="rfq-panel" class="panel fi-panel" hidden>
           <summary>Dealer RFQ workstation</summary>
@@ -529,11 +571,158 @@
             <h4>Lifecycle history</h4>
             <pre id="fi-order-history"></pre>
           </section>
+          <section id="posttrade-panel" hidden aria-label="Synthetic financial workstation">
+            <h3>Paper funding and post-trade</h3>
+            <p>
+              Simulated economic dates and synthetic records only. Initialize fixed paper funding
+              explicitly; this is not a deposit. Eight complete execution roots, two price
+              corrections and a terminal full bust per root. Original executions and admitted failed
+              outcomes remain in immutable history.
+            </p>
+            <p id="posttrade-status" role="status"></p>
+            <p id="posttrade-error" data-testid="posttrade-error" role="alert"></p>
+            <button id="posttrade-refresh" type="button" disabled>Refresh financial book</button>
+            <form id="posttrade-init" class="fi-form" novalidate>
+              <label
+                >Simulated economic start date<input
+                  id="posttrade-start"
+                  name="economic_start_date"
+                  type="date"
+                  value="2030-01-15"
+              /></label>
+              <button id="posttrade-initialize" type="submit" disabled>
+                Initialize USD100,000,000 paper funding
+              </button>
+            </form>
+            <h4>Available balances and unsettled obligations</h4>
+            <pre id="posttrade-balances" data-testid="posttrade-balances" aria-live="polite"></pre>
+            <pre id="posttrade-obligations"></pre>
+            <form id="posttrade-assess" class="fi-form" novalidate>
+              <label
+                >Financial curve fixture<select
+                  id="posttrade-fixture"
+                  aria-label="Financial curve fixture"
+                >
+                  <option value="FLAT_V1">FLAT_V1</option>
+                  <option value="BASE_UP_V1">BASE_UP_V1</option>
+                  <option value="NEGATIVE_V1">NEGATIVE_V1</option>
+                </select></label
+              >
+              <label
+                >Simulated valuation date<input id="posttrade-asof" type="date" value="2030-01-15"
+              /></label>
+              <label
+                >Raw source cutoff (optional)<input
+                  id="posttrade-raw-cutoff"
+                  inputmode="numeric"
+                  maxlength="3"
+                  placeholder="Latest; 0–512"
+              /></label>
+              <label
+                >Financial source cutoff (optional)<input
+                  id="posttrade-cutoff"
+                  inputmode="numeric"
+                  maxlength="2"
+                  placeholder="Latest; 0–97"
+              /></label>
+              <button id="posttrade-assess-submit" type="submit" disabled>
+                Refresh risk and P&amp;L
+              </button>
+            </form>
+            <h4>Signed portfolio risk</h4>
+            <pre id="posttrade-risk" data-testid="posttrade-risk"></pre>
+            <h4>FIFO and equity bridge</h4>
+            <pre id="posttrade-pnl" data-testid="posttrade-pnl"></pre>
+            <details>
+              <summary>Exact FIFO lots, source versions and curve provenance</summary>
+              <pre id="posttrade-provenance"></pre>
+            </details>
+            <h4>Selected execution adjustment and settlement</h4>
+            <label for="posttrade-execution">Selected financial execution</label
+            ><select id="posttrade-execution"></select>
+            <p>Expected revision: <span id="posttrade-revision">unregistered</span></p>
+            <p id="posttrade-root-state"></p>
+            <div class="fi-form">
+              <label
+                >Correction clean quote per 100 par<input
+                  id="posttrade-price"
+                  inputmode="decimal"
+                  value="100.880000000000"
+              /></label>
+              <label
+                >Simulated processing date<input
+                  id="posttrade-processing"
+                  type="date"
+                  value="2030-01-15"
+              /></label>
+            </div>
+            <p>
+              Corrections change only the clean quote, at 12 decimal places. Processing dates cannot
+              move backward. Reverse a posting before correction or bust. A new settlement attempt
+              uses a new key only after the prior request is resolved.
+            </p>
+            <button id="posttrade-register" type="button" disabled>
+              Register selected execution
+            </button>
+            <button id="posttrade-correct" type="button" disabled>Apply price correction</button>
+            <button id="posttrade-settle" type="button" disabled>
+              Attempt settlement with new key
+            </button>
+            <button id="posttrade-reverse" type="button" disabled>
+              Reverse selected settlement
+            </button>
+            <button id="posttrade-bust" type="button" class="danger" disabled>
+              Bust selected execution
+            </button>
+            <p
+              id="posttrade-command-result"
+              data-testid="posttrade-command-result"
+              role="status"
+            ></p>
+            <p>
+              Uncertain response recovery retries the original payload and key during this original
+              session. It cannot restore ownership after logout, expiry or restart.
+            </p>
+            <button id="posttrade-recover" type="button" disabled>
+              Recover original financial request
+            </button>
+            <button id="posttrade-inspect-retained" type="button" disabled>
+              Inspect retained receipt
+            </button>
+            <label
+              >Financial receipt key<input
+                id="posttrade-receipt-key"
+                maxlength="128"
+                autocomplete="off"
+            /></label>
+            <button id="posttrade-receipt-load" type="button" disabled>Read command receipt</button>
+            <details id="posttrade-receipt-details">
+              <summary>Immutable financial command receipt</summary>
+              <pre id="posttrade-receipt"></pre>
+            </details>
+            <button id="posttrade-history-load" type="button" disabled>
+              Load selected execution history
+            </button>
+            <details id="posttrade-history-details">
+              <summary>Original and adjusted execution history</summary>
+              <pre id="posttrade-history" data-testid="posttrade-history"></pre>
+            </details>
+            <button id="posttrade-audit-load" type="button" disabled>
+              Load immutable financial audit
+            </button>
+            <details id="posttrade-audit-details">
+              <summary>Bounded financial audit snapshot</summary>
+              <pre id="posttrade-audit"></pre>
+              <button id="posttrade-audit-more" type="button" disabled>More financial audit</button>
+            </details>
+          </section>
           <section id="recon-panel" hidden aria-label="Synthetic reconciliation investigation">
             <h3>Reconciliation and exception investigation</h3>
             <p>
               Synthetic records only. Each assessment covers one historical database snapshot.
-              Investigation is read-only; a later clean run never erases earlier findings.
+              Investigation is read-only; a later clean run never erases earlier findings. This
+              assessment covers the original RFQ, order and execution ledger. Portfolio valuation
+              and paper settlement have their separate financial history and audit above.
             </p>
             <button type="button" id="recon-request">Request reconciliation</button>
             <button type="button" id="recon-recover">Recover interrupted run</button>
@@ -562,23 +751,26 @@
           <p class="eyebrow">ENGINEERING EVIDENCE</p>
           <h2 id="evidence-title">Offline FIX evidence</h2>
           <p>
-            The source implements bounded FIX 4.4 application-message validation and selected
-            offline Logon, Heartbeat, TestRequest and Logout transcript checks. These tools do not
-            open a FIX connection, run a live session engine or connect to a dealer.
+            The offline checker validates bounded FIX 4.4 application bytes and selected Logon,
+            Heartbeat, TestRequest and Logout transcripts. Accepted local/CI source also includes
+            pinned native session engines and a synthetic financial handoff: 43 session scenarios,
+            89 session controls and 118 application controls at revision 29dd958. Native engines run
+            in local/CI verification; this workstation offers no FIX connection controls or dealer
+            connection.
           </p>
           <p>
             <a
-              href="https://github.com/farhan-shafee/institutional-trading-sdet-lab/blob/939a81b7bbd44c5485224c60c15a1988ffb3f383/docs/FIX44_PROFILE.md"
+              href="https://github.com/farhan-shafee/institutional-trading-sdet-lab/blob/29dd958f7f42a15841496a23ccfe594bfb864272/docs/FIX44_PROFILE.md"
               >Application-message profile</a
             >
             ·
             <a
-              href="https://github.com/farhan-shafee/institutional-trading-sdet-lab/blob/939a81b7bbd44c5485224c60c15a1988ffb3f383/docs/FIX44_SESSION.md"
+              href="https://github.com/farhan-shafee/institutional-trading-sdet-lab/blob/29dd958f7f42a15841496a23ccfe594bfb864272/docs/FIX44_SESSION.md"
               >Offline session contract and corpus</a
             >
             ·
-            <a href="https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions"
-              >CI history and failure diagnostics</a
+            <a href="https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/38"
+              >Accepted local/CI evidence and known finding</a
             >
           </p>
         </section>

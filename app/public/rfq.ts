@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { reconciliationView } from './reconciliation.js';
 import { orderView } from './order.js';
+import { postTradeView } from './post-trade.js';
 import { sandboxBodySchema } from '../domain/workflow/contracts.js';
 import {
   createRfqSchema,
@@ -30,23 +31,48 @@ export function rfqView(
   const selector = node<HTMLSelectElement>('rfq-selection');
   let epoch = 0,
     busy = false,
+    initializing = false,
     sandboxId: string | undefined,
     detail: RfqDetail | undefined;
   let scope: 'read' | 'trade' | undefined;
   const publicMode = document.body.dataset.publicWorkflow === 'on';
   let publicJournalStorageKey: string | undefined;
   const journal = new RfqCommandJournal(sessionStorage);
+  const financial = postTradeView(
+    api,
+    (work) => run(work, node('posttrade-error')),
+    () => ({
+      sandbox: sandboxId,
+      token: getToken(),
+      epoch,
+      canTrade: getRole() === 'trader' && scope === 'trade',
+      busy: busy || initializing,
+      blocked: journal.has(sandboxId),
+    }),
+  );
   const lifecycle = orderView(
     api,
     mutate,
     run,
-    () => !busy && getRole() === 'trader' && scope === 'trade' && !journal.has(sandboxId),
+    () =>
+      !busy &&
+      !initializing &&
+      getRole() === 'trader' &&
+      scope === 'trade' &&
+      !journal.has(sandboxId) &&
+      !financial.hasPending(),
   );
   const reconciliation = reconciliationView(
     api,
     mutate,
     (work, stillCurrent) => run(work, node('recon-error'), stillCurrent),
-    () => !busy && getRole() === 'trader' && scope === 'trade' && !journal.has(sandboxId),
+    () =>
+      !busy &&
+      !initializing &&
+      getRole() === 'trader' &&
+      scope === 'trade' &&
+      !journal.has(sandboxId) &&
+      !financial.hasPending(),
     () => ({ sandbox: sandboxId, token: getToken(), epoch }),
   );
   const root = () => `/api/fixed-income/v1/sandboxes/${sandboxId}/rfqs`;
@@ -54,6 +80,7 @@ export function rfqView(
   const reset = () => {
     epoch++;
     busy = false;
+    initializing = false;
     sandboxId = undefined;
     detail = undefined;
     scope = undefined;
@@ -67,6 +94,7 @@ export function rfqView(
     }
     lifecycle.reset();
     reconciliation.reset();
+    financial.reset();
     panel.hidden = true;
     panel.open = false;
     form.reset();
@@ -85,6 +113,8 @@ export function rfqView(
     const owner = getToken(),
       version = epoch;
     if (!owner) return;
+    initializing = true;
+    render();
     try {
       const response = await fetch('/api/fixed-income/v1/workflow/status', {
         headers: { Authorization: `Bearer ${owner}` },
@@ -94,6 +124,10 @@ export function rfqView(
         .strict()
         .parse(await response.json());
       if (owner !== getToken() || version !== epoch) return;
+      await financial.initialize();
+      if (owner !== getToken() || version !== epoch) return;
+      if (document.body.dataset.publicPosttrade === 'on')
+        (form.elements.namedItem('settlement_date') as HTMLInputElement).value = '2030-01-15';
       panel.hidden = !response.ok || !result.enabled;
       node('rfq-native-ownership').hidden = publicMode;
       node('public-workspace-start').hidden = !publicMode;
@@ -117,6 +151,11 @@ export function rfqView(
         panel.hidden = !publicMode;
         if (publicMode)
           status.textContent = 'Public workflow is unavailable. Retry when service returns.';
+      }
+    } finally {
+      if (owner === getToken() && version === epoch) {
+        initializing = false;
+        render();
       }
     }
   }
@@ -199,7 +238,7 @@ export function rfqView(
     errorTarget = message,
     stillCurrent?: () => boolean,
   ) {
-    if (busy) return;
+    if (busy || initializing) return;
     const owner = getToken(),
       version = epoch;
     busy = true;
@@ -259,6 +298,7 @@ export function rfqView(
     if (list.rfqs.some((r) => r.id === previous)) selector.value = previous!;
     await loadSelected();
     reconciliation.load(sandboxId);
+    await financial.load();
   }
   async function submit(saved: Retained) {
     if (saved.sandbox_id !== sandboxId)
@@ -309,6 +349,8 @@ export function rfqView(
     if (!sandboxId || getRole() !== 'trader' || scope !== 'trade')
       throw new Error('An authorized trade binding is required.');
     if (retained()) throw new Error('Resolve the retained command before another mutation.');
+    if (financial.hasPending())
+      throw new Error('Recover the original financial request before another mutation.');
     const saved = journal.retain({
       sandbox_id: sandboxId,
       path,
@@ -323,7 +365,13 @@ export function rfqView(
     b.type = 'button';
     b.textContent = label;
     b.disabled =
-      disabled || busy || getRole() !== 'trader' || scope !== 'trade' || journal.has(sandboxId);
+      disabled ||
+      busy ||
+      initializing ||
+      getRole() !== 'trader' ||
+      scope !== 'trade' ||
+      journal.has(sandboxId) ||
+      financial.hasPending();
     b.addEventListener('click', () => {
       void run(work);
     });
@@ -332,6 +380,7 @@ export function rfqView(
   function render() {
     lifecycle.render();
     reconciliation.render();
+    financial.render();
     node('rfq-state').textContent = detail
       ? `${detail.rfq.id} · ${detail.rfq.state} · version ${detail.rfq.version} · expires ${detail.rfq.expires_at}`
       : 'No RFQ selected.';
@@ -386,13 +435,25 @@ export function rfqView(
       ? `Order ${detail.order.id} · PENDING_ACK · ${detail.order.contract.side} · USD par ${detail.order.contract.par_amount} · exact clean price ${detail.order.contract.clean_price} per 100 par · settlement ${detail.order.contract.settlement_date} · ${detail.order.contract.instrument_revision} · ${detail.order.contract.model_version}. This immutable contract retains its initial status; the lifecycle below reports subsequent events.`
       : 'No persistent fixed-income order.';
     node<HTMLFieldSetElement>('rfq-fields').disabled =
-      busy || !sandboxId || getRole() !== 'trader' || scope !== 'trade' || journal.has(sandboxId);
-    node<HTMLButtonElement>('rfq-load').disabled = busy;
-    node<HTMLButtonElement>('public-workspace-start').disabled = busy || !!sandboxId;
-    node<HTMLButtonElement>('rfq-refresh').disabled = busy || !sandboxId;
-    selector.disabled = busy;
+      busy ||
+      initializing ||
+      !sandboxId ||
+      getRole() !== 'trader' ||
+      scope !== 'trade' ||
+      journal.has(sandboxId) ||
+      financial.hasPending();
+    node<HTMLButtonElement>('rfq-load').disabled = busy || initializing;
+    node<HTMLButtonElement>('public-workspace-start').disabled =
+      busy || !!sandboxId || initializing;
+    node<HTMLButtonElement>('rfq-refresh').disabled = busy || initializing || !sandboxId;
+    selector.disabled = busy || initializing;
     node<HTMLButtonElement>('rfq-retry').disabled =
-      busy || !sandboxId || !journal.has(sandboxId) || getRole() !== 'trader' || scope !== 'trade';
+      busy ||
+      initializing ||
+      !sandboxId ||
+      !journal.has(sandboxId) ||
+      getRole() !== 'trader' ||
+      scope !== 'trade';
   }
   node('rfq-load').addEventListener('click', () => {
     void run(async () => {
@@ -438,6 +499,14 @@ export function rfqView(
   });
   node('rfq-use-analytics').addEventListener('click', () => {
     const source = node<HTMLFormElement>('fi-form');
+    if (
+      (source.elements.namedItem('instrument_id') as HTMLSelectElement).value === 'SYN-ZERO-2031'
+    ) {
+      message.textContent =
+        'This zero-coupon instrument is analytics only. Select an original coupon bond for RFQ entry.';
+      return;
+    }
+    message.textContent = '';
     for (const name of ['instrument_id', 'settlement_date', 'par_amount'])
       (form.elements.namedItem(name) as HTMLInputElement).value = (
         source.elements.namedItem(name) as HTMLInputElement

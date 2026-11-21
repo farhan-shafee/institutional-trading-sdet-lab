@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { curveDefinitionVersions, curveInstrumentIds } from './cash-flows.js';
-import { curveFixtureIds } from './curves.js';
+import { curveFixtureIds } from './wire-identifiers.js';
 
 const fixed = (places: number) => z.string().regex(new RegExp('^-?\\d+\\.\\d{' + places + '}$'));
 const decimalInput = z

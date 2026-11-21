@@ -8,7 +8,19 @@ A synthetic trading workflow and verification lab: **Playwright/TypeScript UI, A
 
 Every user, credential, order, position, and quote is synthetic. There are no brokerage connections, live feeds, real trades, employer systems, proprietary code, or customer data. Familiar instrument symbols do not make invented prices market data.
 
-## Current source and public demo
+## Accepted source, candidate and deployed demo
+
+| Surface                   | Exact state                                                                                                                                                                                                                                                                            |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Accepted local/CI Phase 4 | [PR #38](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/38), merge `29dd958f7f42a15841496a23ccfe594bfb864272`, tree `2fb60dd7e5e6f9c1785bc413965011a856839fd6`; all 14 main jobs passed on first attempts                                                        |
+| Public Phase 4 candidate  | [Draft PR #39](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/39); owner approved implementation/local/CI qualification; new profile, UI, exact source admission and final acceptance are tracked in the [candidate receipt](docs/PUBLIC_POSTTRADE_CANDIDATE.md) |
+| Deployed public app       | `b0216022cb8ff18de904efea9279c91b3977d55f`, deployment `8d174084-7f30-40cb-a026-fa90f231c4a0`; November 6 institutional workflow                                                                                                                                                       |
+
+Accepted Phase 4 includes zero analytics, named curves, complete-book risk, immutable corrections/full busts, fixed paper funding, gross settlement/reversal and exact FIFO/equity. Native FIX engines and their financial handoff remain local/CI. The public Phase 4 candidate adds an explicit fresh hosted profile and browser controls; it has not been accepted for deployment. [Operation and recovery](docs/PUBLIC_POSTTRADE.md).
+
+The historical capacity finding remains `UNRESOLVED_NOT_REPRODUCED`, root cause `UNKNOWN`. Its unresolved risk was accepted for the local/CI synthetic lab only. Green reruns do not explain it. Hosted preview and production require separate decisions, including a public-risk disposition.
+
+## November 6 public release receipt
 
 Released **November 6, 2026**. The [public site](https://tradeflow.farhan-shafee.com) now includes fictional bond analytics, private visitor workspaces, dealer RFQ/quote acceptance, simulated executions/cancellations, an immutable synthetic execution ledger and historical reconciliation. It runs independently of the owner's computer. [Exact release receipt](docs/PUBLIC_WORKFLOW_RELEASE_2026-11-06.md).
 
@@ -18,9 +30,9 @@ The deployed application reached Railway SUCCESS at that exact source. Chromium,
 
 Public access lasts only for the original synthetic session (at most 30 minutes from login), logout or app restart; there is no public recovery. Workspace writes last 30 minutes; records become cleanup-eligible after 60 minutes, subject to protected leases and failure rules. Local durable ownership is unchanged.
 
-The current candidate's qualification passed 994 Node units, 230 baseline/460 repeated API/browser cases, two 455-case PostgreSQL runs, 99/198 workstation cases, the native public image and the bounded interview journey. These are distinct command categories, not availability, sustained-load or interoperability guarantees. Earlier Phase 3C0 and interview acceptances remain historical checkpoints in [CURRENT_STATE.md](docs/CURRENT_STATE.md).
+That November 6 release's qualification passed 994 Node units, 230 baseline/460 repeated API/browser cases, two 455-case PostgreSQL runs, 99/198 workstation cases, the native public image and the bounded interview journey. These are distinct command categories, not availability, sustained-load or interoperability guarantees. Earlier Phase 3C0 and interview acceptances remain historical checkpoints in [CURRENT_STATE.md](docs/CURRENT_STATE.md).
 
-Sign in with the fake trader/viewer credentials below. The main site is the hosted demonstration; the local interview launcher remains a separate reproducible rehearsal/verification path. Local workflow activation still defaults OFF. A running FIX session engine, socket transport, durable FIX session state and real peer interoperability remain future work.
+Sign in with the fake trader/viewer credentials below. The main site is the hosted demonstration; the local interview launcher remains a separate reproducible rehearsal/verification path. Local workflow activation still defaults OFF. Later accepted source adds bounded local/CI FIX engines, socket transport and retained session recovery. Real peer interoperability remains outside the demonstrated scope.
 
 ## Institutional SDET interview rehearsal
 

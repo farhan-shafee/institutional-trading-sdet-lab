@@ -1,0 +1,141 @@
+{
+  "approved_source_commit": "379af5cd99f8c519976e31dd4863cfbf8c264b6e",
+  "approved_specification": "Owner explicitly approved exactly18 reviewed replacement pairs for local/CI native qualification on2026-11-11. Final human acceptance, merge, public risk disposition and deployment remain separate.",
+  "baseline_sha256": "d75f72090bafb12f51990bbe8e95aaba5a72c014fed291a3a8199c2303fc5f07",
+  "historical_control_files": {
+    "contracts/fix-live-application-v1.json": "06df996f5e2aef8f682d6e9e452335563f4dfe0bc1b5ef9103c47c65908f0779",
+    "contracts/fix-session-runtime-v1.json": "7ac209fa48b7ef3194ad301984266a9c7b03708e36807c2bd51738f9866cc938",
+    "contracts/posttrade-native-v1.json": "bf22d4a71eee8b5a57e42b9f9012ba3df955a878321f4cd94135afc10fd9cf12",
+    "package-lock.json": "06cbdb8c860e42d2e2cf09e7473aae008a10a534a41e672072a9b376e0169f8c",
+    "package.json": "10574491f4210fb42693b8b18e43d8d96dd0293b0c9ff156ce20220be3ebd578",
+    "scripts/test-fix-session.ts": "f3ba5333f0aa70ecb552ecbb43882df4b0282561dfd773d7a54669a9520b5e27",
+    "scripts/verify-fix-session-compatibility.ts": "4598dba079535feff10670ad5b8210bfb59192ed5a95707dac28fe5dd61fc8f2",
+    "test-data/fix44/runtime/bindings.json": "ab438193a20c8b0242ee8d8b3a2a3f0799599c9b2ddc2b7f3671bc82b3e6888d",
+    "test-data/fix44/runtime/manifest.json": "8d3c42f3b4be7f4a8234b9bcf275c93110f66d09d967a57f7b1467ec7d19e8ed",
+    "tests/preservation-admission/test_admission.py": "ef9cfad65adbd19d526396f2d45022c74745bb41e071d493e82b897ae4dfcfd3",
+    "tests/preservation-v2/test_controls.py": "6a94fa56e3449ceac75c504227d596f2e842b76d7c55e43a2f8dad3fefd9ff4c",
+    "tests/preservation-v3-callers/test_v3_callers.py": "1ec65cbb9d6615cf991f421738e50dff269f7bacfd879abfd98ef27579c33b6e",
+    "tests/preservation-v3/test_v3_controls.py": "fa43db1a1922c0522e0d850a04ac88b6d7b9a1158df500579b2bc027b9f93bb8",
+    "tools/fix-session/Dockerfile.dockerignore": "5c8fef1823145aa24b80ab3abf63d9509de8c2422b104bf95abc30d830c2d459",
+    "tools/fix-session/dependencies.lock.json": "d5a000a784ebb5f482e147724b60689afbbb9e81cc65d856afc3fa5a2e6a0ab4",
+    "tools/fix-session/gate.py": "3202a80b662c453903d0ae9d0a995d337daeb3438a7b108eb87e5b8ab3190942",
+    "tools/fix-session/java/pom.xml": "2e3e50bbac6fd7e3932eb53677762195c942247e42661cf92f03fdc94b5ff882",
+    "tools/fix-session/preflight.py": "b1e0e3d94f34051ede0d11f89a7f0a9060c8b767be50ead030c3e03b90385838",
+    "tools/fix-session/preservation-v2-source.zip": "484d01c4a404eae9726940ba1568682e084c87c96643497ceec546bacecdfe3a",
+    "tools/fix-session/preservation-v2.json": "d9bc9d63bdf286952fb009a4d478a3d714678705ceec03b15741ad73783649e9",
+    "tools/fix-session/preservation-v3.json": "2950d631d256e715935938bbc253af92aaa565537a48e79bcadf7630037d00ab",
+    "tools/fix-session/preservation.json": "d75f72090bafb12f51990bbe8e95aaba5a72c014fed291a3a8199c2303fc5f07",
+    "tools/fix-session/preservation_controls.py": "bcdeb5a5bec3450cdcb8a1daad38687cf62f9d4f003865e16bd6f0e511e845b8",
+    "tools/fix-session/preservation_v2.py": "cb4a2c93c94266c2fc1e683c397227a3de4a2521e42bd9398210b8bb195e93b3",
+    "tools/fix-session/preservation_v3.py": "77310e4964094884fb071233a84f6c0f1085adf4d92ff11428a2c2be7c30152e",
+    "tools/fix-session/preservation_v3_controls.py": "521467d69ca6248ecf14272c10f3b611aaeb6653b6a00bf9330ddcbd0cca62d1",
+    "verification/fix-peer/go/go.mod": "ee237d633b8460099abaf11b9413cab6d99b54169304e2feac7a0f24e020a7ac",
+    "verification/fix-peer/go/go.sum": "b60f304d8734e1f00e046b253eba8a4a6d150eab4d5009982dfcc5791981f833",
+    "verification/vendor/quickfix/FIX44.xml": "a82655b54363aa9c6d1b2f21f294f1198c0d7125d7b44c26d93d3179f3358425"
+  },
+  "historical_v3_fixture": {
+    "file": "tools/fix-session/preservation-v3-source.zip",
+    "files": {
+      "README.md": "0ce95e74addd73ddba4e6d951a83dd07fcb37abcc4743f5b7cf75b4e3ee6ec59",
+      "app/domain/workflow/reconciliation.ts": "fd49c03b05e3c29c327c8c12cbf436bbd988e3df8d5c4fe1a7e84c6ebe728b07",
+      "app/public/fixed-income.ts": "0f54ede04170b810195ad30e99db2ed9aad580d971b53a8e017e6c6677452686",
+      "app/public/index.html": "6a2b9e8d4a464893315242c09beea65309aaccf5d25f8d63fcea6707e825d8cb",
+      "app/public/rfq.ts": "fbfb2da24220ed92d878d9e3ad2fa7ee2e15ab511d5ba9d15b852dce45a19f0e",
+      "app/public/style.css": "c89ce8c856d21a9c1d4b5d164bd4c940423583e1d63c89fac1229d42613c39ed",
+      "app/server/configuration.ts": "9eb4524b38c43fba25d71ed684b08d95311f14153fd966a792838372d6b36d3e",
+      "app/server/fixed-income-workflow/routes.ts": "01758c9baeeb1e00d70240543dad53f83b361e5837c2c6193c556524b35c704f",
+      "app/server/index.ts": "7803613f7f88dd3156bf7ce23494fb1f70e68ff4babc8f412d81548ab85c5a8d",
+      "app/server/public-demo/configuration.ts": "ff27be0a0b7c9a3a6a7e8d2b9898a9f8912c2e47e714cadd15e49d65db9a6ac9",
+      "app/server/public-demo/maintenance.ts": "3add2e6b077bd16fe0453673cba069db97b278378c316aff65bfd65f8f9b70af",
+      "app/server/public-demo/profile.ts": "e6a889e9de4b6197eeffea1dfa5cc3bd8f485374b947ff91e77af6c01d74d17b",
+      "app/server/public-demo/workspaces.ts": "40b419301c99d84b0b3b7a84157633f6fea4818a51d86e8c7356ae6d93fa7772",
+      "app/server/reconciliation/database.ts": "48339072fe5f76d0734e641b9e0a084335cf4d2c400848246597cfccc8b1af72",
+      "app/server/reconciliation/manifest.ts": "e555b89d0e93917e0a63ec6a32b4dfeadaf1e37a99a6a0b2821b98ae4ec68e6c",
+      "app/server/reconciliation/runner.ts": "62b56dee5fb25f76040937b1b5957d2391649aaffc11f98695f980e79df9b78b",
+      "app/server/reconciliation/service.ts": "6071d4fd3402f729ffcbb7877a97620b590f397fc7f555f689bce08f8f18a445",
+      "contracts/openapi.yaml": "cc8266a374c8b0455836dd84824a10e3bdfc5a74ff463e022b9b9f1b27baf3ca",
+      "scripts/test-fix-live-application.py": "578a4cc25657437abd3f78405235b0e154107f03d4e334a91cdcc993f86fbae8",
+      "scripts/test-fix-session.py": "3feb2d2e6b3b9ab6328d46d739fb64e02e75106c06bfb1e13072f45b949a1096",
+      "scripts/verify-posttrade-journey.py": "72fd27ff95fa22c22ad49c8b996e116a1a53070fa0221db9ea5f293eb763cdaf",
+      "tools/fix-session/Dockerfile": "df0a0bb813d779b43ba62930c9efb2725dacee13bc8f9ca15ed3c1732fc2bc22"
+    },
+    "sha256": "4322f1a1c6aa97b228e72f7331a6eb4f7beee12fec67d27854e8fcc060bb8f30"
+  },
+  "prior_contract_sha256": "2950d631d256e715935938bbc253af92aaa565537a48e79bcadf7630037d00ab",
+  "replacements": {
+    "README.md": {
+      "approved_sha256": "0ce95e74addd73ddba4e6d951a83dd07fcb37abcc4743f5b7cf75b4e3ee6ec59",
+      "sha256": "2d1dcc3a426b241c9f397defa35cb805c46a942d0a0b74453a44a769989698f1"
+    },
+    "app/domain/workflow/reconciliation.ts": {
+      "approved_sha256": "fd49c03b05e3c29c327c8c12cbf436bbd988e3df8d5c4fe1a7e84c6ebe728b07",
+      "sha256": "2ca27c7b7e99934a301a83f7e7947d26d8cbf4b964165739731074954629cc72"
+    },
+    "app/public/fixed-income.ts": {
+      "approved_sha256": "0f54ede04170b810195ad30e99db2ed9aad580d971b53a8e017e6c6677452686",
+      "sha256": "21db3e39cca42cdb8402a5508a34633de9a1a615a98b39a09234c80f6a7d0ce0"
+    },
+    "app/public/index.html": {
+      "approved_sha256": "6a2b9e8d4a464893315242c09beea65309aaccf5d25f8d63fcea6707e825d8cb",
+      "sha256": "45802e9001b02c26983fefc9ab3a66e4c4dd4634199ac2c92e5a6f6b9cd1de0b"
+    },
+    "app/public/rfq.ts": {
+      "approved_sha256": "fbfb2da24220ed92d878d9e3ad2fa7ee2e15ab511d5ba9d15b852dce45a19f0e",
+      "sha256": "73ddf4094e7b2cbc6b140478feb7bff6dc9c3b002b5003cb0f9a647131c0fa92"
+    },
+    "app/public/style.css": {
+      "approved_sha256": "c89ce8c856d21a9c1d4b5d164bd4c940423583e1d63c89fac1229d42613c39ed",
+      "sha256": "9d7d53b6c51752dd6fb41f0fada0b9ca400fd6c6dfbec83460260b0a16fb711f"
+    },
+    "app/server/configuration.ts": {
+      "approved_sha256": "9eb4524b38c43fba25d71ed684b08d95311f14153fd966a792838372d6b36d3e",
+      "sha256": "525d15a94837da87ff67a668fe5648f9ce104d9de25cca70cfc99d1ee7dd4502"
+    },
+    "app/server/fixed-income-workflow/routes.ts": {
+      "approved_sha256": "01758c9baeeb1e00d70240543dad53f83b361e5837c2c6193c556524b35c704f",
+      "sha256": "de471d9bd484084ce6b86fb2d48f2943a7b249d86d1b6dbc972d400069848279"
+    },
+    "app/server/index.ts": {
+      "approved_sha256": "7803613f7f88dd3156bf7ce23494fb1f70e68ff4babc8f412d81548ab85c5a8d",
+      "sha256": "a488205e23711477f9ecbc78601213adccd56754bce3efe6beca7e30642df024"
+    },
+    "app/server/public-demo/configuration.ts": {
+      "approved_sha256": "ff27be0a0b7c9a3a6a7e8d2b9898a9f8912c2e47e714cadd15e49d65db9a6ac9",
+      "sha256": "7da4a2f93767a5e44143576abdcb23d360bed8bd62446754b59b396022222ca3"
+    },
+    "app/server/public-demo/maintenance.ts": {
+      "approved_sha256": "3add2e6b077bd16fe0453673cba069db97b278378c316aff65bfd65f8f9b70af",
+      "sha256": "fa8803631fca53e18c9ff071f470e2683fdef37a67dd3e9d4e790ec820bc52fc"
+    },
+    "app/server/public-demo/profile.ts": {
+      "approved_sha256": "e6a889e9de4b6197eeffea1dfa5cc3bd8f485374b947ff91e77af6c01d74d17b",
+      "sha256": "b20befa482255f7c128988c75544d0088d0c813d030079c41b1de652317be54d"
+    },
+    "app/server/public-demo/workspaces.ts": {
+      "approved_sha256": "40b419301c99d84b0b3b7a84157633f6fea4818a51d86e8c7356ae6d93fa7772",
+      "sha256": "499b2f61e9c65f3ae64a933b3f0b1dc3c0f90092477146fa50a5521aa0cc2b35"
+    },
+    "app/server/reconciliation/database.ts": {
+      "approved_sha256": "48339072fe5f76d0734e641b9e0a084335cf4d2c400848246597cfccc8b1af72",
+      "sha256": "e6708603643e1e37cfd271d0be640e00f339fdc3542ff49bbb906938effdf903"
+    },
+    "app/server/reconciliation/manifest.ts": {
+      "approved_sha256": "e555b89d0e93917e0a63ec6a32b4dfeadaf1e37a99a6a0b2821b98ae4ec68e6c",
+      "sha256": "81a539fa35ea50d38d11efa8de2d8f06c80d954459e29f4118d63548c74ba41f"
+    },
+    "app/server/reconciliation/runner.ts": {
+      "approved_sha256": "62b56dee5fb25f76040937b1b5957d2391649aaffc11f98695f980e79df9b78b",
+      "sha256": "b9ad742d5839992507760659390095d7b4f6be80cff34457130c9d7752f74be3"
+    },
+    "app/server/reconciliation/service.ts": {
+      "approved_sha256": "6071d4fd3402f729ffcbb7877a97620b590f397fc7f555f689bce08f8f18a445",
+      "sha256": "be9e26b4aad5b995786359b2ac9d9eb95f9a0b1156757bdd20bdfcd18c826c34"
+    },
+    "contracts/openapi.yaml": {
+      "approved_sha256": "cc8266a374c8b0455836dd84824a10e3bdfc5a74ff463e022b9b9f1b27baf3ca",
+      "sha256": "ad798be47f7ac9c917f4f5c3ceba7151c708a29e8b21535f98eabdd8ad1a8b63"
+    }
+  },
+  "scope": "public-phase4-source-exceptions-v1",
+  "version": 4
+}

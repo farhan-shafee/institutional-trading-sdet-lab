@@ -1,4 +1,6 @@
 import { analyticsResponseSchema } from '../domain/fixed-income/contracts.js';
+import { zeroAnalyticsSchema } from '../domain/fixed-income-v2/zero.js';
+import { advancedAnalyticsView } from './advanced-analytics.js';
 
 /** Independent view; request ownership follows the existing token plus a reset epoch. */
 export function fixedIncomeView(getToken: () => string | null, expired: () => void) {
@@ -7,6 +9,7 @@ export function fixedIncomeView(getToken: () => string | null, expired: () => vo
   const error = document.getElementById('fi-error')!;
   const submit = document.getElementById('fi-submit') as HTMLButtonElement;
   const panel = document.getElementById('fixed-income-panel') as HTMLDetailsElement;
+  const advanced = advancedAnalyticsView(getToken, expired);
   let epoch = 0;
   for (const name of ['yield', 'clean_price']) {
     const field = form.elements.namedItem(name) as HTMLInputElement;
@@ -19,6 +22,7 @@ export function fixedIncomeView(getToken: () => string | null, expired: () => vo
   }
   const reset = () => {
     epoch++;
+    advanced.reset();
     form.reset();
     results.replaceChildren();
     error.textContent = '';
@@ -42,9 +46,13 @@ export function fixedIncomeView(getToken: () => string | null, expired: () => vo
       const query = new URLSearchParams();
       for (const [key, value] of fields)
         if (typeof value === 'string' && value !== '') query.set(key, value);
-      const response = await fetch(`/api/fixed-income/v1/analytics?${query.toString()}`, {
-        headers: { Authorization: `Bearer ${owner}` },
-      });
+      const zero = query.get('instrument_id') === 'SYN-ZERO-2031';
+      const response = await fetch(
+        `/api/fixed-income/${zero ? 'v2' : 'v1'}/analytics?${query.toString()}`,
+        {
+          headers: { Authorization: `Bearer ${owner}` },
+        },
+      );
       if (!current()) return;
       if (response.status === 401) {
         expired();
@@ -58,9 +66,43 @@ export function fixedIncomeView(getToken: () => string | null, expired: () => vo
         );
       const body: unknown = await response.json();
       if (!current()) return;
+      if (zero) {
+        const parsed = zeroAnalyticsSchema.safeParse(body);
+        if (!parsed.success)
+          throw new Error('Server response did not match the expected contract.');
+        const a = parsed.data;
+        if (a.settlement_date !== query.get('settlement_date'))
+          throw new Error(
+            'Server response did not match the expected contract for this settlement date.',
+          );
+        const lines = [
+          `Analytics only · ${a.instrument.id} · ${a.model_version}; this instrument is ineligible for RFQ/order entry.`,
+          `Settlement date: ${a.settlement_date}; par amount USD: ${a.par_amount}`,
+          `Annual yield: ${a.yield}; ACT/365F simple compounding`,
+          `Clean price per 100 par: ${a.clean_price}`,
+          `Dirty price per 100 par: ${a.dirty_price}`,
+          `Accrued interest per 100 par: ${a.accrued_interest}`,
+          `Consideration USD: ${a.consideration_usd}`,
+          `Maturity: ${a.instrument.maturity_date}; days to maturity: ${a.days_to_maturity}; time in years: ${a.time_to_maturity_years}`,
+          ...Object.entries(a.conventions).map(([key, value]) => `${key}: ${String(value)}`),
+        ];
+        for (const line of lines) {
+          const p = document.createElement('p');
+          p.textContent = line;
+          results.append(p);
+        }
+        return;
+      }
       const parsed = analyticsResponseSchema.safeParse(body);
       if (!parsed.success) throw new Error('Server response did not match the expected contract.');
       const a = parsed.data;
+      if (
+        a.instrument.id !== query.get('instrument_id') ||
+        a.settlement_date !== query.get('settlement_date')
+      )
+        throw new Error(
+          'Server response did not match the expected contract for this instrument and settlement date.',
+        );
       const lines = [
         `Settlement date: ${a.settlement_date}; par amount USD: ${a.par_amount}`,
         `Instrument: ${a.instrument.id} · ${a.instrument.issuer} · ${a.instrument.day_count}`,

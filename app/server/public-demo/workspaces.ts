@@ -10,7 +10,7 @@ import {
 } from '../../domain/workflow/contracts.js';
 import { capabilityDigest } from '../fixed-income-workflow/service.js';
 import type { WorkflowContext, WorkflowRoutes } from '../fixed-income-workflow/routes.js';
-import { verifyPublicProfile } from './profile.js';
+import { verifyPublicProfile, type PublicProfileKind } from './profile.js';
 import type { PublicDemoMaintenance } from './maintenance.js';
 
 type Intent = {
@@ -31,6 +31,7 @@ export class PublicDemoWorkspaces {
     private readonly workflow: WorkflowRoutes,
     private readonly maintenance: PublicDemoMaintenance,
     private readonly authenticate: (token: string) => unknown,
+    private readonly profileKind: PublicProfileKind = 'workflow',
   ) {}
   forget(token: string): void {
     this.intents.delete(token);
@@ -55,7 +56,9 @@ export class PublicDemoWorkspaces {
         'PUBLIC_DEMO_PROFILE_UNAVAILABLE',
         'Public persistence is unavailable.',
       );
-    await this.workflow.service.database.transaction(true, verify, verifyPublicProfile);
+    await this.workflow.service.database.transaction(true, verify, (db) =>
+      verifyPublicProfile(db, this.profileKind),
+    );
   }
   async handle(context: WorkflowContext): Promise<boolean> {
     const { request, url, token, respond } = context;
@@ -63,6 +66,7 @@ export class PublicDemoWorkspaces {
     const status =
       url.pathname === '/api/public-demo/status' ||
       url.pathname === '/api/fixed-income/v1/workflow/status';
+    const postTradeStatus = url.pathname === '/api/public-demo/posttrade/status';
     const workspace = url.pathname === '/api/public-demo/workspace';
     const nativeOwnership =
       method === 'POST' &&
@@ -75,9 +79,13 @@ export class PublicDemoWorkspaces {
         'ROUTE_NOT_FOUND',
         'Native ownership is unavailable in the public demo.',
       );
-    if (status && method === 'GET') {
+    if ((status || postTradeStatus) && method === 'GET') {
       if (url.search)
         throw new DomainError(400, 'VALIDATION_ERROR', 'Status takes no query parameters.');
+      if (postTradeStatus && this.profileKind !== 'posttrade') {
+        respond(200, { enabled: false, state: 'disabled' });
+        return true;
+      }
       let state: 'ready' | 'unavailable' = 'ready';
       try {
         await this.profile(() => {
@@ -157,7 +165,15 @@ export class PublicDemoWorkspaces {
       const read = capabilityDigest(id, 'read', randomBytes(32).toString('base64url'));
       const trade = capabilityDigest(id, 'trade', randomBytes(32).toString('base64url'));
       const hash = createHash('sha256')
-        .update(JSON.stringify({ profile: 'public-workflow-v1', id, read, trade }))
+        .update(
+          JSON.stringify({
+            profile:
+              this.profileKind === 'posttrade' ? 'public-posttrade-v1' : 'public-workflow-v1',
+            id,
+            read,
+            trade,
+          }),
+        )
         .digest('hex');
       intent = { id, read, trade, hash, key, actor: current.actorId };
       this.intents.set(token, intent);
@@ -169,7 +185,7 @@ export class PublicDemoWorkspaces {
     else {
       const execute = async (): Promise<WorkflowResult> => {
         const raw = await this.workflow.service!.database.transaction(false, verify, async (db) => {
-          await verifyPublicProfile(db);
+          await verifyPublicProfile(db, this.profileKind);
           const record = await db.query<{ result: unknown }>(
             'SELECT fi_control.create_public_demo_sandbox($1,$2,$3,$4,$5,$6) AS result',
             [

@@ -5,9 +5,9 @@ from uuid import UUID,uuid4
 sys.dont_write_bytecode=True
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tools/fix-session'))
-from gate import GateError,admit_pins,require_tool,input_identity,require_same_inputs,verify_preserved,run_bounded
-from preservation_v3 import load_preservation
-from preservation_v3_controls import admit_control_receipt
+from gate import GateError,admit_pins,require_tool,require_same_inputs,run_bounded
+from preservation_v4 import load_preservation, verify_preserved, input_identity
+from preservation_v4_controls import admit_control_receipt
 spec=importlib.util.spec_from_file_location('original_live_gate',ROOT/'scripts/test-fix-live-application.py')
 original=importlib.util.module_from_spec(spec);spec.loader.exec_module(original)
 
@@ -55,8 +55,8 @@ def main():
         admit_pins(json.loads((ROOT/'tools/fix-session/dependencies.lock.json').read_text()),(ROOT/'tools/fix-session/Dockerfile').read_text())
         docker=require_tool('docker');node=require_tool('node')
         if not re.fullmatch(r'v24\.[0-9]+\.[0-9]+',run([node,'--version'],'node-version').read_text().strip()):raise GateError('NODE_VERSION')
-        admit_control_receipt(run([sys.executable,'tools/fix-session/preservation_v3_controls.py'],'preservation-controls').read_text())
         before=inputs();write('source-inputs.json',before)
+        admit_control_receipt(run([sys.executable,'tools/fix-session/preservation_v4_controls.py'],'preservation-controls').read_text())
         report.update(source_revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),source_inputs_sha256=hashlib.sha256((out/'source-inputs.json').read_bytes()).hexdigest(),preservation_contract_sha256=baseline['preservation_contract_sha256'],preserved_original_files=baseline['preserved_original_files'],reviewed_replacements=baseline['reviewed_replacements'])
         image_intended=True;write('image-intent.json',{'name':image,'run_id':identity,'scope':scope})
         run([docker,'build','--platform=linux/amd64','--progress=plain','--label','tradeflow.scope='+scope,'--label','tradeflow.run_id='+identity,'-f',str(ROOT/'tools/fix-session/Dockerfile'),'-t',image,str(ROOT)],'build',900)
