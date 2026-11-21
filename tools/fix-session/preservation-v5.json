@@ -1,0 +1,36 @@
+{
+  "approved_documentation_patch_sha256": "50fbf4f907bf4eb8a9dd3eb1e394a5252d534d5a0045dd0bc1a31731464bc885",
+  "approved_source_commit": "20d59355285e14dc3985ee478559a6bb335db190",
+  "historical_v4_controls": {
+    "tests/preservation-v4-callers/test_v4_callers.py": "bab6ad39e4fb3a0c22a475035a0ba75912f0b1ad4abafdffd85a41bfedb52b8d",
+    "tests/preservation-v4/test_v4_controls.py": "886e525820fef041248cd7ba579c037a1db8ff3afde6fcfbf84f53d281f6054b",
+    "tools/fix-session/Dockerfile": "fd48badf5afc54f0447be9d0a7d2157f7949cce68fa97d23e15415c1391f2f71",
+    "tools/fix-session/preservation-v4.json": "fa6482ffc5d171a0cb22590ae220e9509a69c92f0fceea24863d85b7f4e7b2f5",
+    "tools/fix-session/preservation_v4.py": "6e6e91a7588c165183972dc9573bf2054521d85ea5a0b478b6d745aa2a75cd75",
+    "tools/fix-session/preservation_v4_controls.py": "5ab64791a184c42475d8063aba8547dcae5b972142aac1053354cb73beedc80f"
+  },
+  "historical_v4_fixture": {
+    "file": "tools/fix-session/preservation-v4-source.zip",
+    "files": {
+      "README.md": "2d1dcc3a426b241c9f397defa35cb805c46a942d0a0b74453a44a769989698f1",
+      "docs/RAILWAY_PRODUCTION.md": "c5c156f40fd7347025ae67e7e132bd8e03f6b3a878c84ba2ec8015f334e1d70e",
+      "scripts/test-fix-live-application.py": "e03e7673399262e476925041533d6a841e7dac5c6ebc3e6d7bc06fa9ebbf0703",
+      "scripts/test-fix-session.py": "441a3323ca88fe35b950a5bace4683792572444cccdd8ac05216b56bf1cd75a4",
+      "scripts/verify-posttrade-journey.py": "4fe09b0d24f1e00d1a335f92ce5d7479a6a9086fab3299a93d69ed502f6d89c6"
+    },
+    "sha256": "42d70e76f25a7111df4cb33fd767ae9df70c92c5d6215180623ded30ccc5395e"
+  },
+  "prior_contract_sha256": "fa6482ffc5d171a0cb22590ae220e9509a69c92f0fceea24863d85b7f4e7b2f5",
+  "replacements": {
+    "README.md": {
+      "approved_sha256": "2d1dcc3a426b241c9f397defa35cb805c46a942d0a0b74453a44a769989698f1",
+      "sha256": "c92ea60ee9c6fae0d948ee157b06ae7cb1f288864f5566ebc78e9704211c730e"
+    },
+    "docs/RAILWAY_PRODUCTION.md": {
+      "approved_sha256": "c5c156f40fd7347025ae67e7e132bd8e03f6b3a878c84ba2ec8015f334e1d70e",
+      "sha256": "a739bca0d524cb3049b00273e8d3ff3ca94076d38b277c09301e4461b326e120"
+    }
+  },
+  "scope": "phase4-public-documentation-closeout",
+  "version": 5
+}
