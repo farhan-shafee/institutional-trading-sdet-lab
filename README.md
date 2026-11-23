@@ -8,21 +8,20 @@ A synthetic trading workflow and verification lab: **Playwright/TypeScript UI, A
 
 Every user, credential, order, position, and quote is synthetic. There are no brokerage connections, live feeds, real trades, employer systems, proprietary code, or customer data. Familiar instrument symbols do not make invented prices market data.
 
-## Accepted source, candidate and deployed demo
+## Accepted source and live demo
 
-| Surface                   | Exact state                                                                                                                                                                                                                                                                            |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Accepted local/CI Phase 4 | [PR #38](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/38), merge `29dd958f7f42a15841496a23ccfe594bfb864272`, tree `2fb60dd7e5e6f9c1785bc413965011a856839fd6`; all 14 main jobs passed on first attempts                                                        |
-| Public Phase 4 candidate  | [Draft PR #39](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/39); owner approved implementation/local/CI qualification; new profile, UI, exact source admission and final acceptance are tracked in the [candidate receipt](docs/PUBLIC_POSTTRADE_CANDIDATE.md) |
-| Deployed public app       | `b0216022cb8ff18de904efea9279c91b3977d55f`, deployment `8d174084-7f30-40cb-a026-fa90f231c4a0`; November 6 institutional workflow                                                                                                                                                       |
+| Surface             | Verified state                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Financial model     | [PR #38](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/38) merged as `29dd958f7f42a15841496a23ccfe594bfb864272`. All 14 post-merge jobs passed on their first attempts.                                                                                                                                                                 |
+| Live public Phase 4 | [PR #39](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/39) merged as `20d59355285e14dc3985ee478559a6bb335db190`, tree `e3fa71fa5255bda3614e59520aa2d7ad58a75b4d`. Railway deployment `5a0d66e1-66ac-4150-887f-5044a013ae40` reached SUCCESS on November 21, 2026. [Release verification and operating guide](docs/PUBLIC_POSTTRADE.md). |
 
-Accepted Phase 4 includes zero analytics, named curves, complete-book risk, immutable corrections/full busts, fixed paper funding, gross settlement/reversal and exact FIFO/equity. Native FIX engines and their financial handoff remain local/CI. The public Phase 4 candidate adds an explicit fresh hosted profile and browser controls; it has not been accepted for deployment. [Operation and recovery](docs/PUBLIC_POSTTRADE.md).
+The [live workstation](https://tradeflow.farhan-shafee.com/) includes zero-coupon analytics, named synthetic curves, simulated RFQ and execution, paper funding, corrections and full busts, gross settlement and reversal, signed risk, and FIFO P&L and equity. The live financial and analytics journeys passed in Chromium, Firefox and WebKit. Viewer restrictions, cross-session authorization, and original-key recovery were also verified. Native FIX engines and the financial handoff remain local and CI-only.
 
-The historical capacity finding remains `UNRESOLVED_NOT_REPRODUCED`, root cause `UNKNOWN`. Its unresolved risk was accepted for the local/CI synthetic lab only. Green reruns do not explain it. Hosted preview and production require separate decisions, including a public-risk disposition.
+The historical capacity finding remains `UNRESOLVED_NOT_REPRODUCED` with root cause `UNKNOWN`. The owner accepted that uncertainty for this synthetic public demo with rollback on recurrence or failed required release verification. [Rollback runbook](docs/RAILWAY_PRODUCTION.md).
 
-## November 6 public release receipt
+## November 6 public release receipt (historical)
 
-Released **November 6, 2026**. The [public site](https://tradeflow.farhan-shafee.com) now includes fictional bond analytics, private visitor workspaces, dealer RFQ/quote acceptance, simulated executions/cancellations, an immutable synthetic execution ledger and historical reconciliation. It runs independently of the owner's computer. [Exact release receipt](docs/PUBLIC_WORKFLOW_RELEASE_2026-11-06.md).
+The **November 6, 2026** release introduced fictional bond analytics, private visitor workspaces, dealer RFQ/quote acceptance, simulated executions/cancellations, an immutable synthetic execution ledger and historical reconciliation. It runs independently of the owner's computer. [Exact release receipt](docs/PUBLIC_WORKFLOW_RELEASE_2026-11-06.md).
 
 Accepted [PR #32](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/32) merged as `b0216022cb8ff18de904efea9279c91b3977d55f` with reviewed tree `0312dae0a6fe0e9b3e460343dec9a0ac3f7cf5ca`. [Main quality](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42221089925) and [main persistence](https://github.com/farhan-shafee/institutional-trading-sdet-lab/actions/runs/42221090065) passed all eight checks on first attempts. Both PostgreSQL runs passed 455/455 with zero failures/cancellations/skips and retained capacity zero.
 
@@ -49,7 +48,7 @@ npm run interview:demo
 
 The bounded verification runs the actual workflow in a fresh descriptor-owned PostgreSQL instance and Chromium, with private browser captures disabled. Interactive debugging is not an acceptance result. [The setup guide](docs/INTERVIEW_SETUP.md) explains interruption/recovery and the separate complete gate commands.
 
-## Hosted public institutional workflow
+## Hosted public institutional workflow baseline
 
 The hosted profile lets a visitor sign in with fake credentials, start one private workspace, calculate bond analytics, request/accept invented dealer quotations, simulate execution/cancellation, and inspect the ledger and reconciliation. All ownership material stays server-side. The viewer remains read-only. Public access ends with the original session, logout or restart; records become cleanup-eligible after 60 minutes under the reviewed public policy. Existing local durable ownership and financial/FIX contracts remain unchanged.
 
@@ -93,7 +92,7 @@ Open [TradeFlow](http://127.0.0.1:3000).
 
 Each login creates an isolated order book. **Stop the manual server with Ctrl+C before tests.** Playwright starts its own server on port 3000 with `reuseExistingServer: false`; a stale manual process cannot supply results.
 
-Public hosting (November 6 release): Railway runs the pinned native Node.js app and dedicated PostgreSQL database behind the existing cloudflared service and [canonical Cloudflare hostname](https://tradeflow.farhan-shafee.com). The public demo does not depend on the owner's computer. Equities books and authentication sessions reset on app restart; institutional records have separately bounded database retention and cannot be recovered by a new public session. See [production operation](docs/RAILWAY_PRODUCTION.md) and the [observed release receipt](docs/PUBLIC_WORKFLOW_RELEASE_2026-11-06.md).
+Railway runs the pinned Node.js app and dedicated schema-10 PostgreSQL behind [the public Cloudflare hostname](https://tradeflow.farhan-shafee.com). The demo runs independently of the owner's computer. Equities books and authentication sessions reset on restart. Database records retain their bounded cleanup policy, and a new login cannot recover the former session's workspace. See [deployment and rollback](docs/RAILWAY_PRODUCTION.md) and [public post-trade operation](docs/PUBLIC_POSTTRADE.md).
 
 ```sh
 npm run validate

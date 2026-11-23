@@ -1,6 +1,20 @@
-# Public post-trade candidate: operation and recovery
+# Public post-trade operation and recovery
 
-Draft PR #39 implements the owner-approved interactive public Phase 4 design. Repository implementation and local/CI qualification are authorized. Hosted preview, production risk acceptance and cutover remain separate decisions. This guide describes the candidate; the deployed public app remains the November 6 `b021602` release. See the [candidate receipt](PUBLIC_POSTTRADE_CANDIDATE.md) and [accepted financial model](PHASE4_POSTTRADE.md).
+[PR #39](https://github.com/farhan-shafee/institutional-trading-sdet-lab/pull/39) was accepted, merged and separately approved for cutover. The [public workstation](https://tradeflow.farhan-shafee.com/) serves commit `20d59355285e14dc3985ee478559a6bb335db190` with the explicit `public-posttrade-v1` profile. See the [historical candidate receipt](PUBLIC_POSTTRADE_CANDIDATE.md), [accepted financial model](PHASE4_POSTTRADE.md) and [deployment and rollback runbook](RAILWAY_PRODUCTION.md).
+
+## November 21 live verification
+
+Railway deployment `5a0d66e1-66ac-4150-887f-5044a013ae40` reached SUCCESS at 15:51:40 UTC with tree `e3fa71fa5255bda3614e59520aa2d7ad58a75b4d`. The exact runtime used a fresh private PostgreSQL 17.10 database. All ten migration hashes, distinct restricted roles, forced post-trade RLS and TLS 1.3 passed verification. Negative probes rejected plaintext and a wrong hostname.
+
+| Live check                  | Observed result                                                                                                                                                                                             |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Synthetic financial journey | Chromium 27.250 s, Firefox 27.627 s, WebKit 29.727 s against the unchanged 30 s deadline. The journey covered an admitted failed settlement, funded BUY/SELL settlement, exact P&L, reversal and full bust. |
+| Analytics and accessibility | All three browsers passed zero-coupon and named-curve checks, including the 320 px layout and keyboard controls.                                                                                            |
+| Authorization               | Synthetic viewer restrictions, cross-session refusal and disabled public native ownership routes passed.                                                                                                    |
+| Original-key recovery       | The committed funding response was withheld from the browser. Reload recovered with the same key and the test workspace retained exactly one funding receipt and one funding event.                         |
+| Reconciliation              | `COMPLETED_CLEAN`, zero findings, physical schema 10 and scope `RAW_WORKFLOW_BASE_8`.                                                                                                                       |
+
+The checks used isolated synthetic workspaces with the normal retention policy. They establish the selected public paths at cutover. The owner accepted the still-unexplained historical capacity finding for this demo with rollback on recurrence or failed required verification. The old app release settings, old database/volume, and tunnel were retained. No recurrence was observed in the verified paths and reviewed logs.
 
 ## Activation and fresh database
 
@@ -59,4 +73,4 @@ The full gate requires Linux/WSL, pinned Node24.18.0, Python, Docker and the con
 
 Workspaces retain the original30-minute write/60-minute cleanup-eligibility policy and50-workspace ceiling. Protected leases and infrastructure failure can delay cleanup. Full financial graphs, command-key registry and reservations must be removed before retained capacity returns to zero. WSL test-port allocation checks Windows and Linux binding; limits/retries/deadlines remain unchanged.
 
-The historical financial finding remains UNKNOWN / UNRESOLVED_NOT_REPRODUCED. Any recurrence blocks progression for investigation. Its local/CI acceptance does not approve public release. Keep PR #39 draft until implementation/test review, exact additional native source admission, required gates and owner acceptance are complete. Preview requires separate resource authorization. Production requires exact preview evidence, explicit public-risk disposition and executed rollback to `b021602` with its original database/configuration; retain the old database/volume and tunnel.
+Future preview resources and release changes require separate authorization. If the historical finding recurs or required release verification fails, preserve the evidence and follow the [rollback runbook](RAILWAY_PRODUCTION.md#release-acceptance-and-rollback).
